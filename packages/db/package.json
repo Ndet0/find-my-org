@@ -13,7 +13,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "reset": "prisma migrate reset",
     "push": "prisma db push",
-    "studio": "prisma studio",
+    "studio": "prisma studio --port 5555",
     "seed": "bun run --env-file=../../.env prisma/seed.ts",
     "typecheck": "tsc --noEmit"
   },
