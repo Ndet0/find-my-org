@@ -1,0 +1,33 @@
+{
+  "name": "@opsflow/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "db:generate": "prisma generate",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "reset": "prisma migrate reset",
+    "push": "prisma db push",
+    "studio": "prisma studio",
+    "seed": "bun run --env-file=../../.env prisma/seed.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "bun run --env-file=../../.env prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0"
+  },
+  "devDependencies": {
+    "@opsflow/config": "workspace:*",
+    "@types/bun": "latest",
+    "prisma": "7.10.0",
+    "typescript": "7.0.2"
+  }
+}

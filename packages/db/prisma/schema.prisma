@@ -1,0 +1,368 @@
+// ============================================================
+// OPSflow — Prisma Schema
+//
+// SOURCE OF TRUTH for the OPSflow database.
+// Ported from docs/db_schema.md. The DBML + SVG in docs/ are
+// documentation artifacts and follow this file, not the reverse.
+//
+// Conventions:
+//   - UUID primary keys (PostgreSQL `uuid` column type)
+//   - camelCase in Prisma, snake_case in the database (@map / @@map)
+//   - TIMESTAMPTZ for all timestamps, DATE for calendar dates
+//   - Delete behaviour is explicit on every relation
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+// Prisma 7 removed `url` from the datasource block. The connection
+// string for migrate/introspect now lives in prisma.config.ts, and the
+// runtime client gets its connection through a driver adapter (src/index.ts).
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+
+  @@map("user_status")
+}
+
+enum ClientStatus {
+  active
+  inactive
+  archived
+
+  @@map("client_status")
+}
+
+enum ProjectStatus {
+  planning
+  active
+  on_hold
+  completed
+  delayed
+  cancelled
+
+  @@map("project_status")
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  blocked
+  completed
+
+  @@map("task_status")
+}
+
+enum PriorityLevel {
+  low
+  medium
+  high
+  critical
+
+  @@map("priority_level")
+}
+
+enum NotificationType {
+  task
+  project
+  user
+  system
+
+  @@map("notification_type")
+}
+
+// ============================================================
+// ORGANISATION
+// ============================================================
+
+model Role {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  name        String  @unique @db.VarChar(50)
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users User[]
+
+  @@map("roles")
+}
+
+model Department {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  name        String  @unique @db.VarChar(100)
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users User[]
+
+  @@map("departments")
+}
+
+// ============================================================
+// USER
+//
+// NOTE: this is BOTH the Better Auth user table and the OPSflow
+// employee profile. There is deliberately no separate profile
+// table and no `auth_id` column (docs/db_schema.md assumed an
+// external provider such as Supabase; Better Auth writes into
+// our own database, so the indirection would be dead weight).
+//
+// The OPSflow-specific columns below are surfaced to Better Auth
+// through `user.additionalFields` in packages/auth.
+//
+// IMPORTANT: Better Auth generates its own primary keys, and its
+// default format is NOT a UUID. Because these columns are typed
+// `uuid`, Better Auth must be configured with:
+//     advanced: { database: { generateId: () => crypto.randomUUID() } }
+// Skipping this produces insert errors on first signup.
+// ============================================================
+
+model User {
+  id            String  @id @default(uuid(7)) @db.Uuid
+  name          String  @db.VarChar(150)
+  email         String  @unique @db.VarChar(255)
+  emailVerified Boolean @default(false) @map("email_verified")
+  image         String?
+
+  // --- OPSflow profile ---
+  roleId       String     @map("role_id") @db.Uuid
+  departmentId String?    @map("department_id") @db.Uuid
+  phone        String?    @db.VarChar(30)
+  position     String?    @db.VarChar(100)
+  avatarUrl    String?    @map("avatar_url")
+  status       UserStatus @default(active)
+  joinedAt     DateTime?  @map("joined_at") @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // A role cannot be deleted while users are assigned to it.
+  role       Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  sessions Session[]
+  accounts Account[]
+
+  managedProjects Project[]       @relation("ProjectManager")
+  projectMembers  ProjectMember[]
+  assignedTasks   Task[]          @relation("TaskAssignee")
+  createdTasks    Task[]          @relation("TaskCreator")
+  activityLogs    ActivityLog[]
+  notifications   Notification[]
+
+  @@index([roleId])
+  @@index([departmentId])
+  @@index([status])
+  @@map("users")
+}
+
+// ============================================================
+// BETTER AUTH TABLES
+//
+// Shape follows Better Auth's core schema. Verify against
+// `bunx @better-auth/cli generate` when wiring auth (Phase 3)
+// before trusting this in production.
+// ============================================================
+
+model Session {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id") @db.Uuid
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?
+  password              String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+// ============================================================
+// BUSINESS ENTITIES
+// ============================================================
+
+model Client {
+  id      String       @id @default(uuid(7)) @db.Uuid
+  name    String       @db.VarChar(150)
+  company String?      @db.VarChar(200)
+  email   String?      @db.VarChar(255)
+  phone   String?      @db.VarChar(30)
+  address String?
+  status  ClientStatus @default(active)
+  notes   String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  projects Project[]
+
+  @@index([status])
+  @@map("clients")
+}
+
+model Project {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  name        String        @db.VarChar(200)
+  description String?
+  clientId    String?       @map("client_id") @db.Uuid
+  managerId   String?       @map("manager_id") @db.Uuid
+  status      ProjectStatus @default(planning)
+  priority    PriorityLevel @default(medium)
+  progress    Int           @default(0)
+  startDate   DateTime?     @map("start_date") @db.Date
+  deadline    DateTime?     @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Archiving a client or removing a manager must not destroy project history.
+  client  Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  manager User?   @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  members ProjectMember[]
+  tasks   Task[]
+
+  @@index([clientId])
+  @@index([managerId])
+  @@index([status])
+  @@index([deadline])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A user cannot be added to the same project twice.
+  // This composite unique also serves as the project_id lookup index.
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Task {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  projectId   String        @map("project_id") @db.Uuid
+  assignedTo  String?       @map("assigned_to") @db.Uuid
+  createdBy   String?       @map("created_by") @db.Uuid
+  title       String        @db.VarChar(200)
+  description String?
+  status      TaskStatus    @default(pending)
+  priority    PriorityLevel @default(medium)
+  dueDate     DateTime?     @map("due_date") @db.Date
+  completedAt DateTime?     @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  creator  User?   @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// ============================================================
+// AUDIT & NOTIFICATIONS
+// ============================================================
+
+model ActivityLog {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  userId      String? @map("user_id") @db.Uuid
+  action      String  @db.VarChar(100)
+  entityType  String  @map("entity_type") @db.VarChar(50)
+  entityId    String? @map("entity_id") @db.Uuid
+  description String?
+  metadata    Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // The audit trail outlives the user who created it.
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model Notification {
+  id      String           @id @default(uuid(7)) @db.Uuid
+  userId  String           @map("user_id") @db.Uuid
+  title   String           @db.VarChar(200)
+  message String
+  type    NotificationType
+  isRead  Boolean          @default(false) @map("is_read")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Composite index serves the hot query: unread notifications for one user.
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
