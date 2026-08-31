@@ -1,4 +1,5 @@
 import { prisma } from '@opsflow/db'
+import type { CurrentUser } from '@opsflow/types/user'
 import { Hono } from 'hono'
 import type { AppEnv } from '../lib/context.js'
 import { notFound } from '../lib/errors.js'
@@ -37,5 +38,13 @@ meRoutes.get('/', async (c) => {
     throw notFound('User')
   }
 
-  return ok(c, user)
+  // Spelled out rather than returned directly so the compiler checks the
+  // row against the contract clients consume, and so `joinedAt` crosses
+  // the wire as a date-only string instead of a full timestamp.
+  const body: CurrentUser = {
+    ...user,
+    joinedAt: user.joinedAt?.toISOString().slice(0, 10) ?? null,
+  }
+
+  return ok(c, body)
 })

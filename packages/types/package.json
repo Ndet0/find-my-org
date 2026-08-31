@@ -1,0 +1,21 @@
+{
+  "name": "@opsflow/types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./src/api.ts",
+    "./auth": "./src/auth.ts",
+    "./user": "./src/user.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.5.2"
+  },
+  "devDependencies": {
+    "@opsflow/config": "workspace:*",
+    "typescript": "7.0.2"
+  }
+}

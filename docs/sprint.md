@@ -1193,10 +1193,11 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/config` — shared TypeScript configs
 - [x] `packages/db` — Prisma client export
 - [x] `packages/auth` — Better Auth configuration
-- [ ] `packages/types` — shared types and Zod schemas
+- [-] `packages/types` — response envelope, `CurrentUser`, sign-in schema. Exposed as
+  subpath exports (`/api`, `/auth`, `/user`) and extended per module from Phase 6
 - [ ] `packages/ui` — design tokens
 
-## Phase 3 — Authentication (server side complete)
+## Phase 3 — Authentication (web + API complete)
 
 - [x] Better Auth 1.7.2 configured in `packages/auth` (Prisma adapter, email + password)
 - [x] Signup assigns the least-privileged `employee` role via `databaseHooks.user.create.before`
@@ -1206,13 +1207,21 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `/api/me` returns the profile joined with role and department names
 - [x] Bootstrap admin / manager / employee seed (`pnpm db:seed`)
 - [x] Verified end to end: sign-in, session persistence, sign-out, 401 and 403 paths
-- [ ] Web login page, session persistence, protected routes — blocked on `apps/web`
+- [x] `apps/web` scaffolded — Vite 8, React 19, TanStack Router + Query, Tailwind 4, shadcn/ui
+- [x] Web authentication client (`better-auth/react`) and envelope-unwrapping API client
+- [x] Login page, sign-out, and the `/_authed` layout route guard
+- [x] `/api/me` is the client's single source of truth for "signed in and still active",
+  so the guard cannot be fooled by a stale cookie
+- [x] Verified cross-origin `:5173` -> `:3000`: preflight returns
+  `Access-Control-Allow-Credentials`, sign-in sets an HttpOnly `SameSite=Lax` session
+  cookie, `/api/me` returns the profile, and sign-out invalidates it
 - [ ] Mobile authentication — blocked on `apps/mobile`
 
 ## Phase 5 — API Foundation (partial, out of order)
 
 - [x] Hono application with `/api/health`
-- [x] Consistent success/error response envelope (§27 of the technical architecture)
+- [x] Consistent success/error response envelope (§27 of the technical architecture),
+  defined in `@opsflow/types/api` so clients unwrap it with the same types
 - [x] Centralised error handling and 404 handler
 - [x] CORS configured for the web origin with credentials
 - [x] Fail-fast environment validation via Zod
@@ -1223,14 +1232,20 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 
 ## Known gaps in this plan
 
-- Scaffolding `apps/web` is not a task in any phase. Phase 0 only creates the
-  directory and Phase 3 jumps straight to a login page, so the Vite + React +
-  TanStack Router setup has no home. The same applies to `apps/mobile`.
-- `packages/types` becomes mandatory once `apps/web` exists: the browser bundle
-  must not import `@opsflow/db`, or the Prisma client ends up client-side.
+- Scaffolding `apps/mobile` is not a task in any phase, exactly as `apps/web`
+  was not. Phase 13 assumes an Expo application already exists.
 - Public signup is still open. It forces the `employee` role, so it cannot be
   used to escalate, but an internal operations tool should move to admin-only
   user creation in Phase 6.
+- The login page always lands on `/`. Deep-link restoration was left out
+  deliberately: there is one protected route today, and an unvalidated
+  `?redirect=` parameter is an open redirect. Add it with an internal-path
+  check once the route table justifies it.
+- The session cookie is `SameSite=Lax`. Correct for development and for
+  production hosts that share a registrable domain, but a genuinely cross-site
+  deployment needs `SameSite=None; Secure` (Phase 18).
+- Nothing in `apps/web` reads a role yet. `/api/me` returns it, but permission-aware
+  navigation belongs with the Phase 4 permission matrix rather than ahead of it.
 
 ## Not started
 

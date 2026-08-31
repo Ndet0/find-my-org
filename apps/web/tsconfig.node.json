@@ -1,0 +1,7 @@
+{
+  "extends": "@opsflow/config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts"]
+}

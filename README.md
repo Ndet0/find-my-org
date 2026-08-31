@@ -17,8 +17,8 @@ current, verified build status.
 | Monorepo | pnpm workspaces + Turborepo |
 | API | Hono on Bun |
 | Database | PostgreSQL 16 + Prisma 7 |
-| Auth | Better Auth *(API wired; no web client yet)* |
-| Web | React + Vite + TanStack Router/Query/Form + Tailwind + shadcn/ui *(not yet scaffolded)* |
+| Auth | Better Auth |
+| Web | React + Vite + TanStack Router/Query + Tailwind + shadcn/ui |
 | Mobile | Expo + Expo Router + NativeWind *(not yet scaffolded)* |
 | Validation | Zod, shared between API and clients |
 | Tooling | Biome |
@@ -91,13 +91,13 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 ```
 apps/
   api/       Hono API (Bun)
-  web/       React web app            — not yet scaffolded
+  web/       React + Vite SPA         — login and the protected app shell
   mobile/    Expo app                 — not yet scaffolded
 packages/
   config/    Shared TypeScript configs
   db/        Prisma schema, migrations, client
   auth/      Better Auth configuration
-  types/     Shared types and Zod schemas — not yet built
+  types/     Shared types and Zod schemas
   ui/        Design tokens                 — not yet built
 docs/        Product, technical and database documentation
 ```
@@ -116,5 +116,8 @@ docs/        Product, technical and database documentation
 - **Routes stay thin.** Business logic lives in `apps/api/src/services`.
 - **One response envelope.** Every endpoint returns
   `{ success: true, data }` or `{ success: false, error: { code, message } }`.
+  It is defined in `@opsflow/types/api` and unwrapped by `apiFetch` on the client.
+- **Clients never import `@opsflow/db`.** It instantiates the Prisma client on
+  import. Contracts that web and mobile need live in `@opsflow/types`.
 - **Secrets never enter the client.** Anything behind a `VITE_` prefix is
   public.

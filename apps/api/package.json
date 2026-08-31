@@ -13,6 +13,7 @@
     "@hono/zod-validator": "0.9.0",
     "@opsflow/auth": "workspace:*",
     "@opsflow/db": "workspace:*",
+    "@opsflow/types": "workspace:*",
     "hono": "4.13.5",
     "zod": "4.5.2"
   },
