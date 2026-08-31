@@ -17,7 +17,7 @@ current, verified build status.
 | Monorepo | pnpm workspaces + Turborepo |
 | API | Hono on Bun |
 | Database | PostgreSQL 16 + Prisma 7 |
-| Auth | Better Auth *(not yet wired)* |
+| Auth | Better Auth *(API wired; no web client yet)* |
 | Web | React + Vite + TanStack Router/Query/Form + Tailwind + shadcn/ui *(not yet scaffolded)* |
 | Mobile | Expo + Expo Router + NativeWind *(not yet scaffolded)* |
 | Validation | Zod, shared between API and clients |
@@ -34,7 +34,7 @@ openssl rand -base64 32       # ^ use this value
 
 pnpm db:up                    # PostgreSQL on localhost:5434
 pnpm db:migrate               # apply migrations
-pnpm --filter @opsflow/db run seed   # roles + departments
+pnpm db:seed                  # roles, departments + bootstrap users
 
 pnpm dev                      # start everything Turborepo knows about
 ```
@@ -46,6 +46,31 @@ curl http://localhost:3000/api/health
 # {"success":true,"data":{"status":"ok",...,"database":{"connected":true,...}}}
 ```
 
+## Development accounts
+
+`pnpm db:seed` creates three accounts, all with the password
+`opsflow-dev-password` (override with `SEED_USER_PASSWORD`). The seed refuses
+to run when `NODE_ENV=production`.
+
+| Email | Role |
+| --- | --- |
+| `admin@opsflow.local` | admin |
+| `manager@opsflow.local` | manager |
+| `employee@opsflow.local` | employee |
+
+Sign in and read the current user:
+
+```bash
+curl -c /tmp/opsflow.cookies -X POST http://localhost:3000/api/auth/sign-in/email \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@opsflow.local","password":"opsflow-dev-password"}'
+
+curl -b /tmp/opsflow.cookies http://localhost:3000/api/me
+```
+
+Better Auth rejects state-changing requests without a matching `Origin`
+header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
+
 ## Commands
 
 | Command | Description |
@@ -56,6 +81,7 @@ curl http://localhost:3000/api/health
 | `pnpm lint` / `pnpm lint:fix` | Biome check / autofix |
 | `pnpm db:up` / `pnpm db:down` | Start / stop local PostgreSQL |
 | `pnpm db:migrate` | Create and apply a migration |
+| `pnpm db:seed` | Seed roles, departments and development users |
 | `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:reset` | Drop, re-migrate and re-seed |
@@ -70,9 +96,9 @@ apps/
 packages/
   config/    Shared TypeScript configs
   db/        Prisma schema, migrations, client
+  auth/      Better Auth configuration
   types/     Shared types and Zod schemas — not yet built
   ui/        Design tokens                 — not yet built
-  auth/      Better Auth configuration     — not yet built
 docs/        Product, technical and database documentation
 ```
 
@@ -80,6 +106,11 @@ docs/        Product, technical and database documentation
 
 - **Prisma is the single source of truth for the database.** The DBML and
   SVG in `docs/` are documentation artifacts and follow the schema.
+- **Better Auth owns the `users`, `sessions`, `accounts` and `verifications`
+  tables.** It has changed their shape between minor versions, so after
+  upgrading it run
+  `pnpm dlx auth@latest generate --config packages/auth/src/index.ts`
+  and diff the result against `packages/db/prisma/schema.prisma`.
 - **The API is the security boundary.** The frontend hiding a control is
   not authorization; every check is enforced server-side.
 - **Routes stay thin.** Business logic lives in `apps/api/src/services`.

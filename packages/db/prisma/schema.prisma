@@ -126,8 +126,10 @@ model Department {
 //
 // IMPORTANT: Better Auth generates its own primary keys, and its
 // default format is NOT a UUID. Because these columns are typed
-// `uuid`, Better Auth must be configured with:
-//     advanced: { database: { generateId: () => crypto.randomUUID() } }
+// `uuid`, packages/auth sets:
+//     advanced: { database: { generateId: false } }
+// which hands id generation to the `@default(uuid(7))` below, keeping
+// these tables on the same UUIDv7 scheme as the rest of the schema.
 // Skipping this produces insert errors on first signup.
 // ============================================================
 
@@ -173,9 +175,10 @@ model User {
 // ============================================================
 // BETTER AUTH TABLES
 //
-// Shape follows Better Auth's core schema. Verify against
-// `bunx @better-auth/cli generate` when wiring auth (Phase 3)
-// before trusting this in production.
+// Shape follows Better Auth's core schema, verified against 1.7.2 with
+// `pnpm dlx auth@latest generate --config packages/auth/src/index.ts`.
+// Re-run that diff after upgrading Better Auth: it owns these tables and
+// has changed their shape between minor versions.
 // ============================================================
 
 model Session {
@@ -196,7 +199,12 @@ model Session {
 }
 
 model Account {
-  id                    String    @id @default(uuid(7)) @db.Uuid
+  id String @id @default(uuid(7)) @db.Uuid
+
+  // Better Auth keys accounts on (issuer, accountId), not (providerId,
+  // accountId). For OAuth the issuer is the provider's issuer URL, so this
+  // is deliberately unbounded text rather than a VarChar.
+  issuer                String
   accountId             String    @map("account_id")
   providerId            String    @map("provider_id")
   userId                String    @map("user_id") @db.Uuid
@@ -213,7 +221,7 @@ model Account {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([providerId, accountId])
+  @@unique([issuer, accountId])
   @@index([userId])
   @@map("accounts")
 }

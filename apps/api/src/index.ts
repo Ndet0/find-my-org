@@ -1,3 +1,4 @@
+import { auth } from '@opsflow/auth'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -5,6 +6,7 @@ import { secureHeaders } from 'hono/secure-headers'
 import { env } from './lib/env.js'
 import { onError, onNotFound } from './middleware/error.js'
 import { healthRoutes } from './routes/health.js'
+import { meRoutes } from './routes/me.js'
 
 const app = new Hono()
 
@@ -27,7 +29,13 @@ app.onError(onError)
 app.notFound(onNotFound)
 
 const api = new Hono()
+
+// Better Auth owns every method under its basePath (`/api/auth`) and returns
+// a Response directly, so it is mounted before the application's own routes.
+api.all('/auth/*', (c) => auth.handler(c.req.raw))
+
 api.route('/health', healthRoutes)
+api.route('/me', meRoutes)
 
 app.route('/api', api)
 

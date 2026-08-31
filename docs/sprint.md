@@ -1159,7 +1159,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-08-29 — against the working tree, not from memory.
+**Last verified:** 2026-08-31 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1185,15 +1185,29 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Initial migration generated and applied
 - [x] Prisma Client generated and connecting
 - [x] Seed script for roles and departments
+- [x] `add_account_issuer` migration — reconciles `accounts` with Better Auth 1.7.2
 - [ ] Reconcile `docs/db_schema.md` / `.dbml` / `.svg` with the final Prisma schema
 
 ## Phase 2 — Shared Packages
 
 - [x] `packages/config` — shared TypeScript configs
 - [x] `packages/db` — Prisma client export
+- [x] `packages/auth` — Better Auth configuration
 - [ ] `packages/types` — shared types and Zod schemas
 - [ ] `packages/ui` — design tokens
-- [ ] `packages/auth` — Better Auth configuration
+
+## Phase 3 — Authentication (server side complete)
+
+- [x] Better Auth 1.7.2 configured in `packages/auth` (Prisma adapter, email + password)
+- [x] Signup assigns the least-privileged `employee` role via `databaseHooks.user.create.before`
+- [x] `roleId` / `departmentId` / `status` exposed as `input: false` additional fields
+- [x] `/api/auth/*` mounted on the Hono API
+- [x] `requireAuth` middleware; suspended and inactive users are rejected with 403
+- [x] `/api/me` returns the profile joined with role and department names
+- [x] Bootstrap admin / manager / employee seed (`pnpm db:seed`)
+- [x] Verified end to end: sign-in, session persistence, sign-out, 401 and 403 paths
+- [ ] Web login page, session persistence, protected routes — blocked on `apps/web`
+- [ ] Mobile authentication — blocked on `apps/mobile`
 
 ## Phase 5 — API Foundation (partial, out of order)
 
@@ -1202,13 +1216,24 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Centralised error handling and 404 handler
 - [x] CORS configured for the web origin with credentials
 - [x] Fail-fast environment validation via Zod
+- [x] Authentication middleware (`requireAuth`)
 - [ ] Request logging beyond Hono's default
-- [ ] Authentication and authorization middleware
+- [ ] Authorization middleware
 - [ ] Domain routes (`/users`, `/departments`, `/clients`, `/projects`, `/tasks`, ...)
+
+## Known gaps in this plan
+
+- Scaffolding `apps/web` is not a task in any phase. Phase 0 only creates the
+  directory and Phase 3 jumps straight to a login page, so the Vite + React +
+  TanStack Router setup has no home. The same applies to `apps/mobile`.
+- `packages/types` becomes mandatory once `apps/web` exists: the browser bundle
+  must not import `@opsflow/db`, or the Prisma client ends up client-side.
+- Public signup is still open. It forces the `employee` role, so it cannot be
+  used to escalate, but an internal operations tool should move to admin-only
+  user creation in Phase 6.
 
 ## Not started
 
-- [ ] Phase 3 — Authentication (Better Auth)
 - [ ] Phase 4 — Authorization / RBAC
 - [ ] Phase 6 — User & Department CRUD
 - [ ] Phase 7 — Client Management
@@ -1231,6 +1256,10 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 | Dropped TanStack Start | Redundant alongside a Vite SPA plus a standalone Hono API (see Principle 7) |
 | No `users.auth_id` column | Better Auth writes into our own database, so the external-provider indirection assumed by `db_schema.md` is unnecessary |
 | Prisma 7 config file + driver adapter | Prisma 7 removed `url` from the datasource block; connection details now live in `prisma.config.ts` and `@prisma/adapter-pg` |
+| `accounts.issuer` added; unique key moved from `(providerId, accountId)` to `(issuer, accountId)` | Better Auth 1.7.2 requires `issuer` and keys accounts on it. Credential accounts get `local:credential`. Re-run `pnpm dlx auth@latest generate` after upgrading Better Auth |
+| `advanced.database.generateId: false` rather than `crypto.randomUUID()` | Hands id generation to Prisma's `@default(uuid(7))`, keeping the auth tables on the same UUIDv7 scheme as everything else |
+| `roleId` declared `required: false` to Better Auth | Better Auth validates the request payload before the create hook runs, so a required field rejects every signup before the hook can supply it. `users.role_id` stays NOT NULL |
+| Users seeded from `packages/auth`, not `packages/db` | Password hashing needs Better Auth, and `packages/auth` already depends on `packages/db`; seeding users from `db` would make the dependency circular |
 
 ---
 

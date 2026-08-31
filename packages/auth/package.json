@@ -1,0 +1,23 @@
+{
+  "name": "@opsflow/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "seed": "bun run --env-file=../../.env scripts/seed-users.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/prisma-adapter": "^1.7.2",
+    "@opsflow/db": "workspace:*",
+    "better-auth": "^1.7.2"
+  },
+  "devDependencies": {
+    "@opsflow/config": "workspace:*",
+    "@types/bun": "latest",
+    "typescript": "7.0.2"
+  }
+}
