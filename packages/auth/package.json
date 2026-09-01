@@ -13,6 +13,7 @@
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.2",
     "@opsflow/db": "workspace:*",
+    "@opsflow/types": "workspace:*",
     "better-auth": "^1.7.2"
   },
   "devDependencies": {

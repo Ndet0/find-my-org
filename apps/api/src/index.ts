@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import { env } from './lib/env.js'
+import { forbidden } from './lib/errors.js'
 import { onError, onNotFound } from './middleware/error.js'
 import { departmentRoutes } from './routes/departments.js'
 import { healthRoutes } from './routes/health.js'
@@ -32,8 +33,21 @@ app.notFound(onNotFound)
 
 const api = new Hono()
 
-// Better Auth owns every method under its basePath (`/api/auth`) and returns
-// a Response directly, so it is mounted before the application's own routes.
+// Accounts are provisioned by an admin through `POST /api/users`, so nothing
+// on the network may reach Better Auth's signup endpoint.
+//
+// This is a route guard rather than `emailAndPassword.disableSignUp` because
+// that option is checked inside the endpoint handler, which `signUpEmail()`
+// also runs — setting it would break the admin-create path and the user seed
+// along with the public route. Blocking the HTTP path leaves the in-process
+// API working for both.
+api.post('/auth/sign-up/email', () => {
+  throw forbidden('Accounts are created by an administrator')
+})
+
+// Better Auth owns every other method under its basePath (`/api/auth`) and
+// returns a Response directly, so it is mounted before the application's own
+// routes.
 api.all('/auth/*', (c) => auth.handler(c.req.raw))
 
 api.route('/health', healthRoutes)

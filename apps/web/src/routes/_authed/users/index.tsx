@@ -1,4 +1,4 @@
-import { ROLE_NAMES } from '@opsflow/types/permissions'
+import { can, ROLE_NAMES } from '@opsflow/types/permissions'
 import { USER_STATUSES, type UserListFilters, type UserStatus } from '@opsflow/types/user'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -25,7 +25,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ApiRequestError } from '@/lib/api'
-import { departmentsQueryOptions, usersQueryOptions } from '@/lib/users'
+import { departmentsQueryOptions } from '@/lib/departments'
+import { usersQueryOptions } from '@/lib/users'
 
 /**
  * Filters live in the URL rather than component state, so a filtered view can
@@ -50,6 +51,8 @@ export const Route = createFileRoute('/_authed/users/')({
 function UsersPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
+  const { user: actor } = Route.useRouteContext()
+  const canWrite = can(actor.role.name, 'users:write')
 
   const filters: UserListFilters = { ...search, page: search.page ?? 1 }
   const users = useQuery(usersQueryOptions(filters))
@@ -65,13 +68,20 @@ function UsersPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
-        <p className="text-sm text-muted-foreground">
-          {users.data
-            ? `${users.data.total} ${users.data.total === 1 ? 'person' : 'people'}`
-            : 'Everyone in the organisation'}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
+          <p className="text-sm text-muted-foreground">
+            {users.data
+              ? `${users.data.total} ${users.data.total === 1 ? 'person' : 'people'}`
+              : 'Everyone in the organisation'}
+          </p>
+        </div>
+        {canWrite ? (
+          <Button asChild>
+            <Link to="/users/new">Add person</Link>
+          </Button>
+        ) : null}
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -112,16 +122,23 @@ function UsersPage() {
               <TableHead>Department</TableHead>
               <TableHead>Position</TableHead>
               <TableHead>Status</TableHead>
+              {canWrite ? (
+                <TableHead className="w-24">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {users.isPending ? <LoadingRows /> : null}
 
-            {users.isError ? <MessageRow>{describeError(users.error)}</MessageRow> : null}
+            {users.isError ? (
+              <MessageRow colSpan={canWrite ? 6 : 5}>{describeError(users.error)}</MessageRow>
+            ) : null}
 
             {users.data?.items.length === 0 ? (
-              <MessageRow>No one matches these filters.</MessageRow>
+              <MessageRow colSpan={canWrite ? 6 : 5}>No one matches these filters.</MessageRow>
             ) : null}
 
             {users.data?.items.map((user) => (
@@ -142,6 +159,17 @@ function UsersPage() {
                 <TableCell>
                   <StatusBadge status={user.status} />
                 </TableCell>
+                {canWrite ? (
+                  <TableCell>
+                    <Link
+                      to="/users/$userId/edit"
+                      params={{ userId: user.id }}
+                      className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      Edit
+                    </Link>
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
@@ -238,10 +266,10 @@ function LoadingRows() {
   ))
 }
 
-function MessageRow({ children }: { children: React.ReactNode }) {
+function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
-      <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+      <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
         {children}
       </TableCell>
     </TableRow>

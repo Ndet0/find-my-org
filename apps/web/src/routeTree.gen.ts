@@ -12,8 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/departments/index'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
+import { Route as AuthedUsersNewRouteImport } from './routes/_authed/users/new'
+import { Route as AuthedUsersUserIdEditRouteImport } from './routes/_authed/users/$userId_.edit'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -29,6 +32,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedDepartmentsIndexRoute = AuthedDepartmentsIndexRouteImport.update({
+  id: '/departments/',
+  path: '/departments/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersIndexRoute = AuthedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -39,18 +47,34 @@ const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
   path: '/users/$userId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedUsersNewRoute = AuthedUsersNewRouteImport.update({
+  id: '/users/new',
+  path: '/users/new',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedUsersUserIdEditRoute = AuthedUsersUserIdEditRouteImport.update({
+  id: '/users/$userId_/edit',
+  path: '/users/$userId/edit',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/users/new': typeof AuthedUsersNewRoute
+  '/departments/': typeof AuthedDepartmentsIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
+  '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/': typeof AuthedIndexRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/users/new': typeof AuthedUsersNewRoute
+  '/departments': typeof AuthedDepartmentsIndexRoute
   '/users': typeof AuthedUsersIndexRoute
+  '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -58,20 +82,40 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
+  '/_authed/users/new': typeof AuthedUsersNewRoute
+  '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
+  '/_authed/users/$userId_/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/users/$userId' | '/users/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/users/$userId'
+    | '/users/new'
+    | '/departments/'
+    | '/users/'
+    | '/users/$userId/edit'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/users/$userId' | '/users'
+  to:
+    | '/login'
+    | '/'
+    | '/users/$userId'
+    | '/users/new'
+    | '/departments'
+    | '/users'
+    | '/users/$userId/edit'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
     | '/_authed/'
     | '/_authed/users/$userId'
+    | '/_authed/users/new'
+    | '/_authed/departments/'
     | '/_authed/users/'
+    | '/_authed/users/$userId_/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -102,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/departments/': {
+      id: '/_authed/departments/'
+      path: '/departments'
+      fullPath: '/departments/'
+      preLoaderRoute: typeof AuthedDepartmentsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/': {
       id: '/_authed/users/'
       path: '/users'
@@ -116,19 +167,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedUsersUserIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/users/new': {
+      id: '/_authed/users/new'
+      path: '/users/new'
+      fullPath: '/users/new'
+      preLoaderRoute: typeof AuthedUsersNewRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/users/$userId_/edit': {
+      id: '/_authed/users/$userId_/edit'
+      path: '/users/$userId/edit'
+      fullPath: '/users/$userId/edit'
+      preLoaderRoute: typeof AuthedUsersUserIdEditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
+  AuthedUsersNewRoute: typeof AuthedUsersNewRoute
+  AuthedDepartmentsIndexRoute: typeof AuthedDepartmentsIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
+  AuthedUsersUserIdEditRoute: typeof AuthedUsersUserIdEditRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
+  AuthedUsersNewRoute: AuthedUsersNewRoute,
+  AuthedDepartmentsIndexRoute: AuthedDepartmentsIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
+  AuthedUsersUserIdEditRoute: AuthedUsersUserIdEditRoute,
 }
 
 const AuthedRouteWithChildren =

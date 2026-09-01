@@ -1,5 +1,6 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter'
 import { prisma } from '@opsflow/db'
+import { PASSWORD_MIN_LENGTH } from '@opsflow/types/auth'
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 
@@ -67,7 +68,19 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 12,
+    minPasswordLength: PASSWORD_MIN_LENGTH,
+
+    // Signup is how an admin provisions someone else's account, so the
+    // caller must not be signed in as the account they just created. Without
+    // this, every admin-create would also write a session row for the new
+    // user that nobody ever uses.
+    //
+    // Note the side effect: with auto sign-in off, Better Auth answers a
+    // duplicate email with a generic synthetic user instead of an error, to
+    // avoid confirming who has an account. Callers cannot rely on this
+    // endpoint to detect a collision — services/user.service.ts checks the
+    // address first.
+    autoSignIn: false,
   },
 
   user: {

@@ -1254,7 +1254,7 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Zod request validation via `@hono/zod-validator`, reported through the standard
   error envelope as `VALIDATION_ERROR` with flattened field errors
 - [ ] Request logging beyond Hono's default
-- [-] Domain routes — `/users` and `/departments` are read-only; `/clients`,
+- [-] Domain routes — `/users` and `/departments` are complete; `/clients`,
   `/projects` and `/tasks` are not started
 
 ## Phase 4 — Authorization / RBAC
@@ -1280,38 +1280,44 @@ tasks" cannot be expressed as a flat permission string, so Phases 8 and 9 will a
 them as `where` clauses in the services. Keeping the two apart is why Phase 4 came
 before any CRUD module.
 
-## Phase 6 — Users & Departments (read slice)
+## Phase 6 — Users & Departments
 
 - [x] `GET /api/users` — paginated, searchable by name or email, filterable by role,
   status and department. Offset paging, because these are administrative tables that
   need a total and jump-to-page; the contract lives in `Paginated<T>`
 - [x] `GET /api/users/:id`
+- [x] `POST /api/users` — provisions through `auth.api.signUpEmail`, then patches
+  role, department and profile. `users:write` (admin only)
+- [x] `PATCH /api/users/:id` — profile, role and department. A caller cannot change
+  their own role
+- [x] `PATCH /api/users/:id/status` — activate, deactivate, suspend. A caller cannot
+  change their own status
 - [x] `GET /api/departments` — unpaginated reference data with member counts
+- [x] `POST /api/departments`, `PATCH /api/departments/:id`, `DELETE /api/departments/:id`
+  — delete is rejected with 409 while the department still has members
+- [x] Public HTTP signup blocked at the Hono layer (`POST /api/auth/sign-up/email`
+  returns 403). `disableSignUp` was not used: it lives inside the Better Auth
+  handler, which `signUpEmail()` also runs, so it would have broken admin-create
+  and the user seed
 - [x] `/api/me` moved off its inline Prisma call and onto the service layer
-- [x] `apps/web` — `/_authed` is now the app shell (navigation, sign-out); users list
-  with URL-backed filters and loading, empty, error and 403 states; user detail page
-- [ ] Writes: create, edit, deactivate, and department management
+- [x] `apps/web` — `/_authed` is the app shell; users list with URL-backed filters;
+  user detail, create and edit (TanStack Form); departments page with create/edit
+  dialogs and a guarded delete; navigation gated by `can()`
 
-Verified against the seeded database, not only by type-checking: unauthenticated
-requests get 401; admin and manager get 200 on `/api/users` and `/api/departments`;
-employee gets 403 on both while `/api/me` still returns 200. Search, the role,
-status and department filters, and paging all return the expected rows and totals.
-Bad input is rejected with 422 and flattened field errors, an unknown id with 404.
-Suspending a user mid-session takes effect on the next request, and repointing one
-at a role outside the matrix returns 403 with a server-side log rather than a 500.
+Verified against the seeded database: unauthenticated requests get 401; admin and
+manager get 200 on reads; employee gets 403 on directory reads while `/api/me`
+still returns 200. Manager and employee get 403 on every write. Admin can create
+a user (201) who then signs in with the initial password. Duplicate email is 409,
+a five-character password is 422, self-demotion and self-suspension are 403,
+deleting an occupied department is 409, deleting an empty one succeeds. Public
+`POST /api/auth/sign-up/email` is 403 while `pnpm db:seed` still works.
 
 ## Known gaps in this plan
 
-- Public signup is still open. It forces the `employee` role, so it cannot be
-  used to escalate, but an internal operations tool should move to admin-only
-  user creation in Phase 6. Closing it looks like a one-line `disableSignUp`,
-  but `packages/auth/scripts/seed-users.ts` creates the bootstrap accounts
-  through `auth.api.signUpEmail`, so it has to move in the same change as the
-  admin-create endpoint that replaces it.
 - The login page always lands on `/`. Deep-link restoration was left out
-  deliberately: there is one protected route today, and an unvalidated
-  `?redirect=` parameter is an open redirect. Add it with an internal-path
-  check once the route table justifies it.
+  deliberately: an unvalidated `?redirect=` parameter is an open redirect. Add
+  it with an internal-path check now that the route table has more than one
+  protected page.
 - The session cookie is `SameSite=Lax`. Correct for development and for
   production hosts that share a registrable domain, but a genuinely cross-site
   deployment needs `SameSite=None; Secure` (Phase 18).
@@ -1320,6 +1326,17 @@ at a role outside the matrix returns 403 with a server-side log rather than a 50
 - `turbo.json` sets `globalDependencies` to a root `tsconfig.base.json` that does
   not exist — the shared configs live in `packages/config`. Harmless today, but the
   cache will not invalidate when they change.
+- Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
+  a demo concession. Raise it before production; it is the same bound Better Auth
+  and the create form share, so they cannot drift.
+- There is no password reset or change-your-own-password. Email notifications are
+  post-MVP (§23); an admin can set a new person up with a fresh initial password
+  but cannot rotate an existing one from the UI.
+- The last-admin guard in the user service is unreachable with the current matrix:
+  only admins have `users:write`, and they cannot change their own role or status.
+  The self-modification rule is what actually stops the last admin locking the
+  organisation out. The last-admin check stays so a future permission change
+  cannot create that hole.
 
 ## Not started
 
@@ -1343,31 +1360,24 @@ was updated to v2.1 to reflect them.
 
 # 25. Immediate Next Steps
 
-Foundation, database, API, authentication and authorization are built, and the
-read half of the Users module proves them end to end (§24):
+Users and Departments are a complete vertical slice: authentication, RBAC,
+service layer, Prisma, and both reads and writes on the web (§24).
+
+The same pipeline, without inventing a new one:
 
 ```text
-Authentication → RBAC → Service → Prisma → PostgreSQL → Web UI
+1. Phase 7 — Client Management
+          ↓
+2. Phase 8 — Project Management
+          ↓
+3. Phase 9 — Task Management
 ```
 
-What remains is to close that loop with writes, then repeat the shape:
+Clients come first because they have no membership or assignment rules — they
+are a straight CRUD module against the conventions Phase 6 just settled.
+Projects then add a manager and members; tasks add row scoping for employees.
 
-```text
-1. Phase 6 writes — user and department create, edit, deactivate
-          ↓
-2. Phase 7 — Client Management
-          ↓
-3. Phase 8 — Project Management
-```
-
-Phase 6 writes come first because they exercise the half of the architecture the
-read slice did not: `users:write` gates, request-body validation, mutation and
-cache invalidation on the client, and the admin-create endpoint that finally lets
-public signup be closed.
-
-Do not begin building all CRUD modules simultaneously. Clients, Projects and Tasks
-reuse the same pipeline, and each one built before the first is finished is a
-guess at conventions that the first module has not settled yet.
+Do not begin building all remaining CRUD modules simultaneously.
 
 ---
 

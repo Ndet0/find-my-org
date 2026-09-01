@@ -1,6 +1,12 @@
 import type { Paginated } from '@opsflow/types/api'
-import type { DepartmentListItem } from '@opsflow/types/department'
-import type { UserDetail, UserListFilters, UserListItem } from '@opsflow/types/user'
+import type {
+  CreateUserInput,
+  UpdateUserInput,
+  UpdateUserStatusInput,
+  UserDetail,
+  UserListFilters,
+  UserListItem,
+} from '@opsflow/types/user'
 import { queryOptions } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 
@@ -9,7 +15,7 @@ import { apiFetch } from '@/lib/api'
  * mutation can invalidate every users list with `['users']` without
  * disturbing anything else in the cache.
  */
-const userKeys = {
+export const userKeys = {
   all: ['users'] as const,
   list: (filters: UserListFilters) => ['users', 'list', filters] as const,
   detail: (id: string) => ['users', 'detail', id] as const,
@@ -45,9 +51,17 @@ export const userQueryOptions = (id: string) =>
     queryFn: () => apiFetch<UserDetail>(`/users/${id}`),
   })
 
-export const departmentsQueryOptions = queryOptions({
-  queryKey: ['departments', 'list'],
-  queryFn: () => apiFetch<DepartmentListItem[]>('/departments'),
-  // Reference data: five rows that change when someone edits the org chart.
-  staleTime: 10 * 60 * 1000,
-})
+export function createUser(input: CreateUserInput) {
+  return apiFetch<UserDetail>('/users', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function updateUser(id: string, input: UpdateUserInput) {
+  return apiFetch<UserDetail>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(input) })
+}
+
+export function updateUserStatus(id: string, input: UpdateUserStatusInput) {
+  return apiFetch<UserDetail>(`/users/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}

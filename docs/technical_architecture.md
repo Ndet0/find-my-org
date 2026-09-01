@@ -774,7 +774,10 @@ Protected routes should verify authentication before displaying protected applic
 
 # 20. Forms
 
-OPSflow uses **TanStack Form** for complex forms.
+OPSflow uses **TanStack Form** for complex forms. The shadcn `form` primitive is
+not used: it is built around react-hook-form, which is not in this stack. Fields
+compose `Label` and `Input` (or `Select`, `Textarea`) directly, validated by the
+same Zod schemas the API accepts, which live in `@opsflow/types`.
 
 Primary forms include:
 

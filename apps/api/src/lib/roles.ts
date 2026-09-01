@@ -15,31 +15,51 @@ import { isRoleName, type RoleName } from '@opsflow/types/permissions'
  * If Phase 19 introduces runtime-editable custom roles, this needs an
  * invalidation path — a role created after boot would not be found here.
  */
-let rolesById: Promise<ReadonlyMap<string, RoleName>> | null = null
+type RoleMaps = {
+  byId: ReadonlyMap<string, RoleName>
+  byName: ReadonlyMap<RoleName, string>
+}
 
-async function loadRoles(): Promise<ReadonlyMap<string, RoleName>> {
+let roles: Promise<RoleMaps> | null = null
+
+async function loadRoles(): Promise<RoleMaps> {
   const rows = await prisma.role.findMany({ select: { id: true, name: true } })
 
-  const known = new Map<string, RoleName>()
+  const byId = new Map<string, RoleName>()
+  const byName = new Map<RoleName, string>()
 
   for (const row of rows) {
     // A role the matrix has no entry for grants nothing. Recording it would
     // let `can()` be called with a name it cannot answer for.
     if (isRoleName(row.name)) {
-      known.set(row.id, row.name)
+      byId.set(row.id, row.name)
+      byName.set(row.name, row.id)
     }
   }
 
-  return known
+  return { byId, byName }
 }
 
-export function roleNameById(id: string): Promise<RoleName | undefined> {
-  rolesById ??= loadRoles().catch((err) => {
+function load(): Promise<RoleMaps> {
+  roles ??= loadRoles().catch((err) => {
     // Do not cache a failed lookup; the next request should retry rather than
     // treat a transient database error as "no roles exist".
-    rolesById = null
+    roles = null
     throw err
   })
 
-  return rolesById.then((roles) => roles.get(id))
+  return roles
+}
+
+export function roleNameById(id: string): Promise<RoleName | undefined> {
+  return load().then(({ byId }) => byId.get(id))
+}
+
+/**
+ * The reverse direction, for writes: callers choose a role by name, because
+ * that is what the permission matrix is keyed by and it keeps opaque ids out
+ * of request bodies.
+ */
+export function roleIdByName(name: RoleName): Promise<string | undefined> {
+  return load().then(({ byName }) => byName.get(name))
 }
