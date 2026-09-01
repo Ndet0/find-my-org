@@ -1215,8 +1215,10 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/config` — shared TypeScript configs
 - [x] `packages/db` — Prisma client export
 - [x] `packages/auth` — Better Auth configuration
-- [-] `packages/types` — response envelope, `CurrentUser`, sign-in schema. Exposed as
-  subpath exports (`/api`, `/auth`, `/user`) and extended per module from Phase 6
+- [-] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
+  `CurrentUser`, user and department shapes, sign-in and user-list schemas. Exposed as
+  subpath exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`) and
+  extended per module as the remaining ones land
 - [ ] `packages/ui` — design tokens
 
 ## Phase 3 — Authentication (web + API complete)
@@ -1248,15 +1250,64 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] CORS configured for the web origin with credentials
 - [x] Fail-fast environment validation via Zod
 - [x] Authentication middleware (`requireAuth`)
+- [x] Authorization middleware (`requirePermission`) — see Phase 4
+- [x] Zod request validation via `@hono/zod-validator`, reported through the standard
+  error envelope as `VALIDATION_ERROR` with flattened field errors
 - [ ] Request logging beyond Hono's default
-- [ ] Authorization middleware
-- [ ] Domain routes (`/users`, `/departments`, `/clients`, `/projects`, `/tasks`, ...)
+- [-] Domain routes — `/users` and `/departments` are read-only; `/clients`,
+  `/projects` and `/tasks` are not started
+
+## Phase 4 — Authorization / RBAC
+
+- [x] Permission matrix in `@opsflow/types/permissions` — `ROLE_NAMES`, `PERMISSIONS`,
+  `ROLE_PERMISSIONS` and `can()`, shared by the API and the web app so both decide
+  from one table
+- [x] `requireAuth` resolves the caller's role name and puts it on the Hono context,
+  so authorization is a lookup rather than a second query
+- [x] `apps/api/src/lib/roles.ts` — role ids are memoised from one `findMany`. They are
+  three rows of seeded reference data, so a per-request join buys nothing. A failed
+  load is not cached, and Phase 19 custom roles will need an invalidation path
+- [x] `requirePermission(permission)` middleware, composed after `requireAuth`
+- [x] Fails closed: an unknown or missing `role_id` is 403 plus a server-side log,
+  not a 500 and not a default set of permissions
+- [x] `services/` layer introduced, so routes stay thin and row scoping has somewhere
+  to live that is not a middleware
+- [x] Role-aware navigation in `apps/web`, gated by the same `can()`
+
+The matrix answers "may this role attempt this operation". It deliberately does not
+answer "which rows may this user see" — rules like "an employee sees only assigned
+tasks" cannot be expressed as a flat permission string, so Phases 8 and 9 will add
+them as `where` clauses in the services. Keeping the two apart is why Phase 4 came
+before any CRUD module.
+
+## Phase 6 — Users & Departments (read slice)
+
+- [x] `GET /api/users` — paginated, searchable by name or email, filterable by role,
+  status and department. Offset paging, because these are administrative tables that
+  need a total and jump-to-page; the contract lives in `Paginated<T>`
+- [x] `GET /api/users/:id`
+- [x] `GET /api/departments` — unpaginated reference data with member counts
+- [x] `/api/me` moved off its inline Prisma call and onto the service layer
+- [x] `apps/web` — `/_authed` is now the app shell (navigation, sign-out); users list
+  with URL-backed filters and loading, empty, error and 403 states; user detail page
+- [ ] Writes: create, edit, deactivate, and department management
+
+Verified against the seeded database, not only by type-checking: unauthenticated
+requests get 401; admin and manager get 200 on `/api/users` and `/api/departments`;
+employee gets 403 on both while `/api/me` still returns 200. Search, the role,
+status and department filters, and paging all return the expected rows and totals.
+Bad input is rejected with 422 and flattened field errors, an unknown id with 404.
+Suspending a user mid-session takes effect on the next request, and repointing one
+at a role outside the matrix returns 403 with a server-side log rather than a 500.
 
 ## Known gaps in this plan
 
 - Public signup is still open. It forces the `employee` role, so it cannot be
   used to escalate, but an internal operations tool should move to admin-only
-  user creation in Phase 6.
+  user creation in Phase 6. Closing it looks like a one-line `disableSignUp`,
+  but `packages/auth/scripts/seed-users.ts` creates the bootstrap accounts
+  through `auth.api.signUpEmail`, so it has to move in the same change as the
+  admin-create endpoint that replaces it.
 - The login page always lands on `/`. Deep-link restoration was left out
   deliberately: there is one protected route today, and an unvalidated
   `?redirect=` parameter is an open redirect. Add it with an internal-path
@@ -1264,13 +1315,14 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - The session cookie is `SameSite=Lax`. Correct for development and for
   production hosts that share a registrable domain, but a genuinely cross-site
   deployment needs `SameSite=None; Secure` (Phase 18).
-- Nothing in `apps/web` reads a role yet. `/api/me` returns it, but permission-aware
-  navigation belongs with the Phase 4 permission matrix rather than ahead of it.
+- The users table pages, but has no sortable columns. Sorting is a service-layer
+  `orderBy` plus a search parameter; it was left out until a screen needs it.
+- `turbo.json` sets `globalDependencies` to a root `tsconfig.base.json` that does
+  not exist — the shared configs live in `packages/config`. Harmless today, but the
+  cache will not invalidate when they change.
 
 ## Not started
 
-- [ ] Phase 4 — Authorization / RBAC
-- [ ] Phase 6 — User & Department CRUD
 - [ ] Phase 7 — Client Management
 - [ ] Phase 8 — Project Management
 - [ ] Phase 9 — Task Management
@@ -1291,49 +1343,31 @@ was updated to v2.1 to reflect them.
 
 # 25. Immediate Next Steps
 
-Foundation, database, API and authentication are built (§24). Two steps remain
-before the architecture has been proven end to end:
+Foundation, database, API, authentication and authorization are built, and the
+read half of the Users module proves them end to end (§24):
 
 ```text
-1. Phase 4 — Authorization / RBAC
+Authentication → RBAC → Service → Prisma → PostgreSQL → Web UI
+```
+
+What remains is to close that loop with writes, then repeat the shape:
+
+```text
+1. Phase 6 writes — user and department create, edit, deactivate
           ↓
-2. Phase 6 — User & Department CRUD
-
+2. Phase 7 — Client Management
+          ↓
+3. Phase 8 — Project Management
 ```
 
-RBAC comes first because every CRUD endpoint needs an authorization decision
-the moment it exists, and retrofitting one across finished modules is harder
-than writing the first module against it. Concretely, Phase 4 means:
+Phase 6 writes come first because they exercise the half of the architecture the
+read slice did not: `users:write` gates, request-body validation, mutation and
+cache invalidation on the client, and the admin-create endpoint that finally lets
+public signup be closed.
 
-- A permission matrix for admin, manager and employee
-- Authorization middleware in `apps/api/src/middleware`
-- A `services/` layer for the routes to delegate to, so business rules and
-  permission checks are not written inline in handlers
-- Role-aware navigation in `apps/web`, on the understanding that hiding a
-  control is not authorization
-
-Do not begin building all CRUD modules simultaneously.
-
-The first complete vertical slice should be:
-
-```text
-Authentication
-      ↓
-User
-      ↓
-API
-      ↓
-Prisma
-      ↓
-PostgreSQL
-      ↓
-Web UI
-      ↓
-CRUD
-
-```
-
-Once this pipeline works end-to-end, the same architecture can be reused for Clients, Projects and Tasks.
+Do not begin building all CRUD modules simultaneously. Clients, Projects and Tasks
+reuse the same pipeline, and each one built before the first is finished is a
+guess at conventions that the first module has not settled yet.
 
 ---
 

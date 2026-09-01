@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { AppShell } from '@/components/app-shell'
 import { currentUserQueryOptions } from '@/lib/current-user'
 
 /**
@@ -22,5 +23,11 @@ export const Route = createFileRoute('/_authed')({
 })
 
 function AuthedLayout() {
-  return <Outlet />
+  const { user } = Route.useRouteContext()
+
+  return (
+    <AppShell user={user}>
+      <Outlet />
+    </AppShell>
+  )
 }

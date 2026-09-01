@@ -5,8 +5,10 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import { env } from './lib/env.js'
 import { onError, onNotFound } from './middleware/error.js'
+import { departmentRoutes } from './routes/departments.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
+import { userRoutes } from './routes/users.js'
 
 const app = new Hono()
 
@@ -36,6 +38,8 @@ api.all('/auth/*', (c) => auth.handler(c.req.raw))
 
 api.route('/health', healthRoutes)
 api.route('/me', meRoutes)
+api.route('/users', userRoutes)
+api.route('/departments', departmentRoutes)
 
 app.route('/api', api)
 
