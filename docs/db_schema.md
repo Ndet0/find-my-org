@@ -1,8 +1,13 @@
-# OpsFlow Database Schema
+# OPSflow Database Schema
 
 ## Overview
 
-OpsFlow uses a relational PostgreSQL database to manage organizational users, departments, clients, projects, tasks, notifications, and system activity.
+OPSflow uses a relational PostgreSQL database to manage organizational users, departments, clients, projects, tasks, notifications, and system activity.
+
+> **This document follows [`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma).**
+> The Prisma schema is the executable source of truth; this file and
+> `db_schema.dbml` are documentation artifacts that describe it. When the two
+> disagree, the Prisma schema is correct.
 
 The database is designed around the following principles:
 
@@ -18,35 +23,121 @@ The database is designed around the following principles:
 
 # Entity Overview
 
-```text
-                         ┌─────────────┐
-                         │    ROLES    │
-                         └──────┬──────┘
-                                │
-                                │
-                         ┌──────▼──────┐
-                         │    USERS    │
-                         └──────┬──────┘
-                                │
-                ┌───────────────┼────────────────┐
-                │               │                │
-                ▼               ▼                ▼
-         DEPARTMENTS       PROJECTS        NOTIFICATIONS
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                 │
-              ▼                 ▼                 ▼
-           CLIENTS       PROJECT_MEMBERS       TASKS
-                                │                 │
-                                │                 │
-                                └────── USERS ────┘
+Keys and the columns that distinguish each entity are shown below. Full column
+lists follow in the per-table sections, and `db_schema.dbml` holds the
+complete ERD source for [dbdiagram.io](https://dbdiagram.io).
 
-                         USERS
-                           │
-                           ▼
-                    ACTIVITY_LOGS
+```mermaid
+erDiagram
+    roles {
+        uuid id PK
+        varchar name UK
+    }
 
+    departments {
+        uuid id PK
+        varchar name UK
+    }
+
+    users {
+        uuid id PK
+        varchar email UK
+        uuid role_id FK
+        uuid department_id FK
+        user_status status
+    }
+
+    sessions {
+        uuid id PK
+        text token UK
+        uuid user_id FK
+        timestamptz expires_at
+    }
+
+    accounts {
+        uuid id PK
+        text issuer UK
+        text account_id UK
+        uuid user_id FK
+        text password
+    }
+
+    verifications {
+        uuid id PK
+        text identifier
+        timestamptz expires_at
+    }
+
+    clients {
+        uuid id PK
+        varchar name
+        client_status status
+    }
+
+    projects {
+        uuid id PK
+        varchar name
+        uuid client_id FK
+        uuid manager_id FK
+        project_status status
+        priority_level priority
+        integer progress
+    }
+
+    project_members {
+        uuid id PK
+        uuid project_id FK
+        uuid user_id FK
+    }
+
+    tasks {
+        uuid id PK
+        uuid project_id FK
+        uuid assigned_to FK
+        uuid created_by FK
+        task_status status
+        priority_level priority
+        date due_date
+    }
+
+    activity_logs {
+        uuid id PK
+        uuid user_id FK
+        varchar action
+        varchar entity_type
+        uuid entity_id
+    }
+
+    notifications {
+        uuid id PK
+        uuid user_id FK
+        notification_type type
+        boolean is_read
+    }
+
+    roles           ||--o{ users           : "grants"
+    departments     |o--o{ users           : "groups"
+    users           ||--o{ sessions        : "signs in with"
+    users           ||--o{ accounts        : "authenticates through"
+    clients         |o--o{ projects        : "commissions"
+    users           |o--o{ projects        : "manages"
+    projects        ||--o{ project_members : "staffed by"
+    users           ||--o{ project_members : "member of"
+    projects        ||--o{ tasks           : "contains"
+    users           |o--o{ tasks           : "assigned"
+    users           |o--o{ tasks           : "created"
+    users           |o--o{ activity_logs   : "performs"
+    users           ||--o{ notifications   : "receives"
 ```
+
+`||` marks a required parent and `|o` an optional one, matching the nullability
+of each foreign key. A user must have a role but need not have a department; a
+project may exist without a client or a manager; and a task outlives both its
+assignee and its creator.
+
+`verifications` has no foreign keys. Better Auth uses it for email and
+password-reset tokens, which are keyed by an identifier string rather than a
+user id.
 
 ---
 
@@ -76,7 +167,7 @@ Defines the access level of each user.
 
 ---
 
-# 2. `departments`
+## 2. `departments`
 
 Represents organizational departments.
 
@@ -102,29 +193,37 @@ Represents organizational departments.
 
 ---
 
-# 3. `users`
+## 3. `users`
 
 Stores application users and their organizational information.
+
+This table is **both** the Better Auth user record and the OPSflow employee
+profile. There is deliberately no separate profile table and no `auth_id`
+column — see [Authentication Architecture](#authentication-architecture).
 
 ### Columns
 
 
-| Column        | Type         | Nullable | Description                         |
-| ------------- | ------------ | -------- | ----------------------------------- |
-| id            | UUID         | No       | Primary key                         |
-| name          | VARCHAR(150) | No       | User's full name                    |
-| email         | VARCHAR(255) | No       | Unique email address                |
-| auth_id       | UUID         | Yes      | External authentication provider ID |
-| role_id       | UUID         | No       | Foreign key to roles                |
-| department_id | UUID         | Yes      | Foreign key to departments          |
-| phone         | VARCHAR(30)  | Yes      | Phone number                        |
-| position      | VARCHAR(100) | Yes      | Job position                        |
-| avatar_url    | TEXT         | Yes      | Profile image                       |
-| status        | user_status  | No       | Account status                      |
-| joined_at     | DATE         | Yes      | Organization join date              |
-| created_at    | TIMESTAMPTZ  | No       | Creation timestamp                  |
-| updated_at    | TIMESTAMPTZ  | No       | Last update timestamp               |
+| Column         | Type         | Nullable | Description                          |
+| -------------- | ------------ | -------- | ------------------------------------ |
+| id             | UUID         | No       | Primary key                          |
+| name           | VARCHAR(150) | No       | User's full name                     |
+| email          | VARCHAR(255) | No       | Unique email address                 |
+| email_verified | BOOLEAN      | No       | Better Auth email verification state |
+| image          | TEXT         | Yes      | Better Auth profile image            |
+| role_id        | UUID         | No       | Foreign key to roles                 |
+| department_id  | UUID         | Yes      | Foreign key to departments           |
+| phone          | VARCHAR(30)  | Yes      | Phone number                         |
+| position       | VARCHAR(100) | Yes      | Job position                         |
+| avatar_url     | TEXT         | Yes      | Profile image                        |
+| status         | user_status  | No       | Account status                       |
+| joined_at      | DATE         | Yes      | Organization join date               |
+| created_at     | TIMESTAMPTZ  | No       | Creation timestamp                   |
+| updated_at     | TIMESTAMPTZ  | No       | Last update timestamp                |
 
+
+`image` and `avatar_url` both exist because the first belongs to Better Auth's
+core schema and the second to the OPSflow profile. OPSflow reads `avatar_url`.
 
 ### Relationships
 
@@ -141,9 +240,99 @@ departments.id
 
 A user belongs to one role and may belong to one department.
 
+`role_id` is NOT NULL, so no user can exist before the roles are seeded. New
+signups are assigned the least-privileged `employee` role by a Better Auth
+create hook.
+
 ---
 
-# 4. `clients`
+## 4. `sessions`
+
+Owned by Better Auth. One row per active sign-in.
+
+### Columns
+
+
+| Column     | Type        | Nullable | Description               |
+| ---------- | ----------- | -------- | ------------------------- |
+| id         | UUID        | No       | Primary key               |
+| token      | TEXT        | No       | Unique session token      |
+| expires_at | TIMESTAMPTZ | No       | Session expiry            |
+| ip_address | TEXT        | Yes      | Client address at sign-in |
+| user_agent | TEXT        | Yes      | Client user agent         |
+| user_id    | UUID        | No       | Session owner             |
+| created_at | TIMESTAMPTZ | No       | Creation timestamp        |
+| updated_at | TIMESTAMPTZ | No       | Last update timestamp     |
+
+
+Deleting a user deletes their sessions.
+
+---
+
+## 5. `accounts`
+
+Owned by Better Auth. Holds the credentials behind a user, one row per
+authentication method.
+
+### Columns
+
+
+| Column                   | Type        | Nullable | Description                       |
+| ------------------------ | ----------- | -------- | --------------------------------- |
+| id                       | UUID        | No       | Primary key                       |
+| issuer                   | TEXT        | No       | Credential issuer                 |
+| account_id               | TEXT        | No       | Identifier at the issuer          |
+| provider_id              | TEXT        | No       | Better Auth provider name         |
+| user_id                  | UUID        | No       | Account owner                     |
+| access_token             | TEXT        | Yes      | OAuth access token                |
+| refresh_token            | TEXT        | Yes      | OAuth refresh token               |
+| id_token                 | TEXT        | Yes      | OAuth ID token                    |
+| access_token_expires_at  | TIMESTAMPTZ | Yes      | Access token expiry               |
+| refresh_token_expires_at | TIMESTAMPTZ | Yes      | Refresh token expiry              |
+| scope                    | TEXT        | Yes      | Granted OAuth scopes              |
+| password                 | TEXT        | Yes      | Hashed password for credentials   |
+| created_at               | TIMESTAMPTZ | No       | Creation timestamp                |
+| updated_at               | TIMESTAMPTZ | No       | Last update timestamp             |
+
+
+### Constraints
+
+```text
+UNIQUE(issuer, account_id)
+
+```
+
+Better Auth 1.7.2 keys accounts on `(issuer, account_id)` rather than
+`(provider_id, account_id)`. Email-and-password accounts get the issuer
+`local:credential`; for OAuth it is the provider's issuer URL, which is why the
+column is unbounded `TEXT` rather than a `VARCHAR`.
+
+**Password hashes live here, not in `users`.** Deleting a user deletes their
+accounts.
+
+---
+
+## 6. `verifications`
+
+Owned by Better Auth. Short-lived tokens for email verification and password
+resets.
+
+### Columns
+
+
+| Column     | Type        | Nullable | Description                 |
+| ---------- | ----------- | -------- | --------------------------- |
+| id         | UUID        | No       | Primary key                 |
+| identifier | TEXT        | No       | What the token verifies     |
+| value      | TEXT        | No       | Token value                 |
+| expires_at | TIMESTAMPTZ | No       | Token expiry                |
+| created_at | TIMESTAMPTZ | No       | Creation timestamp          |
+| updated_at | TIMESTAMPTZ | No       | Last update timestamp       |
+
+
+---
+
+## 7. `clients`
 
 Stores customers or organizations that the company works with.
 
@@ -177,7 +366,7 @@ One client can have multiple projects.
 
 ---
 
-# 5. `projects`
+## 8. `projects`
 
 Projects represent major units of business work.
 
@@ -217,7 +406,7 @@ A project belongs to a client and can have a manager.
 
 ---
 
-# 6. `project_members`
+## 9. `project_members`
 
 Connects users with projects.
 
@@ -258,7 +447,7 @@ UNIQUE(project_id, user_id)
 
 ---
 
-# 7. `tasks`
+## 10. `tasks`
 
 Tasks represent individual units of work within projects.
 
@@ -304,7 +493,7 @@ A task may be assigned to a user.
 
 ---
 
-# 8. `activity_logs`
+## 11. `activity_logs`
 
 Records important actions performed within the system.
 
@@ -322,6 +511,8 @@ Records important actions performed within the system.
 | metadata    | JSONB        | Yes      | Additional structured data |
 | created_at  | TIMESTAMPTZ  | No       | Activity timestamp         |
 
+
+An activity record is never updated, so the table has no `updated_at`.
 
 ### Example
 
@@ -358,7 +549,7 @@ Metadata:
 
 ---
 
-# 9. `notifications`
+## 12. `notifications`
 
 Stores user notifications.
 
@@ -375,6 +566,9 @@ Stores user notifications.
 | is_read    | BOOLEAN           | No       | Read state             |
 | created_at | TIMESTAMPTZ       | No       | Creation timestamp     |
 
+
+`type` has no default: the code that raises a notification always knows which
+category it belongs to.
 
 ### Example
 
@@ -456,6 +650,8 @@ system
 | ------------------------- | ------------ |
 | Role → Users              | One-to-Many  |
 | Department → Users        | One-to-Many  |
+| User → Sessions           | One-to-Many  |
+| User → Accounts           | One-to-Many  |
 | Client → Projects         | One-to-Many  |
 | User → Projects (manager) | One-to-Many  |
 | User ↔ Projects           | Many-to-Many |
@@ -482,6 +678,11 @@ Project deleted
        ↓
 Project Members deleted
 Tasks deleted
+
+User deleted
+       ↓
+Sessions deleted
+Accounts deleted
 
 ```
 
@@ -521,16 +722,28 @@ Cannot delete a role that is currently assigned.
 
 Indexes are created on frequently queried fields.
 
-Important indexes include:
+### Unique constraints
+
+- `roles.name`
+- `departments.name`
+- `users.email`
+- `sessions.token`
+- `accounts.issuer + account_id`
+- `project_members.project_id + user_id`
+
+### Secondary indexes
 
 - `users.role_id`
 - `users.department_id`
 - `users.status`
+- `sessions.user_id`
+- `accounts.user_id`
+- `verifications.identifier`
+- `clients.status`
 - `projects.client_id`
 - `projects.manager_id`
 - `projects.status`
 - `projects.deadline`
-- `project_members.project_id`
 - `project_members.user_id`
 - `tasks.project_id`
 - `tasks.assigned_to`
@@ -539,8 +752,17 @@ Important indexes include:
 - `activity_logs.user_id`
 - `activity_logs.entity_type + entity_id`
 - `activity_logs.created_at`
-- `notifications.user_id`
-- `notifications.is_read`
+- `notifications.user_id + is_read`
+- `notifications.created_at`
+
+Two of these are composites rather than the separate indexes a first pass might
+suggest:
+
+- `project_members` needs no standalone `project_id` index. The
+  `(project_id, user_id)` unique constraint is a B-tree with `project_id` as its
+  leading column, so it already serves lookups by project.
+- `notifications` uses `(user_id, is_read)` rather than two single-column
+  indexes, because the hot query is always "unread notifications for one user".
 
 The purpose is to keep common dashboard, filtering, and lookup queries performant as the database grows.
 
@@ -597,31 +819,33 @@ This keeps the database normalized and avoids duplicating information.
 
 # Authentication Architecture
 
-OpsFlow should separate authentication from application user data.
-
-If Supabase Auth is used:
+OPSflow uses **Better Auth**, which writes into this PostgreSQL database
+directly rather than delegating to an external identity provider.
 
 ```text
-Supabase Auth
+Better Auth
       │
-      │ auth_id
-      ↓
-OpsFlow users
-      │
-      ├── role
-      ├── department
-      └── profile
-
+      ├── users          ← also the OPSflow employee profile
+      ├── sessions
+      ├── accounts       ← password hashes live here
+      └── verifications
 ```
 
-The authentication provider handles:
+An earlier revision of this document assumed an external provider such as
+Supabase Auth, reached through a `users.auth_id` column. That indirection was
+dropped: Better Auth owns tables in our own database, so a second user record to
+point at would be dead weight. `users` therefore carries both the authentication
+identity and the OPSflow profile — role, department, position, status — and
+there is no `auth_id` column.
+
+Better Auth handles:
 
 - Credentials
-- Passwords
+- Password hashing
 - Sessions
-- Authentication tokens
+- Verification tokens
 
-OpsFlow handles:
+OPSflow handles:
 
 - Roles
 - Departments
@@ -629,7 +853,38 @@ OpsFlow handles:
 - User profiles
 - Application data
 
-Passwords should never be stored directly in the `users` table when an external authentication provider is used.
+### Passwords
+
+Passwords are never stored in `users`. Better Auth hashes them and writes them
+to `accounts.password`, one row per credential, keyed by
+`(issuer, account_id)` with the issuer `local:credential`.
+
+### Primary keys
+
+Better Auth generates its own ids by default, and its format is not a UUID.
+Because these columns are typed `uuid`, `packages/auth` sets:
+
+```ts
+advanced: { database: { generateId: false } }
+```
+
+which hands id generation to Prisma's `@default(uuid(7))` and keeps the auth
+tables on the same UUIDv7 scheme as the rest of the schema. Ids are therefore
+generated by the application, not by a database default.
+
+### Schema ownership
+
+**Better Auth owns `users`, `sessions`, `accounts` and `verifications`,** and it
+has changed their shape between minor versions. The `accounts.issuer` column and
+the move of the unique key from `(provider_id, account_id)` to
+`(issuer, account_id)` were both required by the 1.7.2 upgrade.
+
+After upgrading Better Auth, regenerate its expected schema and diff it against
+Prisma:
+
+```bash
+pnpm dlx auth@latest generate --config packages/auth/src/index.ts
+```
 
 ---
 
@@ -687,6 +942,15 @@ notifications
 
 ```
 
+plus the three tables Better Auth requires alongside `users`:
+
+```text
+sessions
+accounts
+verifications
+
+```
+
 This is enough to demonstrate:
 
 - Authentication
@@ -722,7 +986,7 @@ CLIENT
 
 ```
 
-Around that core relationship, OpsFlow adds:
+Around that core relationship, OPSflow adds:
 
 ```text
 AUTHENTICATION
@@ -737,4 +1001,4 @@ DASHBOARD ANALYTICS
 
 ```
 
-This provides a strong foundation for the OpsFlow MVP while leaving room for future product expansion.
+This provides a strong foundation for the OPSflow MVP while leaving room for future product expansion.

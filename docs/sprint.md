@@ -173,7 +173,7 @@ Implement:
 
 - Create `db_schema.md`
 - Create `db_schema.dbml`
-- Generate `opsflow.svg`
+- Embed a Mermaid ERD in `db_schema.md`
 - Update documentation to reflect final Prisma schema
 
 ### Cleanup
@@ -249,23 +249,33 @@ packages/ui/
 
 ```
 
-- Configure shared design tokens
-- Establish component conventions
-- Create base Button
-- Create Input
-- Create Card
-- Create Badge
-- Create Dialog
-- Create Table
-- Create Dropdown
-- Create Toast/feedback component
+`packages/ui` holds design tokens, not components. React DOM components cannot
+render in React Native, so a shared component could only ever serve one client.
+
+- Colour palette and status colours
+- Spacing scale
+- Typography scale
+- Radii
+- Iconography conventions
+
+Components are built per platform against these tokens:
+
+```text
+apps/web/src/components/ui     shadcn/ui + Tailwind
+apps/mobile/src/components     React Native + NativeWind
+
+```
+
+Web components — Button, Input, Card, Badge, Dialog, Table, Dropdown, Toast —
+are added through the shadcn CLI as the modules that need them are built,
+rather than up front.
 
 ### Acceptance Criteria
 
 - Packages can be imported by applications
 - No circular dependencies
 - Shared types compile successfully
-- UI package can be consumed by the web application
+- Web and mobile render the same tokens through their own component layers
 
 ---
 
@@ -697,11 +707,19 @@ A user immediately understands the operational state of the organization after l
 - Implement virtualization where necessary
 - Test performance with large datasets
 
+### TanStack Query
+
+- Query key conventions per module
+- Cache invalidation on mutation
+- Loading and error states driven by query state
+- Prefetching in route loaders where it removes a spinner
+
 ### TanStack Start
 
-- Research integration requirements
-- Determine whether OPSflow benefits from adoption
-- Do not migrate solely for technology demonstration
+Evaluated and dropped. A Vite SPA plus a standalone Hono API already covers
+what it would provide, so adopting it would add a second server for no
+capability OPSflow needs. See Principle 7 and §43 of the technical
+architecture.
 
 ### Acceptance Criteria
 
@@ -715,8 +733,9 @@ TanStack technologies solve real application problems rather than being added un
 
 ### Foundation
 
-- Configure React Native application
-- Configure Uniwind
+- Scaffold the Expo application
+- Configure Expo Router
+- Configure NativeWind
 - Configure API client
 - Configure authentication
 - Configure navigation
@@ -1159,7 +1178,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-08-31 — against the working tree, not from memory.
+**Last verified:** 2026-09-01 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1186,7 +1205,10 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Prisma Client generated and connecting
 - [x] Seed script for roles and departments
 - [x] `add_account_issuer` migration — reconciles `accounts` with Better Auth 1.7.2
-- [ ] Reconcile `docs/db_schema.md` / `.dbml` / `.svg` with the final Prisma schema
+- [x] `docs/db_schema.md` and `.dbml` reconciled with the Prisma schema: Better Auth
+  tables documented, `users.auth_id` and the Supabase authentication section removed,
+  index list corrected. The `opsflow.svg` export was retired in favour of a Mermaid
+  ERD, which can be edited alongside the schema instead of regenerated externally
 
 ## Phase 2 — Shared Packages
 
@@ -1232,8 +1254,6 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 
 ## Known gaps in this plan
 
-- Scaffolding `apps/mobile` is not a task in any phase, exactly as `apps/web`
-  was not. Phase 13 assumes an Expo application already exists.
 - Public signup is still open. It forces the `employee` role, so it cannot be
   used to escalate, but an internal operations tool should move to admin-only
   user creation in Phase 6.
@@ -1260,54 +1280,37 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [ ] Phase 13 — Mobile Application
 - [ ] Phases 14-20 — Polish, performance, testing, security, deployment, demo
 
-## Stack amendments since v2.0 of the technical architecture
+## Stack amendments
 
-| Change | Reason |
-| --- | --- |
-| Added TanStack Query | Server-state caching was missing from the stack; unavoidable for a REST CRUD client |
-| Added Zod | Validation was specified but no library was named; Zod schemas are shared between API and clients |
-| Mobile: Expo + Expo Router + NativeWind (was bare React Native + Uniwind) | Expo removes the native build toolchain from the critical path; NativeWind is the established Tailwind-for-RN. `apps/mobile/app/` already followed Expo Router's convention |
-| `packages/ui` holds design tokens, not components | React DOM components cannot render in React Native; shadcn/ui components live in `apps/web/src/components/ui` |
-| Dropped TanStack Start | Redundant alongside a Vite SPA plus a standalone Hono API (see Principle 7) |
-| No `users.auth_id` column | Better Auth writes into our own database, so the external-provider indirection assumed by `db_schema.md` is unnecessary |
-| Prisma 7 config file + driver adapter | Prisma 7 removed `url` from the datasource block; connection details now live in `prisma.config.ts` and `@prisma/adapter-pg` |
-| `accounts.issuer` added; unique key moved from `(providerId, accountId)` to `(issuer, accountId)` | Better Auth 1.7.2 requires `issuer` and keys accounts on it. Credential accounts get `local:credential`. Re-run `pnpm dlx auth@latest generate` after upgrading Better Auth |
-| `advanced.database.generateId: false` rather than `crypto.randomUUID()` | Hands id generation to Prisma's `@default(uuid(7))`, keeping the auth tables on the same UUIDv7 scheme as everything else |
-| `roleId` declared `required: false` to Better Auth | Better Auth validates the request payload before the create hook runs, so a required field rejects every signup before the hook can supply it. `users.role_id` stays NOT NULL |
-| Users seeded from `packages/auth`, not `packages/db` | Password hashing needs Better Auth, and `packages/auth` already depends on `packages/db`; seeding users from `db` would make the dependency circular |
+The stack decisions taken during implementation now live in
+[`technical_architecture.md`](technical_architecture.md) §43, alongside the
+sections they changed, rather than being tracked separately here. That document
+was updated to v2.1 to reflect them.
 
 ---
 
 # 25. Immediate Next Steps
 
-The next implementation sequence should be:
+Foundation, database, API and authentication are built (§24). Two steps remain
+before the architecture has been proven end to end:
 
 ```text
-1. Configure pnpm workspace
+1. Phase 4 — Authorization / RBAC
           ↓
-2. Configure Turborepo
-          ↓
-3. Configure Bun
-          ↓
-4. Configure Biome
-          ↓
-5. Configure Prisma
-          ↓
-6. Create schema.prisma
-          ↓
-7. Connect PostgreSQL
-          ↓
-8. Run first migration
-          ↓
-9. Configure Hono
-          ↓
-10. Configure Better Auth
-          ↓
-11. Implement RBAC
-          ↓
-12. Build first CRUD module
+2. Phase 6 — User & Department CRUD
 
 ```
+
+RBAC comes first because every CRUD endpoint needs an authorization decision
+the moment it exists, and retrofitting one across finished modules is harder
+than writing the first module against it. Concretely, Phase 4 means:
+
+- A permission matrix for admin, manager and employee
+- Authorization middleware in `apps/api/src/middleware`
+- A `services/` layer for the routes to delegate to, so business rules and
+  permission checks are not written inline in handlers
+- Role-aware navigation in `apps/web`, on the understanding that hiding a
+  control is not authorization
 
 Do not begin building all CRUD modules simultaneously.
 

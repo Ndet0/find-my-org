@@ -105,7 +105,8 @@ docs/        Product, technical and database documentation
 ## Conventions
 
 - **Prisma is the single source of truth for the database.** The DBML and
-  SVG in `docs/` are documentation artifacts and follow the schema.
+  the ERD in `docs/db_schema.md` are documentation artifacts and follow the
+  schema.
 - **Better Auth owns the `users`, `sessions`, `accounts` and `verifications`
   tables.** It has changed their shape between minor versions, so after
   upgrading it run

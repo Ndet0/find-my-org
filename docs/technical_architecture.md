@@ -1,7 +1,7 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.0  
-**Status:** Proposed  
+**Version:** 2.1  
+**Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
 **Package Manager:** pnpm  
@@ -91,13 +91,13 @@ without duplicating backend business logic.
              ▼                             ▼
         WEB APPLICATION              MOBILE APPLICATION
              │                             │
-       React + Vite                  React Native
+       React + Vite                  React Native (Expo)
              │                             │
-       TanStack Router                    │
-             │                            Uniwind
-       TanStack Forms                     │
+       TanStack Router               Expo Router
              │                             │
-       Tailwind + shadcn                  │
+       TanStack Query                TanStack Query
+             │                             │
+       Tailwind + shadcn             NativeWind
              │                             │
              └──────────────┬──────────────┘
                             │
@@ -187,10 +187,16 @@ The web application provides the primary desktop/tablet interface for OPSflow.
 - TypeScript
 - Vite
 - TanStack Router
+- TanStack Query
 - TanStack Form
 - TanStack Virtual
+- Zod
 - Tailwind CSS
 - shadcn/ui
+
+TanStack Router handles navigation and route guards; TanStack Query owns
+server state, so cached data is invalidated centrally rather than refetched by
+hand after every mutation.
 
 ---
 
@@ -207,12 +213,17 @@ The mobile application provides access to essential OPSflow functionality from m
 
 ### Technology
 
-- React Native
+- React Native, through Expo
 - TypeScript
-- Uniwind
+- Expo Router
+- NativeWind
+- TanStack Query
 - Shared authentication
 - Shared API
 - Shared types
+
+Expo keeps the native build toolchain off the critical path, and Expo Router
+gives mobile the same file-based routing convention the web application uses.
 
 ### Primary Mobile Features
 
@@ -479,14 +490,9 @@ packages/db/prisma/schema.prisma
 
 ```
 
-The previous:
-
-```text
-database/schema.sql
-
-```
-
-is not required as a duplicate database definition.
+An earlier revision kept a hand-written `database/schema.sql` alongside the
+Prisma schema. It was removed: two definitions of the same database drift apart,
+and Prisma already produces the SQL through its migrations.
 
 ---
 
@@ -500,6 +506,8 @@ packages/db/
 │   ├── schema.prisma
 │   └── migrations/
 │
+├── prisma.config.ts
+│
 └── src/
     └── index.ts
 
@@ -512,6 +520,19 @@ Prisma is responsible for:
 - Database migrations
 - Database client
 - Development database inspection
+
+## 13.1 Prisma 7
+
+Prisma 7 removed `url` from the `datasource` block, which changes how the
+connection string reaches the database in two places:
+
+- **Migrations and introspection** read it from `prisma.config.ts`.
+- **The runtime client** receives it through a driver adapter,
+  `@prisma/adapter-pg`, constructed in `src/index.ts`.
+
+The adapter wraps node-postgres, which runs under both Bun and Node. A single
+client instance is reused across hot reloads, because a fresh connection pool on
+every file save exhausts PostgreSQL's connection limit within minutes.
 
 Application flow:
 
@@ -589,21 +610,22 @@ packages/db/prisma/schema.prisma
 
 docs/db_schema.md
         │
-        └── Human-readable documentation
+        ├── Human-readable documentation
+        └── Mermaid ERD
 
 docs/db_schema.dbml
         │
-        └── ERD source
-
-docs/opsflow.svg
-        │
-        └── Visual database diagram
+        └── Full ERD source for dbdiagram.io
 
 ```
 
 The Prisma schema is authoritative.
 
-The DBML and SVG are documentation artifacts.
+The DBML and the Mermaid ERD are documentation artifacts.
+
+The diagram lives in Markdown rather than as a checked-in SVG export so it can
+be edited alongside the schema instead of being regenerated through an external
+tool.
 
 ---
 
@@ -691,45 +713,35 @@ packages/ui/
 
 ```
 
-The UI package contains reusable design-system components.
-
-Examples:
+The UI package holds **design tokens, not components**.
 
 ```text
-Button
-Input
-Modal
-Dialog
-Card
-Badge
-Table
-Dropdown
-Sidebar
-Tabs
-Toast
-Avatar
-Pagination
+Colour palette
+Status colours
+Spacing scale
+Typography scale
+Radii
+Iconography conventions
 
 ```
 
-The goal is to establish a consistent OPSflow visual language.
+An earlier revision planned to put shared `Button`, `Modal`, `Table` and similar
+components here. That is not possible: React DOM components cannot render in
+React Native, so a component in `packages/ui` could only ever serve one of the
+two clients. Rather than maintain two implementations behind one import path,
+the package carries the values both platforms agree on and each renders them
+natively.
 
-Web-specific components can use:
+Components therefore live with their platform:
 
 ```text
-Tailwind CSS
-shadcn/ui
+apps/web/src/components/ui     shadcn/ui, Tailwind CSS
+apps/mobile/src/components     React Native, NativeWind
 
 ```
 
-React Native-specific styling can use:
-
-```text
-Uniwind
-
-```
-
-Shared design principles should remain consistent across platforms.
+The goal is a consistent OPSflow visual language, achieved through shared tokens
+rather than shared component code.
 
 ---
 
@@ -859,9 +871,13 @@ The mobile application uses:
 ```text
 React Native
      │
-   Uniwind
+  NativeWind
 
 ```
+
+NativeWind is the established Tailwind-for-React-Native implementation, so the
+spacing, colour and typography tokens shared with the web application are
+expressed in the same utility-class vocabulary on both platforms.
 
 The goal is not to make mobile visually identical to desktop.
 
@@ -1059,6 +1075,20 @@ Database
 
 The API must never trust frontend validation.
 
+## 28.1 Zod
+
+**Zod** is the validation library, and its schemas are defined once in
+`packages/types` and imported by both the API and the clients. A form and the
+endpoint it posts to therefore enforce the same rules, and the error messages a
+user sees on the client are the ones the server would produce.
+
+The API validates requests with `@hono/zod-validator`. Environment variables are
+parsed through Zod at boot, so a misconfigured deployment fails immediately
+rather than on the first request that happens to need the missing value.
+
+Sharing a schema is a convenience, not a security control: the server revalidates
+every request regardless of what the client claims to have checked.
+
 ---
 
 # 29. Error Handling
@@ -1173,18 +1203,27 @@ Example:
 
 ```
 
-Potential configuration:
+The variables the system actually reads:
 
-```text
-DATABASE_URL
-BETTER_AUTH_SECRET
-API_URL
-WEB_URL
-MOBILE_API_URL
 
-```
+| Variable             | Consumer     | Purpose                                          |
+| -------------------- | ------------ | ------------------------------------------------ |
+| `DATABASE_URL`       | API, Prisma  | PostgreSQL connection string                     |
+| `BETTER_AUTH_SECRET` | Auth         | Session signing key, at least 32 bytes           |
+| `BETTER_AUTH_URL`    | Auth         | Origin Better Auth issues and validates URLs for |
+| `API_PORT`           | API          | Port the Hono server binds to                    |
+| `WEB_URL`            | API, Auth    | CORS allow-list and Better Auth trusted origin   |
+| `VITE_API_URL`       | Web (public) | API origin the browser calls                     |
 
-An `.env.example` file should document required variables without exposing secrets.
+
+`WEB_URL` has no default. It is both the CORS allow-list and Better Auth's
+trusted origin, so guessing it wrong fails in confusing, security-shaped ways.
+
+Anything behind a `VITE_` prefix is inlined into the browser bundle at build
+time and is therefore public. Secrets must never use that prefix.
+
+An `.env.example` file documents every required variable without exposing
+secrets.
 
 ---
 
@@ -1448,6 +1487,7 @@ OPSflow/
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma
 │   │   │   └── migrations/
+│   │   ├── prisma.config.ts
 │   │   └── src/
 │   │
 │   ├── types/
@@ -1459,18 +1499,24 @@ OPSflow/
 ├── docs/
 │   ├── db_schema.dbml
 │   ├── db_schema.md
-│   ├── opsflow.svg
 │   ├── product_architecture.md
 │   ├── sprint.md
 │   └── technical_architecture.md
 │
+├── docker-compose.yml
+├── .env.example
 ├── package.json
 ├── pnpm-workspace.yaml
 ├── turbo.json
-├── biome.json
-└── tsconfig.json
+└── biome.json
 
 ```
+
+There is deliberately no root `tsconfig.json`. The shared TypeScript
+configurations live in `packages/config` (`tsconfig.base.json`,
+`tsconfig.bun.json`, `tsconfig.react.json`) and each application extends the one
+that matches its runtime, so the root stays free of a config that no single
+target could satisfy.
 
 ---
 
@@ -1504,38 +1550,44 @@ Mobile should consume the same backend API rather than having separate business 
 
 ### Principle 7 — Progressive Complexity
 
-Advanced technologies such as TanStack Start, Polar, and extensive virtualization should be introduced when they solve actual problems rather than simply being added for the sake of the stack.
+Advanced technologies such as Polar, multi-tenancy, and extensive virtualization should be introduced when they solve actual problems rather than simply being added for the sake of the stack.
+
+This principle is what removed TanStack Start from the stack: a Vite SPA talking
+to a standalone Hono API already covers what it would provide, and adopting it
+would have meant a second server for no capability OPSflow needs.
 
 ---
 
 # 41. Technology Stack Summary
 
 
-| Layer                   | Technology       |
-| ----------------------- | ---------------- |
-| Language                | TypeScript       |
-| Runtime                 | Bun              |
-| Package Manager         | pnpm             |
-| Monorepo                | Turborepo        |
-| Web                     | React            |
-| Web Build               | Vite             |
-| Routing                 | TanStack Router  |
-| Full-stack capabilities | TanStack Start   |
-| Forms                   | TanStack Form    |
-| Virtualization          | TanStack Virtual |
-| Styling                 | Tailwind CSS     |
-| Web UI                  | shadcn/ui        |
-| Mobile                  | React Native     |
-| Mobile Styling          | Uniwind          |
-| Backend                 | Hono             |
-| ORM                     | Prisma           |
-| Database                | PostgreSQL       |
-| Authentication          | Better Auth      |
-| Formatting/Linting      | Biome            |
-| Type System             | TypeScript       |
-| Billing                 | Polar            |
-| API Clients             | Web + Mobile     |
-| Architecture            | Monorepo         |
+| Layer              | Technology            |
+| ------------------ | --------------------- |
+| Language           | TypeScript            |
+| Runtime            | Bun                   |
+| Package Manager    | pnpm                  |
+| Monorepo           | Turborepo             |
+| Web                | React                 |
+| Web Build          | Vite                  |
+| Routing            | TanStack Router       |
+| Server State       | TanStack Query        |
+| Forms              | TanStack Form         |
+| Virtualization     | TanStack Virtual      |
+| Styling            | Tailwind CSS          |
+| Web UI             | shadcn/ui             |
+| Mobile             | React Native via Expo |
+| Mobile Routing     | Expo Router           |
+| Mobile Styling     | NativeWind            |
+| Backend            | Hono                  |
+| Validation         | Zod                   |
+| ORM                | Prisma 7              |
+| Database           | PostgreSQL 16         |
+| Authentication     | Better Auth           |
+| Formatting/Linting | Biome                 |
+| Type System        | TypeScript            |
+| Billing            | Polar (post-MVP)      |
+| API Clients        | Web + Mobile          |
+| Architecture       | Monorepo              |
 
 
 ---
@@ -1587,9 +1639,35 @@ Types
 Authentication
 Database access
 Configuration
-UI components
+Design tokens
 
 ```
 
 This architecture allows OPSflow to demonstrate not only CRUD implementation, but also **authentication, authorization, responsive UI/UX, mobile development, database design, API architecture, reusable packages, performance considerations, and modern TypeScript engineering practices.**
+
+---
+
+# 43. Changes Since v2.0
+
+Version 2.0 of this document was written before implementation began. The
+following decisions were taken while building Phases 0 to 3 and are reflected in
+the sections above. They are recorded here so the reasoning survives, rather
+than only the outcome.
+
+
+| Change | Reason |
+| --- | --- |
+| Added TanStack Query | Server-state caching was missing from the stack and is unavoidable for a REST CRUD client |
+| Added Zod | Validation was specified but no library was named. Zod schemas are shared between the API and the clients from `packages/types` |
+| Mobile is Expo + Expo Router + NativeWind, not bare React Native + Uniwind | Expo removes the native build toolchain from the critical path, and NativeWind is the established Tailwind-for-React-Native. `apps/mobile/app/` already followed Expo Router's convention |
+| `packages/ui` holds design tokens, not components | React DOM components cannot render in React Native. shadcn/ui components live in `apps/web/src/components/ui` |
+| Dropped TanStack Start | Redundant alongside a Vite SPA plus a standalone Hono API. See Principle 7 |
+| No root `tsconfig.json` | The shared configurations live in `packages/config` and differ by runtime, so no single root config could serve every target |
+| No `users.auth_id` column | Better Auth writes into our own database, so the external-provider indirection originally assumed by `db_schema.md` is unnecessary |
+| Prisma 7 config file plus driver adapter | Prisma 7 removed `url` from the datasource block. Connection details now live in `prisma.config.ts`, and the runtime client uses `@prisma/adapter-pg` |
+| `accounts.issuer` added; unique key moved from `(provider_id, account_id)` to `(issuer, account_id)` | Better Auth 1.7.2 requires `issuer` and keys accounts on it. Credential accounts get `local:credential` |
+| `advanced.database.generateId: false` | Hands id generation to Prisma's `@default(uuid(7))`, keeping the auth tables on the same UUIDv7 scheme as everything else |
+| `roleId` declared `required: false` to Better Auth | Better Auth validates the request payload before the create hook runs, so a required field rejects every signup before the hook can supply a role. `users.role_id` stays NOT NULL, which is the real guarantee |
+| Users seeded from `packages/auth`, not `packages/db` | Password hashing needs Better Auth, and `packages/auth` already depends on `packages/db`; seeding users from `db` would make the dependency circular |
+| Database diagram is Mermaid in `db_schema.md`, not a checked-in SVG | The SVG could only be regenerated through an external web tool, so it drifted. Markdown is edited alongside the schema |
 

@@ -2,8 +2,8 @@
 // OPSflow — Prisma Schema
 //
 // SOURCE OF TRUTH for the OPSflow database.
-// Ported from docs/db_schema.md. The DBML + SVG in docs/ are
-// documentation artifacts and follow this file, not the reverse.
+// docs/db_schema.md and docs/db_schema.dbml are documentation
+// artifacts and follow this file, not the reverse.
 //
 // Conventions:
 //   - UUID primary keys (PostgreSQL `uuid` column type)
@@ -117,9 +117,8 @@ model Department {
 //
 // NOTE: this is BOTH the Better Auth user table and the OPSflow
 // employee profile. There is deliberately no separate profile
-// table and no `auth_id` column (docs/db_schema.md assumed an
-// external provider such as Supabase; Better Auth writes into
-// our own database, so the indirection would be dead weight).
+// table and no `auth_id` column: Better Auth writes into our own
+// database, so an external-provider indirection would be dead weight.
 //
 // The OPSflow-specific columns below are surfaced to Better Auth
 // through `user.additionalFields` in packages/auth.
