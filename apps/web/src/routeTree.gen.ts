@@ -12,10 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedClientsIndexRouteImport } from './routes/_authed/clients/index'
+import { Route as AuthedClientsClientIdRouteImport } from './routes/_authed/clients/$clientId'
+import { Route as AuthedClientsNewRouteImport } from './routes/_authed/clients/new'
 import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/departments/index'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedUsersNewRouteImport } from './routes/_authed/users/new'
+import { Route as AuthedClientsClientIdEditRouteImport } from './routes/_authed/clients/$clientId_.edit'
 import { Route as AuthedUsersUserIdEditRouteImport } from './routes/_authed/users/$userId_.edit'
 
 const AuthedRoute = AuthedRouteImport.update({
@@ -30,6 +34,21 @@ const LoginRoute = LoginRouteImport.update({
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedClientsIndexRoute = AuthedClientsIndexRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedClientsClientIdRoute = AuthedClientsClientIdRouteImport.update({
+  id: '/clients/$clientId',
+  path: '/clients/$clientId',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedClientsNewRoute = AuthedClientsNewRouteImport.update({
+  id: '/clients/new',
+  path: '/clients/new',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedDepartmentsIndexRoute = AuthedDepartmentsIndexRouteImport.update({
@@ -52,6 +71,12 @@ const AuthedUsersNewRoute = AuthedUsersNewRouteImport.update({
   path: '/users/new',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedClientsClientIdEditRoute =
+  AuthedClientsClientIdEditRouteImport.update({
+    id: '/clients/$clientId_/edit',
+    path: '/clients/$clientId/edit',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedUsersUserIdEditRoute = AuthedUsersUserIdEditRouteImport.update({
   id: '/users/$userId_/edit',
   path: '/users/$userId/edit',
@@ -61,19 +86,27 @@ const AuthedUsersUserIdEditRoute = AuthedUsersUserIdEditRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/clients/$clientId': typeof AuthedClientsClientIdRoute
+  '/clients/new': typeof AuthedClientsNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
+  '/clients/': typeof AuthedClientsIndexRoute
   '/departments/': typeof AuthedDepartmentsIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
+  '/clients/$clientId/edit': typeof AuthedClientsClientIdEditRoute
   '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/': typeof AuthedIndexRoute
+  '/clients/$clientId': typeof AuthedClientsClientIdRoute
+  '/clients/new': typeof AuthedClientsNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
+  '/clients': typeof AuthedClientsIndexRoute
   '/departments': typeof AuthedDepartmentsIndexRoute
   '/users': typeof AuthedUsersIndexRoute
+  '/clients/$clientId/edit': typeof AuthedClientsClientIdEditRoute
   '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesById {
@@ -81,10 +114,14 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/clients/$clientId': typeof AuthedClientsClientIdRoute
+  '/_authed/clients/new': typeof AuthedClientsNewRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/users/new': typeof AuthedUsersNewRoute
+  '/_authed/clients/': typeof AuthedClientsIndexRoute
   '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
+  '/_authed/clients/$clientId_/edit': typeof AuthedClientsClientIdEditRoute
   '/_authed/users/$userId_/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRouteTypes {
@@ -92,29 +129,41 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/clients/$clientId'
+    | '/clients/new'
     | '/users/$userId'
     | '/users/new'
+    | '/clients/'
     | '/departments/'
     | '/users/'
+    | '/clients/$clientId/edit'
     | '/users/$userId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/'
+    | '/clients/$clientId'
+    | '/clients/new'
     | '/users/$userId'
     | '/users/new'
+    | '/clients'
     | '/departments'
     | '/users'
+    | '/clients/$clientId/edit'
     | '/users/$userId/edit'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
     | '/_authed/'
+    | '/_authed/clients/$clientId'
+    | '/_authed/clients/new'
     | '/_authed/users/$userId'
     | '/_authed/users/new'
+    | '/_authed/clients/'
     | '/_authed/departments/'
     | '/_authed/users/'
+    | '/_authed/clients/$clientId_/edit'
     | '/_authed/users/$userId_/edit'
   fileRoutesById: FileRoutesById
 }
@@ -146,6 +195,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/clients/': {
+      id: '/_authed/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof AuthedClientsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/clients/$clientId': {
+      id: '/_authed/clients/$clientId'
+      path: '/clients/$clientId'
+      fullPath: '/clients/$clientId'
+      preLoaderRoute: typeof AuthedClientsClientIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/clients/new': {
+      id: '/_authed/clients/new'
+      path: '/clients/new'
+      fullPath: '/clients/new'
+      preLoaderRoute: typeof AuthedClientsNewRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/departments/': {
       id: '/_authed/departments/'
       path: '/departments'
@@ -174,6 +244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedUsersNewRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/clients/$clientId_/edit': {
+      id: '/_authed/clients/$clientId_/edit'
+      path: '/clients/$clientId/edit'
+      fullPath: '/clients/$clientId/edit'
+      preLoaderRoute: typeof AuthedClientsClientIdEditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/$userId_/edit': {
       id: '/_authed/users/$userId_/edit'
       path: '/users/$userId/edit'
@@ -186,19 +263,27 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedClientsClientIdRoute: typeof AuthedClientsClientIdRoute
+  AuthedClientsNewRoute: typeof AuthedClientsNewRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
   AuthedUsersNewRoute: typeof AuthedUsersNewRoute
+  AuthedClientsIndexRoute: typeof AuthedClientsIndexRoute
   AuthedDepartmentsIndexRoute: typeof AuthedDepartmentsIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
+  AuthedClientsClientIdEditRoute: typeof AuthedClientsClientIdEditRoute
   AuthedUsersUserIdEditRoute: typeof AuthedUsersUserIdEditRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedClientsClientIdRoute: AuthedClientsClientIdRoute,
+  AuthedClientsNewRoute: AuthedClientsNewRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
   AuthedUsersNewRoute: AuthedUsersNewRoute,
+  AuthedClientsIndexRoute: AuthedClientsIndexRoute,
   AuthedDepartmentsIndexRoute: AuthedDepartmentsIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
+  AuthedClientsClientIdEditRoute: AuthedClientsClientIdEditRoute,
   AuthedUsersUserIdEditRoute: AuthedUsersUserIdEditRoute,
 }
 

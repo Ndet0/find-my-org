@@ -2,14 +2,14 @@ import { can, type Permission } from '@opsflow/types/permissions'
 import type { CurrentUser } from '@opsflow/types/user'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useRouter } from '@tanstack/react-router'
-import { Building2, LayoutDashboard, LogOut, type LucideIcon, Users } from 'lucide-react'
+import { Building2, Contact, LayoutDashboard, LogOut, type LucideIcon, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
-  to: '/' | '/users' | '/departments'
+  to: '/' | '/users' | '/departments' | '/clients'
   label: string
   icon: LucideIcon
   /** Omitted for destinations every signed-in user may reach. */
@@ -20,6 +20,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/users', label: 'Team', icon: Users, permission: 'users:read' },
   { to: '/departments', label: 'Departments', icon: Building2, permission: 'departments:read' },
+  { to: '/clients', label: 'Clients', icon: Contact, permission: 'clients:read' },
 ]
 
 /**

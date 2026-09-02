@@ -6,6 +6,7 @@ import { secureHeaders } from 'hono/secure-headers'
 import { env } from './lib/env.js'
 import { forbidden } from './lib/errors.js'
 import { onError, onNotFound } from './middleware/error.js'
+import { clientRoutes } from './routes/clients.js'
 import { departmentRoutes } from './routes/departments.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
@@ -54,6 +55,7 @@ api.route('/health', healthRoutes)
 api.route('/me', meRoutes)
 api.route('/users', userRoutes)
 api.route('/departments', departmentRoutes)
+api.route('/clients', clientRoutes)
 
 app.route('/api', api)
 

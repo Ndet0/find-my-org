@@ -1178,7 +1178,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-01 — against the working tree, not from memory.
+**Last verified:** 2026-09-02 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1216,9 +1216,9 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/db` — Prisma client export
 - [x] `packages/auth` — Better Auth configuration
 - [-] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
-  `CurrentUser`, user and department shapes, sign-in and user-list schemas. Exposed as
-  subpath exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`) and
-  extended per module as the remaining ones land
+  `CurrentUser`, user, department and client shapes, plus the matching Zod
+  schemas. Exposed as subpath exports (`/api`, `/auth`, `/permissions`, `/user`,
+  `/department`, `/client`) and extended per module as the remaining ones land
 - [ ] `packages/ui` — design tokens
 
 ## Phase 3 — Authentication (web + API complete)
@@ -1254,7 +1254,7 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Zod request validation via `@hono/zod-validator`, reported through the standard
   error envelope as `VALIDATION_ERROR` with flattened field errors
 - [ ] Request logging beyond Hono's default
-- [-] Domain routes — `/users` and `/departments` are complete; `/clients`,
+- [-] Domain routes — `/users`, `/departments` and `/clients` are complete;
   `/projects` and `/tasks` are not started
 
 ## Phase 4 — Authorization / RBAC
@@ -1312,6 +1312,21 @@ a five-character password is 422, self-demotion and self-suspension are 403,
 deleting an occupied department is 409, deleting an empty one succeeds. Public
 `POST /api/auth/sign-up/email` is 403 while `pnpm db:seed` still works.
 
+## Phase 7 — Client Management
+
+- [x] `GET /api/clients` — paginated, searchable by name, company or email,
+  filterable by status. Offset paging, same `Paginated<T>` contract as users
+- [x] `GET /api/clients/:id` — includes `projectCount` from the existing relation
+- [x] `POST /api/clients` — `clients:write` (admin and manager). Status defaults
+  to `active`; it is not a create-form field
+- [x] `PATCH /api/clients/:id` — profile fields only
+- [x] `PATCH /api/clients/:id/status` — activate, deactivate, archive. There is
+  no DELETE: hard-delete would `SetNull` `projects.client_id`
+- [x] Name and email are not unique — two contacts at the same company are valid
+- [x] `apps/web` — clients list with URL-backed search and status filter; detail,
+  create and edit (TanStack Form); archive confirmation; navigation gated by
+  `can('clients:read')`. Employees are redirected away from `/clients`
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1340,7 +1355,6 @@ deleting an occupied department is 409, deleting an empty one succeeds. Public
 
 ## Not started
 
-- [ ] Phase 7 — Client Management
 - [ ] Phase 8 — Project Management
 - [ ] Phase 9 — Task Management
 - [ ] Phase 10 — Activity & Notifications
@@ -1360,22 +1374,18 @@ was updated to v2.1 to reflect them.
 
 # 25. Immediate Next Steps
 
-Users and Departments are a complete vertical slice: authentication, RBAC,
-service layer, Prisma, and both reads and writes on the web (§24).
+Users, Departments and Clients are complete vertical slices: authentication,
+RBAC, service layer, Prisma, and both reads and writes on the web (§24).
 
 The same pipeline, without inventing a new one:
 
 ```text
-1. Phase 7 — Client Management
+1. Phase 8 — Project Management
           ↓
-2. Phase 8 — Project Management
-          ↓
-3. Phase 9 — Task Management
+2. Phase 9 — Task Management
 ```
 
-Clients come first because they have no membership or assignment rules — they
-are a straight CRUD module against the conventions Phase 6 just settled.
-Projects then add a manager and members; tasks add row scoping for employees.
+Projects add a manager and members; tasks add row scoping for employees.
 
 Do not begin building all remaining CRUD modules simultaneously.
 
