@@ -10,6 +10,7 @@ import { clientRoutes } from './routes/clients.js'
 import { departmentRoutes } from './routes/departments.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
+import { projectRoutes } from './routes/projects.js'
 import { userRoutes } from './routes/users.js'
 
 const app = new Hono()
@@ -56,6 +57,7 @@ api.route('/me', meRoutes)
 api.route('/users', userRoutes)
 api.route('/departments', departmentRoutes)
 api.route('/clients', clientRoutes)
+api.route('/projects', projectRoutes)
 
 app.route('/api', api)
 

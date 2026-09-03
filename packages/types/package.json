@@ -9,6 +9,7 @@
     "./client": "./src/client.ts",
     "./department": "./src/department.ts",
     "./permissions": "./src/permissions.ts",
+    "./project": "./src/project.ts",
     "./user": "./src/user.ts"
   },
   "scripts": {

@@ -16,10 +16,14 @@ import { Route as AuthedClientsIndexRouteImport } from './routes/_authed/clients
 import { Route as AuthedClientsClientIdRouteImport } from './routes/_authed/clients/$clientId'
 import { Route as AuthedClientsNewRouteImport } from './routes/_authed/clients/new'
 import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/departments/index'
+import { Route as AuthedProjectsIndexRouteImport } from './routes/_authed/projects/index'
+import { Route as AuthedProjectsProjectIdRouteImport } from './routes/_authed/projects/$projectId'
+import { Route as AuthedProjectsNewRouteImport } from './routes/_authed/projects/new'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedUsersNewRouteImport } from './routes/_authed/users/new'
 import { Route as AuthedClientsClientIdEditRouteImport } from './routes/_authed/clients/$clientId_.edit'
+import { Route as AuthedProjectsProjectIdEditRouteImport } from './routes/_authed/projects/$projectId_.edit'
 import { Route as AuthedUsersUserIdEditRouteImport } from './routes/_authed/users/$userId_.edit'
 
 const AuthedRoute = AuthedRouteImport.update({
@@ -56,6 +60,21 @@ const AuthedDepartmentsIndexRoute = AuthedDepartmentsIndexRouteImport.update({
   path: '/departments/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedProjectsIndexRoute = AuthedProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedProjectsProjectIdRoute = AuthedProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedProjectsNewRoute = AuthedProjectsNewRouteImport.update({
+  id: '/projects/new',
+  path: '/projects/new',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersIndexRoute = AuthedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -77,6 +96,12 @@ const AuthedClientsClientIdEditRoute =
     path: '/clients/$clientId/edit',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedProjectsProjectIdEditRoute =
+  AuthedProjectsProjectIdEditRouteImport.update({
+    id: '/projects/$projectId_/edit',
+    path: '/projects/$projectId/edit',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedUsersUserIdEditRoute = AuthedUsersUserIdEditRouteImport.update({
   id: '/users/$userId_/edit',
   path: '/users/$userId/edit',
@@ -88,12 +113,16 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/clients/new': typeof AuthedClientsNewRoute
+  '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
+  '/projects/new': typeof AuthedProjectsNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
   '/clients/': typeof AuthedClientsIndexRoute
   '/departments/': typeof AuthedDepartmentsIndexRoute
+  '/projects/': typeof AuthedProjectsIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
   '/clients/$clientId/edit': typeof AuthedClientsClientIdEditRoute
+  '/projects/$projectId/edit': typeof AuthedProjectsProjectIdEditRoute
   '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -101,12 +130,16 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/clients/new': typeof AuthedClientsNewRoute
+  '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
+  '/projects/new': typeof AuthedProjectsNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
   '/clients': typeof AuthedClientsIndexRoute
   '/departments': typeof AuthedDepartmentsIndexRoute
+  '/projects': typeof AuthedProjectsIndexRoute
   '/users': typeof AuthedUsersIndexRoute
   '/clients/$clientId/edit': typeof AuthedClientsClientIdEditRoute
+  '/projects/$projectId/edit': typeof AuthedProjectsProjectIdEditRoute
   '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesById {
@@ -116,12 +149,16 @@ export interface FileRoutesById {
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/_authed/clients/new': typeof AuthedClientsNewRoute
+  '/_authed/projects/$projectId': typeof AuthedProjectsProjectIdRoute
+  '/_authed/projects/new': typeof AuthedProjectsNewRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/users/new': typeof AuthedUsersNewRoute
   '/_authed/clients/': typeof AuthedClientsIndexRoute
   '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
+  '/_authed/projects/': typeof AuthedProjectsIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
   '/_authed/clients/$clientId_/edit': typeof AuthedClientsClientIdEditRoute
+  '/_authed/projects/$projectId_/edit': typeof AuthedProjectsProjectIdEditRoute
   '/_authed/users/$userId_/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRouteTypes {
@@ -131,12 +168,16 @@ export interface FileRouteTypes {
     | '/login'
     | '/clients/$clientId'
     | '/clients/new'
+    | '/projects/$projectId'
+    | '/projects/new'
     | '/users/$userId'
     | '/users/new'
     | '/clients/'
     | '/departments/'
+    | '/projects/'
     | '/users/'
     | '/clients/$clientId/edit'
+    | '/projects/$projectId/edit'
     | '/users/$userId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -144,12 +185,16 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$clientId'
     | '/clients/new'
+    | '/projects/$projectId'
+    | '/projects/new'
     | '/users/$userId'
     | '/users/new'
     | '/clients'
     | '/departments'
+    | '/projects'
     | '/users'
     | '/clients/$clientId/edit'
+    | '/projects/$projectId/edit'
     | '/users/$userId/edit'
   id:
     | '__root__'
@@ -158,12 +203,16 @@ export interface FileRouteTypes {
     | '/_authed/'
     | '/_authed/clients/$clientId'
     | '/_authed/clients/new'
+    | '/_authed/projects/$projectId'
+    | '/_authed/projects/new'
     | '/_authed/users/$userId'
     | '/_authed/users/new'
     | '/_authed/clients/'
     | '/_authed/departments/'
+    | '/_authed/projects/'
     | '/_authed/users/'
     | '/_authed/clients/$clientId_/edit'
+    | '/_authed/projects/$projectId_/edit'
     | '/_authed/users/$userId_/edit'
   fileRoutesById: FileRoutesById
 }
@@ -223,6 +272,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDepartmentsIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/projects/': {
+      id: '/_authed/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof AuthedProjectsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/projects/$projectId': {
+      id: '/_authed/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof AuthedProjectsProjectIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/projects/new': {
+      id: '/_authed/projects/new'
+      path: '/projects/new'
+      fullPath: '/projects/new'
+      preLoaderRoute: typeof AuthedProjectsNewRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/': {
       id: '/_authed/users/'
       path: '/users'
@@ -251,6 +321,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedClientsClientIdEditRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/projects/$projectId_/edit': {
+      id: '/_authed/projects/$projectId_/edit'
+      path: '/projects/$projectId/edit'
+      fullPath: '/projects/$projectId/edit'
+      preLoaderRoute: typeof AuthedProjectsProjectIdEditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/$userId_/edit': {
       id: '/_authed/users/$userId_/edit'
       path: '/users/$userId/edit'
@@ -265,12 +342,16 @@ interface AuthedRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedClientsClientIdRoute: typeof AuthedClientsClientIdRoute
   AuthedClientsNewRoute: typeof AuthedClientsNewRoute
+  AuthedProjectsProjectIdRoute: typeof AuthedProjectsProjectIdRoute
+  AuthedProjectsNewRoute: typeof AuthedProjectsNewRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
   AuthedUsersNewRoute: typeof AuthedUsersNewRoute
   AuthedClientsIndexRoute: typeof AuthedClientsIndexRoute
   AuthedDepartmentsIndexRoute: typeof AuthedDepartmentsIndexRoute
+  AuthedProjectsIndexRoute: typeof AuthedProjectsIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
   AuthedClientsClientIdEditRoute: typeof AuthedClientsClientIdEditRoute
+  AuthedProjectsProjectIdEditRoute: typeof AuthedProjectsProjectIdEditRoute
   AuthedUsersUserIdEditRoute: typeof AuthedUsersUserIdEditRoute
 }
 
@@ -278,12 +359,16 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedClientsClientIdRoute: AuthedClientsClientIdRoute,
   AuthedClientsNewRoute: AuthedClientsNewRoute,
+  AuthedProjectsProjectIdRoute: AuthedProjectsProjectIdRoute,
+  AuthedProjectsNewRoute: AuthedProjectsNewRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
   AuthedUsersNewRoute: AuthedUsersNewRoute,
   AuthedClientsIndexRoute: AuthedClientsIndexRoute,
   AuthedDepartmentsIndexRoute: AuthedDepartmentsIndexRoute,
+  AuthedProjectsIndexRoute: AuthedProjectsIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
   AuthedClientsClientIdEditRoute: AuthedClientsClientIdEditRoute,
+  AuthedProjectsProjectIdEditRoute: AuthedProjectsProjectIdEditRoute,
   AuthedUsersUserIdEditRoute: AuthedUsersUserIdEditRoute,
 }
 

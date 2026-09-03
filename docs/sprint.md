@@ -1178,7 +1178,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-02 — against the working tree, not from memory.
+**Last verified:** 2026-09-03 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1216,9 +1216,10 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/db` — Prisma client export
 - [x] `packages/auth` — Better Auth configuration
 - [-] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
-  `CurrentUser`, user, department and client shapes, plus the matching Zod
+  `CurrentUser`, user, department, client and project shapes, plus the matching Zod
   schemas. Exposed as subpath exports (`/api`, `/auth`, `/permissions`, `/user`,
-  `/department`, `/client`) and extended per module as the remaining ones land
+  `/department`, `/client`, `/project`) and extended per module as the remaining
+  ones land
 - [ ] `packages/ui` — design tokens
 
 ## Phase 3 — Authentication (web + API complete)
@@ -1254,8 +1255,8 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Zod request validation via `@hono/zod-validator`, reported through the standard
   error envelope as `VALIDATION_ERROR` with flattened field errors
 - [ ] Request logging beyond Hono's default
-- [-] Domain routes — `/users`, `/departments` and `/clients` are complete;
-  `/projects` and `/tasks` are not started
+- [-] Domain routes — `/users`, `/departments`, `/clients` and `/projects` are
+  complete; `/tasks` is not started
 
 ## Phase 4 — Authorization / RBAC
 
@@ -1276,9 +1277,8 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 
 The matrix answers "may this role attempt this operation". It deliberately does not
 answer "which rows may this user see" — rules like "an employee sees only assigned
-tasks" cannot be expressed as a flat permission string, so Phases 8 and 9 will add
-them as `where` clauses in the services. Keeping the two apart is why Phase 4 came
-before any CRUD module.
+tasks" cannot be expressed as a flat permission string. Phase 8 added that as a
+`where` clause on projects (manager or member); Phase 9 will do the same for tasks.
 
 ## Phase 6 — Users & Departments
 
@@ -1327,6 +1327,31 @@ deleting an occupied department is 409, deleting an empty one succeeds. Public
   create and edit (TanStack Form); archive confirmation; navigation gated by
   `can('clients:read')`. Employees are redirected away from `/clients`
 
+## Phase 8 — Project Management
+
+- [x] `GET /api/projects` — paginated, searchable by name or description,
+  filterable by status, priority, client, manager and overdue. Offset paging,
+  same `Paginated<T>` contract. Employees only see rows they manage or belong to
+- [x] `GET /api/projects/:id` — client, manager, members, progress, taskCount.
+  A miss, including an employee asking for a project they are not on, is 404
+- [x] `POST /api/projects` — `projects:write` (admin and manager). Status
+  defaults to `planning`, progress to 0. Manager must be an active admin or
+  manager; client must be active
+- [x] `PATCH /api/projects/:id` — profile fields and progress (0–100). Status
+  and priority have their own endpoints
+- [x] `PATCH /api/projects/:id/status` — lifecycle values including `cancelled`.
+  There is no DELETE: hard-delete would `Cascade` members and future tasks
+- [x] `PATCH /api/projects/:id/priority`
+- [x] `POST /api/projects/:id/members` and `DELETE /api/projects/:id/members/:userId`
+  — members must be active; a duplicate is 409. The manager may also be a member
+- [x] `apps/web` — projects list with URL-backed filters; detail with status
+  confirmation, priority control and member management; create and edit
+  (TanStack Form); navigation gated by `can('projects:read')`. Employees see
+  this module; they cannot write
+
+Progress is a writable integer. It is not calculated from tasks — there are
+none yet (Phase 9).
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1355,7 +1380,6 @@ deleting an occupied department is 409, deleting an empty one succeeds. Public
 
 ## Not started
 
-- [ ] Phase 8 — Project Management
 - [ ] Phase 9 — Task Management
 - [ ] Phase 10 — Activity & Notifications
 - [ ] Phase 11 — Dashboard
@@ -1374,18 +1398,17 @@ was updated to v2.1 to reflect them.
 
 # 25. Immediate Next Steps
 
-Users, Departments and Clients are complete vertical slices: authentication,
-RBAC, service layer, Prisma, and both reads and writes on the web (§24).
+Users, Departments, Clients and Projects are complete vertical slices:
+authentication, RBAC, service layer, Prisma, and both reads and writes on the
+web (§24). Projects added a manager, members, and the first employee row scope.
 
 The same pipeline, without inventing a new one:
 
 ```text
-1. Phase 8 — Project Management
-          ↓
-2. Phase 9 — Task Management
+1. Phase 9 — Task Management
 ```
 
-Projects add a manager and members; tasks add row scoping for employees.
+Tasks add assignment, status, due dates, and employee row scoping.
 
 Do not begin building all remaining CRUD modules simultaneously.
 
