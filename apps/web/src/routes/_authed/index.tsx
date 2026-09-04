@@ -2,7 +2,7 @@ import type { ActivityListItem } from '@opsflow/types/activity'
 import { can, type RoleName } from '@opsflow/types/permissions'
 import type { ProjectListItem } from '@opsflow/types/project'
 import type { TaskListItem } from '@opsflow/types/task'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { ProgressBar } from '@/components/progress-bar'
@@ -18,11 +18,20 @@ import { notificationsQueryOptions, unreadCountQueryOptions } from '@/lib/notifi
 import { projectsQueryOptions } from '@/lib/projects'
 import { tasksQueryOptions } from '@/lib/tasks'
 
+const FEED_PAGE = { pageSize: 5 } as const
+
 export const Route = createFileRoute('/_authed/')({
+  loader: ({ context }) => {
+    // The feed cards carry their own loading state, so they only need a
+    // head start. The KPI row is the page, so it is awaited.
+    void context.queryClient.prefetchQuery(tasksQueryOptions(FEED_PAGE))
+    void context.queryClient.prefetchQuery(activityQueryOptions(FEED_PAGE))
+    void context.queryClient.prefetchQuery(projectsQueryOptions({ status: 'active', ...FEED_PAGE }))
+    void context.queryClient.prefetchQuery(notificationsQueryOptions(FEED_PAGE))
+    return context.queryClient.ensureQueryData(dashboardStatsQueryOptions())
+  },
   component: HomePage,
 })
-
-const FEED_PAGE = { pageSize: 5 } as const
 
 /**
  * The role-based dashboard (sprint Phase 11). Counts come from
@@ -64,8 +73,8 @@ function HomePage() {
  * directory (users, departments), manager with delivery (projects, tasks).
  */
 function OrgDashboard({ role }: { role: RoleName }) {
-  const stats = useQuery(dashboardStatsQueryOptions())
-  const org = stats.data?.org ?? null
+  const stats = useSuspenseQuery(dashboardStatsQueryOptions())
+  const org = stats.data.org ?? null
 
   const kpis: KpiProps[] =
     role === 'admin'
@@ -86,46 +95,46 @@ function OrgDashboard({ role }: { role: RoleName }) {
           },
           {
             label: 'Active projects',
-            value: stats.data?.projects.active,
-            sub: subCount(stats.data?.projects.total, 'total'),
+            value: stats.data.projects.active,
+            sub: subCount(stats.data.projects.total, 'total'),
             to: '/projects',
           },
           {
             label: 'Overdue projects',
-            value: stats.data?.projects.overdue,
+            value: stats.data.projects.overdue,
             alert: true,
             to: '/projects',
           },
-          { label: 'Overdue tasks', value: stats.data?.tasks.overdue, alert: true, to: '/tasks' },
+          { label: 'Overdue tasks', value: stats.data.tasks.overdue, alert: true, to: '/tasks' },
         ]
       : [
           {
             label: 'Active projects',
-            value: stats.data?.projects.active,
-            sub: subCount(stats.data?.projects.total, 'total'),
+            value: stats.data.projects.active,
+            sub: subCount(stats.data.projects.total, 'total'),
             to: '/projects',
           },
           {
             label: 'Delayed projects',
-            value: stats.data?.projects.delayed,
+            value: stats.data.projects.delayed,
             alert: true,
             to: '/projects',
           },
           {
             label: 'Overdue projects',
-            value: stats.data?.projects.overdue,
+            value: stats.data.projects.overdue,
             alert: true,
             to: '/projects',
           },
-          { label: 'Pending tasks', value: stats.data?.tasks.pending, to: '/tasks' },
-          { label: 'Overdue tasks', value: stats.data?.tasks.overdue, alert: true, to: '/tasks' },
+          { label: 'Pending tasks', value: stats.data.tasks.pending, to: '/tasks' },
+          { label: 'Overdue tasks', value: stats.data.tasks.overdue, alert: true, to: '/tasks' },
           { label: 'Team', value: org?.employees.total, sub: 'employees', to: '/users' },
           { label: 'Active clients', value: org?.clients.active, to: '/clients' },
         ]
 
   return (
     <>
-      {stats.isError ? <ErrorCard error={stats.error} /> : <KpiGrid kpis={kpis} />}
+      <KpiGrid kpis={kpis} />
 
       <QuickActions role={role} />
 
@@ -145,29 +154,29 @@ function OrgDashboard({ role }: { role: RoleName }) {
 
 function EmployeeDashboard() {
   // `stats.org` is null for employees by contract; nothing below reads it.
-  const stats = useQuery(dashboardStatsQueryOptions())
+  const stats = useSuspenseQuery(dashboardStatsQueryOptions())
 
   const kpis: KpiProps[] = [
     {
       label: 'My tasks',
-      value: stats.data?.tasks.total,
-      sub: subCount(stats.data?.tasks.pending, 'pending'),
+      value: stats.data.tasks.total,
+      sub: subCount(stats.data.tasks.pending, 'pending'),
       to: '/tasks',
     },
-    { label: 'In progress', value: stats.data?.tasks.inProgress, to: '/tasks' },
-    { label: 'Overdue tasks', value: stats.data?.tasks.overdue, alert: true, to: '/tasks' },
+    { label: 'In progress', value: stats.data.tasks.inProgress, to: '/tasks' },
+    { label: 'Overdue tasks', value: stats.data.tasks.overdue, alert: true, to: '/tasks' },
     {
       label: 'My projects',
-      value: stats.data?.projects.active,
-      sub: subCount(stats.data?.projects.total, 'total'),
+      value: stats.data.projects.active,
+      sub: subCount(stats.data.projects.total, 'total'),
       to: '/projects',
     },
-    { label: 'Completed tasks', value: stats.data?.tasks.completed, to: '/tasks' },
+    { label: 'Completed tasks', value: stats.data.tasks.completed, to: '/tasks' },
   ]
 
   return (
     <>
-      {stats.isError ? <ErrorCard error={stats.error} /> : <KpiGrid kpis={kpis} />}
+      <KpiGrid kpis={kpis} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DeadlinesCard title="Upcoming deadlines" />
@@ -483,14 +492,6 @@ function FeedBody<T>({
   }
 
   return children(query.data.items)
-}
-
-function ErrorCard({ error }: { error: Error }) {
-  return (
-    <Card>
-      <CardContent className="text-sm text-muted-foreground">{describeError(error)}</CardContent>
-    </Card>
-  )
 }
 
 function describeError(error: Error | null): string {

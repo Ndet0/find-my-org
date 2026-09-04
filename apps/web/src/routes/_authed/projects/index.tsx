@@ -6,7 +6,7 @@ import {
   type ProjectListFilters,
   type ProjectStatus,
 } from '@opsflow/types/project'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -31,7 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ApiRequestError } from '@/lib/api'
 import { clientsQueryOptions } from '@/lib/clients'
 import { projectsQueryOptions } from '@/lib/projects'
 import { usersQueryOptions } from '@/lib/users'
@@ -53,8 +51,29 @@ const searchSchema = z.object({
 /** Radix Select cannot hold an empty value, so "no filter" needs a sentinel. */
 const ANY = 'any'
 
+/** One place turns URL search into list filters, for the loader and the page alike. */
+function filtersFrom(search: z.infer<typeof searchSchema>): ProjectListFilters {
+  return {
+    ...search,
+    overdue: search.overdue === 'true' ? true : undefined,
+    page: search.page ?? 1,
+  }
+}
+
 export const Route = createFileRoute('/_authed/projects/')({
   validateSearch: (search): z.infer<typeof searchSchema> => searchSchema.parse(search),
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) => {
+    // Filter options load alongside the table rather than after it, and
+    // only for the roles the API would answer.
+    if (can(context.user.role.name, 'clients:read')) {
+      void context.queryClient.prefetchQuery(clientsQueryOptions({ pageSize: 100 }))
+    }
+    if (can(context.user.role.name, 'users:read')) {
+      void context.queryClient.prefetchQuery(usersQueryOptions({ status: 'active', pageSize: 100 }))
+    }
+    return context.queryClient.ensureQueryData(projectsQueryOptions(filtersFrom(deps)))
+  },
   component: ProjectsPage,
 })
 
@@ -66,12 +85,8 @@ function ProjectsPage() {
   const canFilterPeople = can(actor.role.name, 'users:read')
   const canFilterClients = can(actor.role.name, 'clients:read')
 
-  const filters: ProjectListFilters = {
-    ...search,
-    overdue: search.overdue === 'true' ? true : undefined,
-    page: search.page ?? 1,
-  }
-  const projects = useQuery(projectsQueryOptions(filters))
+  const filters = filtersFrom(search)
+  const projects = useSuspenseQuery(projectsQueryOptions(filters))
   const clients = useQuery({
     ...clientsQueryOptions({ pageSize: 100 }),
     enabled: canFilterClients,
@@ -98,9 +113,7 @@ function ProjectsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
           <p className="text-sm text-muted-foreground">
-            {projects.data
-              ? `${projects.data.total} ${projects.data.total === 1 ? 'project' : 'projects'}`
-              : 'Work commissioned for clients, with a manager and a team'}
+            {`${projects.data.total} ${projects.data.total === 1 ? 'project' : 'projects'}`}
           </p>
         </div>
         {canWrite ? (
@@ -185,13 +198,7 @@ function ProjectsPage() {
           </TableHeader>
 
           <TableBody>
-            {projects.isPending ? <LoadingRows columns={columnCount} /> : null}
-
-            {projects.isError ? (
-              <MessageRow colSpan={columnCount}>{describeError(projects.error)}</MessageRow>
-            ) : null}
-
-            {projects.data?.items.length === 0 ? (
+            {projects.data.items.length === 0 ? (
               <MessageRow colSpan={columnCount}>
                 {search.q ||
                 search.status ||
@@ -204,7 +211,7 @@ function ProjectsPage() {
               </MessageRow>
             ) : null}
 
-            {projects.data?.items.map((project) => (
+            {projects.data.items.map((project) => (
               <TableRow key={project.id}>
                 <TableCell>
                   <Link
@@ -247,7 +254,7 @@ function ProjectsPage() {
         </Table>
       </div>
 
-      {projects.data && projects.data.totalPages > 1 ? (
+      {projects.data.totalPages > 1 ? (
         <Pagination
           page={projects.data.page}
           totalPages={projects.data.totalPages}
@@ -318,20 +325,6 @@ function FilterSelect({
   )
 }
 
-function LoadingRows({ columns }: { columns: number }) {
-  return Array.from({ length: 5 }, (_, index) => (
-    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-    <TableRow key={index}>
-      {Array.from({ length: columns }, (_, cell) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder cells
-        <TableCell key={cell}>
-          <Skeleton className="h-4 w-full" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
-}
-
 function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
@@ -340,14 +333,6 @@ function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan:
       </TableCell>
     </TableRow>
   )
-}
-
-function describeError(error: Error): string {
-  if (error instanceof ApiRequestError && error.code === 'FORBIDDEN') {
-    return 'You do not have permission to view projects.'
-  }
-
-  return error.message
 }
 
 function Pagination({

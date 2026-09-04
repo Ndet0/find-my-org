@@ -1,7 +1,7 @@
 import { createDepartmentSchema, type DepartmentListItem } from '@opsflow/types/department'
 import { can } from '@opsflow/types/permissions'
 import { useForm } from '@tanstack/react-form'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -52,13 +52,14 @@ export const Route = createFileRoute('/_authed/departments/')({
       throw redirect({ to: '/' })
     }
   },
+  loader: ({ context }) => context.queryClient.ensureQueryData(departmentsQueryOptions),
   component: DepartmentsPage,
 })
 
 function DepartmentsPage() {
   const { user } = Route.useRouteContext()
   const canWrite = can(user.role.name, 'departments:write')
-  const departments = useQuery(departmentsQueryOptions)
+  const departments = useSuspenseQuery(departmentsQueryOptions)
   const [editing, setEditing] = useState<DepartmentListItem | 'new' | null>(null)
   const [deleting, setDeleting] = useState<DepartmentListItem | null>(null)
 
@@ -68,9 +69,7 @@ function DepartmentsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Departments</h1>
           <p className="text-sm text-muted-foreground">
-            {departments.data
-              ? `${departments.data.length} ${departments.data.length === 1 ? 'department' : 'departments'}`
-              : 'Teams in the organisation'}
+            {`${departments.data.length} ${departments.data.length === 1 ? 'department' : 'departments'}`}
           </p>
         </div>
         {canWrite ? <Button onClick={() => setEditing('new')}>Add department</Button> : null}
@@ -91,20 +90,7 @@ function DepartmentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {departments.isError ? (
-              <TableRow>
-                <TableCell
-                  colSpan={canWrite ? 4 : 3}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  {departments.error instanceof ApiRequestError
-                    ? departments.error.message
-                    : 'Departments could not be loaded.'}
-                </TableCell>
-              </TableRow>
-            ) : null}
-
-            {departments.data?.length === 0 ? (
+            {departments.data.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={canWrite ? 4 : 3}
@@ -115,7 +101,7 @@ function DepartmentsPage() {
               </TableRow>
             ) : null}
 
-            {departments.data?.map((department) => (
+            {departments.data.map((department) => (
               <TableRow key={department.id}>
                 <TableCell className="font-medium">{department.name}</TableCell>
                 <TableCell className="text-muted-foreground">

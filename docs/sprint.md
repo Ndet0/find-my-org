@@ -703,9 +703,12 @@ A user immediately understands the operational state of the organization after l
 
 ### TanStack Virtual
 
-- Evaluate large tables
-- Implement virtualization where necessary
-- Test performance with large datasets
+Evaluated and dropped. Every list endpoint is offset-paginated with a hard
+ceiling of 100 rows per page (`MAX_PAGE_SIZE` in `@opsflow/types/api`), so no
+table ever holds more rows than a browser renders comfortably. The page cap is
+what keeps the DOM small; a virtualiser on top of it would be the "added
+unnecessarily" case the acceptance criterion warns against. Revisit only if a
+screen ever needs an unpaginated list.
 
 ### TanStack Query
 
@@ -1425,6 +1428,43 @@ Deadline-approaching notifications need a scheduler and were left out.
 Stats refetch every 30s, the same cadence as the unread badge; there is
 still no realtime channel.
 
+## Phase 12 — TanStack Optimization
+
+- [x] Route loaders. Every list, detail and edit route under `/_authed` awaits
+  its primary query in a `loader` through `queryClient.ensureQueryData`, with
+  `loaderDeps` carrying the validated search so a filter or page change re-runs
+  it. A navigation now keeps the current page on screen until the next one has
+  data, and with `defaultPreload: 'intent'` the row is usually cached before the
+  click lands. Pages read the same cache with `useSuspenseQuery`, so the
+  per-page `isPending` / `isError` branches, skeleton helpers and
+  `describeError` copies were deleted
+- [x] Prefetch without await for data that carries its own loading state: the
+  filter options on list pages (only for roles the API would answer), the four
+  dashboard feeds, and the task list on a project page
+- [x] `defaultPreloadStaleTime: 0` so Query, not the router, decides freshness,
+  plus a default `staleTime` of 30s so a query fetched on hover still counts
+  as fresh when the page mounts. One request per navigation
+- [x] `MutationCache.onSuccess` invalidates activity, notifications and the
+  dashboard stats after every mutation. The API logs activity for every write
+  and the counts move with all of them, so they are derived views rather than
+  something each mutation has to remember. Without this the 30s `staleTime`
+  would have let them lag behind a write
+- [x] `components/route-feedback.tsx` — `RoutePending`, `RouteError` and
+  `RouteNotFound`, registered once as router defaults. `RouteError` renders in
+  the failed route's outlet so the shell stays around it; 404 and 403 get
+  plain wording and no retry, anything else gets "Try again"
+  (`router.invalidate()`), and a 401 drops the cached profile and hands over
+  to `/login`
+- [x] TanStack Form audited on all four modules: shared Zod schemas, disabled
+  and relabelled submit while the mutation is pending, 422 envelopes mapped
+  back onto fields. No changes needed
+- [x] TanStack Virtual evaluated and dropped (Phase 12 above)
+- [x] Verified in the browser as admin: dashboard, team list, person detail,
+  deep-linked filtered projects list, filter change from the UI, unknown
+  record (404 card inside the shell), unknown URL, and a session revoked
+  server-side mid-visit (401 to login). Every endpoint was requested exactly
+  once per state
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1450,7 +1490,6 @@ still no realtime channel.
 
 ## Not started
 
-- [ ] Phase 12 — TanStack Optimization
 - [ ] Phase 13 — Mobile Application
 - [ ] Phases 14-20 — Polish, performance, testing, security, deployment, demo
 
@@ -1459,29 +1498,42 @@ still no realtime channel.
 The stack decisions taken during implementation now live in
 [`technical_architecture.md`](technical_architecture.md) §43, alongside the
 sections they changed, rather than being tracked separately here. That document
-was updated to v2.1 to reflect them.
+is at v2.2 to reflect them.
 
 ---
 
 # 25. Immediate Next Steps
 
-Users, Departments, Clients, Projects, Tasks, Activity, Notifications and the
-Dashboard are complete: every module is a full vertical slice — authentication,
-RBAC, service layer, Prisma, and both reads and writes on the web (§24) — and
-the dashboard now gives each role its operational overview from real rows.
+The web application is complete through Phase 12: every module is a full
+vertical slice — authentication, RBAC, service layer, Prisma, reads and writes
+on the web (§24) — navigation is loader-driven, and the dashboard gives each
+role its operational overview from real rows.
 
 Next:
 
 ```text
-1. Phase 12 — TanStack Optimization
+1. Phase 13 — React Native Mobile Application
 ```
 
-Much of Phase 12 already exists in passing (protected routes, TanStack Form on
-every module, query keys and invalidation per module); the work is an audit
-against its acceptance criteria — loaders/prefetching where they remove a
-spinner, and evaluating TanStack Virtual against the list tables — rather than
-new construction. The web overview now exists, so Phase 13 (mobile) is
-unblocked after it.
+Mobile is the one MVP must-have (§22) with no code. Build it as a vertical
+slice in this order, and stop to verify each step before the next:
+
+1. Scaffold Expo with Expo Router and NativeWind, consuming `@opsflow/types`
+   only — never `@opsflow/db`.
+2. Authentication first. The web relies on an HttpOnly cookie; Expo needs the
+   Better Auth Expo plugin with secure storage instead. This is the riskiest
+   unknown in the phase, so prove sign-in and `/api/me` before any screen.
+3. Login, assigned tasks and task status update. That is the phase's
+   acceptance criterion and the employee step of the demo.
+4. Then dashboard, projects, notifications and profile.
+
+While the mobile client is being wired to the API, add a minimal API test
+harness (Phase 16, pulled forward): sign-in, `/api/me`, and one RBAC check
+per module against the seeded database. The API is the security boundary and
+now has two consumers.
+
+`packages/ui` design tokens wait until the NativeWind config needs shared
+colours; that is the moment they earn their place.
 
 Do not begin building all remaining modules simultaneously.
 

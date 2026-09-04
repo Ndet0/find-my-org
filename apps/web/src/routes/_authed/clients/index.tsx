@@ -1,6 +1,6 @@
 import { CLIENT_STATUSES, type ClientListFilters, type ClientStatus } from '@opsflow/types/client'
 import { can } from '@opsflow/types/permissions'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -24,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ApiRequestError } from '@/lib/api'
 import { clientsQueryOptions } from '@/lib/clients'
 
 /**
@@ -40,6 +38,11 @@ const searchSchema = z.object({
 /** Radix Select cannot hold an empty value, so "no filter" needs a sentinel. */
 const ANY = 'any'
 
+/** One place turns URL search into list filters, for the loader and the page alike. */
+function filtersFrom(search: z.infer<typeof searchSchema>): ClientListFilters {
+  return { ...search, page: search.page ?? 1 }
+}
+
 export const Route = createFileRoute('/_authed/clients/')({
   validateSearch: (search): z.infer<typeof searchSchema> => searchSchema.parse(search),
   beforeLoad: ({ context }) => {
@@ -47,6 +50,9 @@ export const Route = createFileRoute('/_authed/clients/')({
       throw redirect({ to: '/' })
     }
   },
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) =>
+    context.queryClient.ensureQueryData(clientsQueryOptions(filtersFrom(deps))),
   component: ClientsPage,
 })
 
@@ -56,8 +62,8 @@ function ClientsPage() {
   const { user: actor } = Route.useRouteContext()
   const canWrite = can(actor.role.name, 'clients:write')
 
-  const filters: ClientListFilters = { ...search, page: search.page ?? 1 }
-  const clients = useQuery(clientsQueryOptions(filters))
+  const filters = filtersFrom(search)
+  const clients = useSuspenseQuery(clientsQueryOptions(filters))
 
   function setFilter(next: Partial<ClientListFilters>) {
     navigate({
@@ -73,9 +79,7 @@ function ClientsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
           <p className="text-sm text-muted-foreground">
-            {clients.data
-              ? `${clients.data.total} ${clients.data.total === 1 ? 'client' : 'clients'}`
-              : 'Organisations and contacts receiving work'}
+            {`${clients.data.total} ${clients.data.total === 1 ? 'client' : 'clients'}`}
           </p>
         </div>
         {canWrite ? (
@@ -116,19 +120,13 @@ function ClientsPage() {
           </TableHeader>
 
           <TableBody>
-            {clients.isPending ? <LoadingRows /> : null}
-
-            {clients.isError ? (
-              <MessageRow colSpan={canWrite ? 6 : 5}>{describeError(clients.error)}</MessageRow>
-            ) : null}
-
-            {clients.data?.items.length === 0 ? (
+            {clients.data.items.length === 0 ? (
               <MessageRow colSpan={canWrite ? 6 : 5}>
                 {search.q || search.status ? 'No clients match these filters.' : 'No clients yet.'}
               </MessageRow>
             ) : null}
 
-            {clients.data?.items.map((client) => (
+            {clients.data.items.map((client) => (
               <TableRow key={client.id}>
                 <TableCell>
                   <Link
@@ -163,7 +161,7 @@ function ClientsPage() {
         </Table>
       </div>
 
-      {clients.data && clients.data.totalPages > 1 ? (
+      {clients.data.totalPages > 1 ? (
         <Pagination
           page={clients.data.page}
           totalPages={clients.data.totalPages}
@@ -239,20 +237,6 @@ function FilterSelect({
   )
 }
 
-function LoadingRows() {
-  return Array.from({ length: 5 }, (_, index) => (
-    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-    <TableRow key={index}>
-      {Array.from({ length: 5 }, (_, cell) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder cells
-        <TableCell key={cell}>
-          <Skeleton className="h-4 w-full" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
-}
-
 function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
@@ -261,14 +245,6 @@ function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan:
       </TableCell>
     </TableRow>
   )
-}
-
-function describeError(error: Error): string {
-  if (error instanceof ApiRequestError && error.code === 'FORBIDDEN') {
-    return 'You do not have permission to view clients.'
-  }
-
-  return error.message
 }
 
 function Pagination({

@@ -1,10 +1,8 @@
 import { can } from '@opsflow/types/permissions'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { UserForm } from '@/components/user-form'
-import { ApiRequestError } from '@/lib/api'
 import { userQueryOptions } from '@/lib/users'
 
 export const Route = createFileRoute('/_authed/users/$userId_/edit')({
@@ -13,12 +11,14 @@ export const Route = createFileRoute('/_authed/users/$userId_/edit')({
       throw redirect({ to: '/users' })
     }
   },
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(userQueryOptions(params.userId)),
   component: EditUserPage,
 })
 
 function EditUserPage() {
   const { userId } = Route.useParams()
-  const user = useQuery(userQueryOptions(userId))
+  const { data: user } = useSuspenseQuery(userQueryOptions(userId))
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-4">
@@ -31,21 +31,13 @@ function EditUserPage() {
       </Link>
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Edit {user.data?.name ?? 'person'}</CardTitle>
+          <CardTitle className="text-xl">Edit {user.name}</CardTitle>
           <CardDescription>
             Role and department changes take effect on their next request.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {user.isPending ? <Skeleton className="h-64 w-full" /> : null}
-          {user.isError ? (
-            <p className="text-sm text-destructive">
-              {user.error instanceof ApiRequestError
-                ? user.error.message
-                : 'This profile could not be loaded.'}
-            </p>
-          ) : null}
-          {user.data ? <UserForm user={user.data} /> : null}
+          <UserForm user={user} />
         </CardContent>
       </Card>
     </div>

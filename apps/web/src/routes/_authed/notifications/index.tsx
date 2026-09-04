@@ -1,6 +1,6 @@
 import type { NotificationListFilters } from '@opsflow/types/notification'
 import { can } from '@opsflow/types/permissions'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -24,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ApiRequestError } from '@/lib/api'
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -40,6 +38,15 @@ const searchSchema = z.object({
 
 const ANY = 'any'
 
+/** One place turns URL search into list filters, for the loader and the page alike. */
+function filtersFrom(search: z.infer<typeof searchSchema>): NotificationListFilters {
+  return {
+    ...search,
+    unread: search.unread === 'true' ? true : undefined,
+    page: search.page ?? 1,
+  }
+}
+
 export const Route = createFileRoute('/_authed/notifications/')({
   validateSearch: (search): z.infer<typeof searchSchema> => searchSchema.parse(search),
   beforeLoad: ({ context }) => {
@@ -47,6 +54,9 @@ export const Route = createFileRoute('/_authed/notifications/')({
       throw redirect({ to: '/' })
     }
   },
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) =>
+    context.queryClient.ensureQueryData(notificationsQueryOptions(filtersFrom(deps))),
   component: NotificationsPage,
 })
 
@@ -55,12 +65,8 @@ function NotificationsPage() {
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
 
-  const filters: NotificationListFilters = {
-    ...search,
-    unread: search.unread === 'true' ? true : undefined,
-    page: search.page ?? 1,
-  }
-  const notifications = useQuery(notificationsQueryOptions(filters))
+  const filters = filtersFrom(search)
+  const notifications = useSuspenseQuery(notificationsQueryOptions(filters))
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: notificationKeys.all })
@@ -88,9 +94,7 @@ function NotificationsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
           <p className="text-sm text-muted-foreground">
-            {notifications.data
-              ? `${notifications.data.total} ${notifications.data.total === 1 ? 'notification' : 'notifications'}`
-              : 'Alerts about work assigned to you'}
+            {`${notifications.data.total} ${notifications.data.total === 1 ? 'notification' : 'notifications'}`}
           </p>
         </div>
         <Button variant="outline" onClick={() => markAll.mutate()} disabled={markAll.isPending}>
@@ -123,13 +127,7 @@ function NotificationsPage() {
           </TableHeader>
 
           <TableBody>
-            {notifications.isPending ? <LoadingRows columns={4} /> : null}
-
-            {notifications.isError ? (
-              <MessageRow colSpan={4}>{describeError(notifications.error)}</MessageRow>
-            ) : null}
-
-            {notifications.data?.items.length === 0 ? (
+            {notifications.data.items.length === 0 ? (
               <MessageRow colSpan={4}>
                 {search.q || search.unread
                   ? 'No notifications match these filters.'
@@ -137,7 +135,7 @@ function NotificationsPage() {
               </MessageRow>
             ) : null}
 
-            {notifications.data?.items.map((item) => (
+            {notifications.data.items.map((item) => (
               <TableRow key={item.id} className={item.isRead ? undefined : 'bg-muted/40'}>
                 <TableCell>
                   <p className={item.isRead ? 'font-medium' : 'font-semibold'}>{item.title}</p>
@@ -171,7 +169,7 @@ function NotificationsPage() {
         </Table>
       </div>
 
-      {notifications.data && notifications.data.totalPages > 1 ? (
+      {notifications.data.totalPages > 1 ? (
         <Pagination
           page={notifications.data.page}
           totalPages={notifications.data.totalPages}
@@ -246,20 +244,6 @@ function FilterSelect({
   )
 }
 
-function LoadingRows({ columns }: { columns: number }) {
-  return Array.from({ length: 5 }, (_, index) => (
-    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-    <TableRow key={index}>
-      {Array.from({ length: columns }, (_, cell) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder cells
-        <TableCell key={cell}>
-          <Skeleton className="h-4 w-full" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
-}
-
 function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
@@ -268,14 +252,6 @@ function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan:
       </TableCell>
     </TableRow>
   )
-}
-
-function describeError(error: Error): string {
-  if (error instanceof ApiRequestError && error.code === 'FORBIDDEN') {
-    return 'You do not have permission to view notifications.'
-  }
-
-  return error.message
 }
 
 function Pagination({

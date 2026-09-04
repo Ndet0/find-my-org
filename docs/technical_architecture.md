@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.1  
+**Version:** 2.2  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -189,14 +189,14 @@ The web application provides the primary desktop/tablet interface for OPSflow.
 - TanStack Router
 - TanStack Query
 - TanStack Form
-- TanStack Virtual
 - Zod
 - Tailwind CSS
 - shadcn/ui
 
 TanStack Router handles navigation and route guards; TanStack Query owns
 server state, so cached data is invalidated centrally rather than refetched by
-hand after every mutation.
+hand after every mutation. Routes load their data in a `loader` that reads
+through the Query cache (§19), so the two libraries share one source of truth.
 
 ---
 
@@ -773,6 +773,29 @@ Example route structure:
 
 Protected routes should verify authentication before displaying protected application content.
 
+### Data loading
+
+Every list, detail and edit route declares a `loader` that awaits its primary
+query through `queryClient.ensureQueryData`, and `loaderDeps` carries the
+validated search so a filter or page change re-runs it. The router therefore
+holds the current page until the next one has data, and the page component
+reads the same cache with `useSuspenseQuery`, so pages have no loading or
+error branches of their own. Links preload on intent, and
+`defaultPreloadStaleTime` is 0 so Query, not the router, decides whether a
+hover costs a request. Data with its own loading state (filter options,
+dashboard feeds) is prefetched from the loader without being awaited.
+
+Three router-level components cover what that leaves: a pending component once
+a loader runs past the router's threshold, an error component that renders in
+the failed route's outlet and reads the API envelope (404, 403, anything else
+with a retry, and 401 hands over to the login page), and a not-found component
+for unmatched URLs. They live in `apps/web/src/components/route-feedback.tsx`.
+
+Queries default to a 30-second `staleTime`, which is the drift the dashboard
+and unread badge already accept. Every mutation invalidates the module it
+changed, and a `MutationCache` hook invalidates activity, notifications and
+dashboard stats after any mutation, since the API feeds those from every write.
+
 ---
 
 # 20. Forms
@@ -814,33 +837,27 @@ Client-side validation improves UX but does not replace server-side validation.
 
 # 21. Large Data Sets
 
-OPSflow uses **TanStack Virtual** where large datasets could affect performance.
-
-Potential use cases:
-
-```text
-Employee directory
-Task lists
-Activity logs
-Project lists
-Notifications
-
-```
-
-Instead of rendering thousands of records simultaneously:
+Large tables are handled by pagination at the API, not by virtualisation in
+the browser. Every list endpoint is offset-paginated with a default of 25 and
+a hard ceiling of 100 rows per page (`DEFAULT_PAGE_SIZE` and `MAX_PAGE_SIZE`
+in `@opsflow/types/api`), so no screen ever receives more rows than it can
+render directly.
 
 ```text
 10,000 records
        │
        ▼
-TanStack Virtual
+GET /api/tasks?page=3        (≤ 100 rows)
        │
        ▼
-Only visible records rendered
+Rows on screen, with a page control
 
 ```
 
-This allows the UI to remain responsive as datasets grow.
+TanStack Virtual was evaluated during Phase 12 and dropped: with the page cap
+in place there is nothing for it to hide, and it would have been a dependency
+added for the stack rather than for a problem. The decision is recorded in
+§43. It can be revisited if a screen ever needs an unpaginated list.
 
 ---
 
@@ -1578,7 +1595,7 @@ would have meant a second server for no capability OPSflow needs.
 | Routing            | TanStack Router       |
 | Server State       | TanStack Query        |
 | Forms              | TanStack Form         |
-| Virtualization     | TanStack Virtual      |
+| Virtualization     | None; pages cap at 100 rows (§21) |
 | Styling            | Tailwind CSS          |
 | Web UI             | shadcn/ui             |
 | Mobile             | React Native via Expo |
@@ -1676,4 +1693,7 @@ than only the outcome.
 | `roleId` declared `required: false` to Better Auth | Better Auth validates the request payload before the create hook runs, so a required field rejects every signup before the hook can supply a role. `users.role_id` stays NOT NULL, which is the real guarantee |
 | Users seeded from `packages/auth`, not `packages/db` | Password hashing needs Better Auth, and `packages/auth` already depends on `packages/db`; seeding users from `db` would make the dependency circular |
 | Database diagram is Mermaid in `db_schema.md`, not a checked-in SVG | The SVG could only be regenerated through an external web tool, so it drifted. Markdown is edited alongside the schema |
+| Dropped TanStack Virtual | Every list endpoint caps a page at 100 rows, so tables never hold enough rows to virtualise. See §21 |
+| Route loaders read through the Query cache; pages use `useSuspenseQuery` | Navigation holds the current page until the next has data, and per-page loading and error branches collapse into three router-level components. See §19 |
+| Default query `staleTime` of 30s plus `MutationCache` invalidation of activity, notifications and dashboard stats | Hover preload followed by mount must not cost two requests; the derived modules that every write feeds are invalidated centrally so the longer staleness cannot hide a write |
 

@@ -1,6 +1,6 @@
 import { can, ROLE_NAMES } from '@opsflow/types/permissions'
 import { USER_STATUSES, type UserListFilters, type UserStatus } from '@opsflow/types/user'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -24,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ApiRequestError } from '@/lib/api'
 import { departmentsQueryOptions } from '@/lib/departments'
 import { usersQueryOptions } from '@/lib/users'
 
@@ -43,8 +41,18 @@ const searchSchema = z.object({
 /** Radix Select cannot hold an empty value, so "no filter" needs a sentinel. */
 const ANY = 'any'
 
+/** One place turns URL search into list filters, for the loader and the page alike. */
+function filtersFrom(search: z.infer<typeof searchSchema>): UserListFilters {
+  return { ...search, page: search.page ?? 1 }
+}
+
 export const Route = createFileRoute('/_authed/users/')({
   validateSearch: (search) => searchSchema.parse(search),
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) => {
+    void context.queryClient.prefetchQuery(departmentsQueryOptions)
+    return context.queryClient.ensureQueryData(usersQueryOptions(filtersFrom(deps)))
+  },
   component: UsersPage,
 })
 
@@ -54,8 +62,8 @@ function UsersPage() {
   const { user: actor } = Route.useRouteContext()
   const canWrite = can(actor.role.name, 'users:write')
 
-  const filters: UserListFilters = { ...search, page: search.page ?? 1 }
-  const users = useQuery(usersQueryOptions(filters))
+  const filters = filtersFrom(search)
+  const users = useSuspenseQuery(usersQueryOptions(filters))
   const departments = useQuery(departmentsQueryOptions)
 
   function setFilter(next: Partial<UserListFilters>) {
@@ -72,9 +80,7 @@ function UsersPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
           <p className="text-sm text-muted-foreground">
-            {users.data
-              ? `${users.data.total} ${users.data.total === 1 ? 'person' : 'people'}`
-              : 'Everyone in the organisation'}
+            {`${users.data.total} ${users.data.total === 1 ? 'person' : 'people'}`}
           </p>
         </div>
         {canWrite ? (
@@ -131,17 +137,11 @@ function UsersPage() {
           </TableHeader>
 
           <TableBody>
-            {users.isPending ? <LoadingRows /> : null}
-
-            {users.isError ? (
-              <MessageRow colSpan={canWrite ? 6 : 5}>{describeError(users.error)}</MessageRow>
-            ) : null}
-
-            {users.data?.items.length === 0 ? (
+            {users.data.items.length === 0 ? (
               <MessageRow colSpan={canWrite ? 6 : 5}>No one matches these filters.</MessageRow>
             ) : null}
 
-            {users.data?.items.map((user) => (
+            {users.data.items.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>
                   <Link
@@ -176,7 +176,7 @@ function UsersPage() {
         </Table>
       </div>
 
-      {users.data && users.data.totalPages > 1 ? (
+      {users.data.totalPages > 1 ? (
         <Pagination
           page={users.data.page}
           totalPages={users.data.totalPages}
@@ -252,20 +252,6 @@ function FilterSelect({
   )
 }
 
-function LoadingRows() {
-  return Array.from({ length: 5 }, (_, index) => (
-    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-    <TableRow key={index}>
-      {Array.from({ length: 5 }, (_, cell) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder cells
-        <TableCell key={cell}>
-          <Skeleton className="h-4 w-full" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
-}
-
 function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
@@ -274,16 +260,6 @@ function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan:
       </TableCell>
     </TableRow>
   )
-}
-
-function describeError(error: Error): string {
-  // Navigation hides this page from employees, but the address bar does not,
-  // so the server's refusal has to be explained rather than shown as a crash.
-  if (error instanceof ApiRequestError && error.code === 'FORBIDDEN') {
-    return 'You do not have permission to view the team directory.'
-  }
-
-  return error.message
 }
 
 function Pagination({

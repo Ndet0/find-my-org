@@ -6,7 +6,7 @@ import {
   type ProjectStatus,
 } from '@opsflow/types/project'
 import type { TaskStatus } from '@opsflow/types/task'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -39,13 +39,21 @@ import { usersQueryOptions } from '@/lib/users'
 const NONE = 'none'
 
 export const Route = createFileRoute('/_authed/projects/$projectId')({
+  loader: ({ context, params }) => {
+    // The tasks card fetches on its own; starting it here puts it in
+    // flight before the page mounts rather than after.
+    void context.queryClient.prefetchQuery(
+      tasksQueryOptions({ projectId: params.projectId, pageSize: 100 }),
+    )
+    return context.queryClient.ensureQueryData(projectQueryOptions(params.projectId))
+  },
   component: ProjectDetailPage,
 })
 
 function ProjectDetailPage() {
   const { projectId } = Route.useParams()
   const { user: actor } = Route.useRouteContext()
-  const project = useQuery(projectQueryOptions(projectId))
+  const { data: project } = useSuspenseQuery(projectQueryOptions(projectId))
   const canWrite = can(actor.role.name, 'projects:write')
   const canWriteTasks = can(actor.role.name, 'tasks:write')
   const [nextStatus, setNextStatus] = useState<ProjectStatus | null>(null)
@@ -55,116 +63,96 @@ function ProjectDetailPage() {
       <Link to="/projects" className="w-fit text-sm text-muted-foreground hover:text-foreground">
         Back to projects
       </Link>
-
-      {project.isPending ? <DetailSkeleton /> : null}
-
-      {project.isError ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Unavailable</CardTitle>
-            <CardDescription>{describeError(project.error)}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : null}
-
-      {project.data ? (
-        <>
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle className="text-xl">{project.data.name}</CardTitle>
-                <CardDescription>
-                  {project.data.client?.name ?? 'No client assigned'}
-                </CardDescription>
-              </div>
-              {canWrite ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/projects/$projectId/edit" params={{ projectId }}>
-                    Edit
-                  </Link>
-                </Button>
-              ) : null}
-            </CardHeader>
-
-            <CardContent>
-              <dl className="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">
-                <dt className="text-muted-foreground">Status</dt>
-                <dd>
-                  <StatusBadge status={project.data.status} />
-                </dd>
-
-                <dt className="text-muted-foreground">Priority</dt>
-                <dd>
-                  {canWrite ? (
-                    <PriorityControl
-                      projectId={project.data.id}
-                      name={project.data.name}
-                      priority={project.data.priority}
-                    />
-                  ) : (
-                    <PriorityBadge priority={project.data.priority} />
-                  )}
-                </dd>
-
-                <dt className="text-muted-foreground">Progress</dt>
-                <dd>
-                  <ProgressBar value={project.data.progress} />
-                </dd>
-
-                <dt className="text-muted-foreground">Manager</dt>
-                <dd>{project.data.manager?.name ?? 'Unassigned'}</dd>
-
-                <dt className="text-muted-foreground">Start date</dt>
-                <dd>{project.data.startDate ?? 'Not set'}</dd>
-
-                <dt className="text-muted-foreground">Deadline</dt>
-                <dd>{project.data.deadline ?? 'Not set'}</dd>
-
-                <dt className="text-muted-foreground">Tasks</dt>
-                <dd>{project.data.taskCount}</dd>
-
-                <dt className="text-muted-foreground">Description</dt>
-                <dd className="whitespace-pre-wrap">{project.data.description ?? 'None'}</dd>
-              </dl>
-            </CardContent>
-          </Card>
-
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-xl">{project.name}</CardTitle>
+            <CardDescription>{project.client?.name ?? 'No client assigned'}</CardDescription>
+          </div>
           {canWrite ? (
-            <div className="flex flex-wrap gap-2">
-              {PROJECT_STATUSES.filter((status) => status !== project.data.status).map((status) => (
-                <Button
-                  key={status}
-                  variant={
-                    status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'
-                  }
-                  size="sm"
-                  className="capitalize"
-                  onClick={() => setNextStatus(status)}
-                >
-                  {status.replaceAll('_', ' ')}
-                </Button>
-              ))}
-            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/projects/$projectId/edit" params={{ projectId }}>
+                Edit
+              </Link>
+            </Button>
           ) : null}
+        </CardHeader>
 
-          <MembersCard
-            projectId={project.data.id}
-            canWrite={canWrite}
-            memberIds={project.data.members.map((member) => member.user.id)}
-            members={project.data.members}
-          />
+        <CardContent>
+          <dl className="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">
+            <dt className="text-muted-foreground">Status</dt>
+            <dd>
+              <StatusBadge status={project.status} />
+            </dd>
 
-          <TasksCard projectId={project.data.id} canWrite={canWriteTasks} />
+            <dt className="text-muted-foreground">Priority</dt>
+            <dd>
+              {canWrite ? (
+                <PriorityControl
+                  projectId={project.id}
+                  name={project.name}
+                  priority={project.priority}
+                />
+              ) : (
+                <PriorityBadge priority={project.priority} />
+              )}
+            </dd>
 
-          <ProjectStatusDialog
-            projectId={project.data.id}
-            name={project.data.name}
-            currentStatus={project.data.status}
-            nextStatus={nextStatus}
-            onClose={() => setNextStatus(null)}
-          />
-        </>
+            <dt className="text-muted-foreground">Progress</dt>
+            <dd>
+              <ProgressBar value={project.progress} />
+            </dd>
+
+            <dt className="text-muted-foreground">Manager</dt>
+            <dd>{project.manager?.name ?? 'Unassigned'}</dd>
+
+            <dt className="text-muted-foreground">Start date</dt>
+            <dd>{project.startDate ?? 'Not set'}</dd>
+
+            <dt className="text-muted-foreground">Deadline</dt>
+            <dd>{project.deadline ?? 'Not set'}</dd>
+
+            <dt className="text-muted-foreground">Tasks</dt>
+            <dd>{project.taskCount}</dd>
+
+            <dt className="text-muted-foreground">Description</dt>
+            <dd className="whitespace-pre-wrap">{project.description ?? 'None'}</dd>
+          </dl>
+        </CardContent>
+      </Card>
+
+      {canWrite ? (
+        <div className="flex flex-wrap gap-2">
+          {PROJECT_STATUSES.filter((status) => status !== project.status).map((status) => (
+            <Button
+              key={status}
+              variant={status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'}
+              size="sm"
+              className="capitalize"
+              onClick={() => setNextStatus(status)}
+            >
+              {status.replaceAll('_', ' ')}
+            </Button>
+          ))}
+        </div>
       ) : null}
+
+      <MembersCard
+        projectId={project.id}
+        canWrite={canWrite}
+        memberIds={project.members.map((member) => member.user.id)}
+        members={project.members}
+      />
+
+      <TasksCard projectId={project.id} canWrite={canWriteTasks} />
+
+      <ProjectStatusDialog
+        projectId={project.id}
+        name={project.name}
+        currentStatus={project.status}
+        nextStatus={nextStatus}
+        onClose={() => setNextStatus(null)}
+      />
     </div>
   )
 }
@@ -402,35 +390,4 @@ function MembersCard({
       </CardContent>
     </Card>
   )
-}
-
-function DetailSkeleton() {
-  return (
-    <Card>
-      <CardHeader className="gap-2">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-64" />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {Array.from({ length: 8 }, (_, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-          <Skeleton key={index} className="h-4 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  )
-}
-
-function describeError(error: Error): string {
-  if (error instanceof ApiRequestError) {
-    if (error.code === 'FORBIDDEN') {
-      return 'You do not have permission to view this project.'
-    }
-
-    if (error.code === 'PROJECT_NOT_FOUND') {
-      return 'That project is no longer in the system.'
-    }
-  }
-
-  return error.message
 }

@@ -4,7 +4,7 @@ import {
   type ActivityListFilters,
 } from '@opsflow/types/activity'
 import { can } from '@opsflow/types/permissions'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -29,7 +28,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { activityQueryOptions } from '@/lib/activity'
-import { ApiRequestError } from '@/lib/api'
 
 const searchSchema = z.object({
   q: z.string().optional(),
@@ -39,6 +37,11 @@ const searchSchema = z.object({
 
 const ANY = 'any'
 
+/** One place turns URL search into list filters, for the loader and the page alike. */
+function filtersFrom(search: z.infer<typeof searchSchema>): ActivityListFilters {
+  return { ...search, page: search.page ?? 1 }
+}
+
 export const Route = createFileRoute('/_authed/activity/')({
   validateSearch: (search): z.infer<typeof searchSchema> => searchSchema.parse(search),
   beforeLoad: ({ context }) => {
@@ -46,6 +49,9 @@ export const Route = createFileRoute('/_authed/activity/')({
       throw redirect({ to: '/' })
     }
   },
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) =>
+    context.queryClient.ensureQueryData(activityQueryOptions(filtersFrom(deps))),
   component: ActivityPage,
 })
 
@@ -54,8 +60,8 @@ function ActivityPage() {
   const navigate = Route.useNavigate()
   const { user: actor } = Route.useRouteContext()
 
-  const filters: ActivityListFilters = { ...search, page: search.page ?? 1 }
-  const activity = useQuery(activityQueryOptions(filters))
+  const filters = filtersFrom(search)
+  const activity = useSuspenseQuery(activityQueryOptions(filters))
 
   function setFilter(next: Partial<z.infer<typeof searchSchema>>) {
     navigate({
@@ -68,9 +74,7 @@ function ActivityPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
         <p className="text-sm text-muted-foreground">
-          {activity.data
-            ? `${activity.data.total} ${activity.data.total === 1 ? 'event' : 'events'}`
-            : 'A trail of changes across the organisation'}
+          {`${activity.data.total} ${activity.data.total === 1 ? 'event' : 'events'}`}
         </p>
       </header>
 
@@ -100,13 +104,7 @@ function ActivityPage() {
           </TableHeader>
 
           <TableBody>
-            {activity.isPending ? <LoadingRows columns={5} /> : null}
-
-            {activity.isError ? (
-              <MessageRow colSpan={5}>{describeError(activity.error)}</MessageRow>
-            ) : null}
-
-            {activity.data?.items.length === 0 ? (
+            {activity.data.items.length === 0 ? (
               <MessageRow colSpan={5}>
                 {search.q || search.entityType
                   ? 'No events match these filters.'
@@ -114,7 +112,7 @@ function ActivityPage() {
               </MessageRow>
             ) : null}
 
-            {activity.data?.items.map((item) => (
+            {activity.data.items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {formatWhen(item.createdAt)}
@@ -135,7 +133,7 @@ function ActivityPage() {
         </Table>
       </div>
 
-      {activity.data && activity.data.totalPages > 1 ? (
+      {activity.data.totalPages > 1 ? (
         <Pagination
           page={activity.data.page}
           totalPages={activity.data.totalPages}
@@ -268,20 +266,6 @@ function FilterSelect({
   )
 }
 
-function LoadingRows({ columns }: { columns: number }) {
-  return Array.from({ length: 5 }, (_, index) => (
-    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-    <TableRow key={index}>
-      {Array.from({ length: columns }, (_, cell) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder cells
-        <TableCell key={cell}>
-          <Skeleton className="h-4 w-full" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
-}
-
 function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
@@ -290,14 +274,6 @@ function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan:
       </TableCell>
     </TableRow>
   )
-}
-
-function describeError(error: Error): string {
-  if (error instanceof ApiRequestError && error.code === 'FORBIDDEN') {
-    return 'You do not have permission to view activity.'
-  }
-
-  return error.message
 }
 
 function Pagination({

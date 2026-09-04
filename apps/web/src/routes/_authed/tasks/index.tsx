@@ -1,7 +1,7 @@
 import { can } from '@opsflow/types/permissions'
 import { PRIORITY_LEVELS, type PriorityLevel } from '@opsflow/types/project'
 import { TASK_STATUSES, type TaskListFilters, type TaskStatus } from '@opsflow/types/task'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -25,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ApiRequestError } from '@/lib/api'
 import { projectsQueryOptions } from '@/lib/projects'
 import { tasksQueryOptions } from '@/lib/tasks'
 import { usersQueryOptions } from '@/lib/users'
@@ -47,8 +45,27 @@ const searchSchema = z.object({
 /** Radix Select cannot hold an empty value, so "no filter" needs a sentinel. */
 const ANY = 'any'
 
+/** One place turns URL search into list filters, for the loader and the page alike. */
+function filtersFrom(search: z.infer<typeof searchSchema>): TaskListFilters {
+  return {
+    ...search,
+    overdue: search.overdue === 'true' ? true : undefined,
+    page: search.page ?? 1,
+  }
+}
+
 export const Route = createFileRoute('/_authed/tasks/')({
   validateSearch: (search): z.infer<typeof searchSchema> => searchSchema.parse(search),
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) => {
+    // Filter options load alongside the table rather than after it, and
+    // only for the roles the API would answer.
+    void context.queryClient.prefetchQuery(projectsQueryOptions({ pageSize: 100 }))
+    if (can(context.user.role.name, 'users:read')) {
+      void context.queryClient.prefetchQuery(usersQueryOptions({ status: 'active', pageSize: 100 }))
+    }
+    return context.queryClient.ensureQueryData(tasksQueryOptions(filtersFrom(deps)))
+  },
   component: TasksPage,
 })
 
@@ -59,12 +76,8 @@ function TasksPage() {
   const canWrite = can(actor.role.name, 'tasks:write')
   const canFilterPeople = can(actor.role.name, 'users:read')
 
-  const filters: TaskListFilters = {
-    ...search,
-    overdue: search.overdue === 'true' ? true : undefined,
-    page: search.page ?? 1,
-  }
-  const tasks = useQuery(tasksQueryOptions(filters))
+  const filters = filtersFrom(search)
+  const tasks = useSuspenseQuery(tasksQueryOptions(filters))
   const projects = useQuery(projectsQueryOptions({ pageSize: 100 }))
   const people = useQuery({
     ...usersQueryOptions({ status: 'active', pageSize: 100 }),
@@ -85,9 +98,7 @@ function TasksPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
           <p className="text-sm text-muted-foreground">
-            {tasks.data
-              ? `${tasks.data.total} ${tasks.data.total === 1 ? 'task' : 'tasks'}`
-              : 'Work assigned on projects, with a status and a due date'}
+            {`${tasks.data.total} ${tasks.data.total === 1 ? 'task' : 'tasks'}`}
           </p>
         </div>
         {canWrite ? (
@@ -172,13 +183,7 @@ function TasksPage() {
           </TableHeader>
 
           <TableBody>
-            {tasks.isPending ? <LoadingRows columns={columnCount} /> : null}
-
-            {tasks.isError ? (
-              <MessageRow colSpan={columnCount}>{describeError(tasks.error)}</MessageRow>
-            ) : null}
-
-            {tasks.data?.items.length === 0 ? (
+            {tasks.data.items.length === 0 ? (
               <MessageRow colSpan={columnCount}>
                 {search.q ||
                 search.status ||
@@ -191,7 +196,7 @@ function TasksPage() {
               </MessageRow>
             ) : null}
 
-            {tasks.data?.items.map((task) => (
+            {tasks.data.items.map((task) => (
               <TableRow key={task.id}>
                 <TableCell>
                   <Link
@@ -238,7 +243,7 @@ function TasksPage() {
         </Table>
       </div>
 
-      {tasks.data && tasks.data.totalPages > 1 ? (
+      {tasks.data.totalPages > 1 ? (
         <Pagination
           page={tasks.data.page}
           totalPages={tasks.data.totalPages}
@@ -323,20 +328,6 @@ function FilterSelect({
   )
 }
 
-function LoadingRows({ columns }: { columns: number }) {
-  return Array.from({ length: 5 }, (_, index) => (
-    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder rows
-    <TableRow key={index}>
-      {Array.from({ length: columns }, (_, cell) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder cells
-        <TableCell key={cell}>
-          <Skeleton className="h-4 w-full" />
-        </TableCell>
-      ))}
-    </TableRow>
-  ))
-}
-
 function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
   return (
     <TableRow>
@@ -345,14 +336,6 @@ function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan:
       </TableCell>
     </TableRow>
   )
-}
-
-function describeError(error: Error): string {
-  if (error instanceof ApiRequestError && error.code === 'FORBIDDEN') {
-    return 'You do not have permission to view tasks.'
-  }
-
-  return error.message
 }
 
 function Pagination({

@@ -1,10 +1,8 @@
 import { can } from '@opsflow/types/permissions'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { ClientForm } from '@/components/client-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ApiRequestError } from '@/lib/api'
 import { clientQueryOptions } from '@/lib/clients'
 
 export const Route = createFileRoute('/_authed/clients/$clientId_/edit')({
@@ -13,12 +11,14 @@ export const Route = createFileRoute('/_authed/clients/$clientId_/edit')({
       throw redirect({ to: '/clients' })
     }
   },
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(clientQueryOptions(params.clientId)),
   component: EditClientPage,
 })
 
 function EditClientPage() {
   const { clientId } = Route.useParams()
-  const client = useQuery(clientQueryOptions(clientId))
+  const { data: client } = useSuspenseQuery(clientQueryOptions(clientId))
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-4">
@@ -31,19 +31,11 @@ function EditClientPage() {
       </Link>
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Edit {client.data?.name ?? 'client'}</CardTitle>
+          <CardTitle className="text-xl">Edit {client.name}</CardTitle>
           <CardDescription>Status is changed from the client page, not this form.</CardDescription>
         </CardHeader>
         <CardContent>
-          {client.isPending ? <Skeleton className="h-64 w-full" /> : null}
-          {client.isError ? (
-            <p className="text-sm text-destructive">
-              {client.error instanceof ApiRequestError
-                ? client.error.message
-                : 'This client could not be loaded.'}
-            </p>
-          ) : null}
-          {client.data ? <ClientForm client={client.data} /> : null}
+          <ClientForm client={client} />
         </CardContent>
       </Card>
     </div>
