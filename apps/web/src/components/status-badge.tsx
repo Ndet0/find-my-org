@@ -1,9 +1,10 @@
 import type { ClientStatus } from '@opsflow/types/client'
 import type { PriorityLevel, ProjectStatus } from '@opsflow/types/project'
+import type { TaskStatus } from '@opsflow/types/task'
 import type { UserStatus } from '@opsflow/types/user'
 import { Badge } from '@/components/ui/badge'
 
-type DirectoryStatus = UserStatus | ClientStatus | ProjectStatus
+type DirectoryStatus = UserStatus | ClientStatus | ProjectStatus | TaskStatus
 
 const STATUS_VARIANTS: Record<DirectoryStatus, 'default' | 'secondary' | 'destructive'> = {
   active: 'default',
@@ -15,6 +16,9 @@ const STATUS_VARIANTS: Record<DirectoryStatus, 'default' | 'secondary' | 'destru
   completed: 'default',
   delayed: 'destructive',
   cancelled: 'destructive',
+  pending: 'secondary',
+  in_progress: 'default',
+  blocked: 'destructive',
 }
 
 const PRIORITY_VARIANTS: Record<PriorityLevel, 'default' | 'secondary' | 'destructive'> = {

@@ -5,6 +5,7 @@ import {
   type PriorityLevel,
   type ProjectStatus,
 } from '@opsflow/types/project'
+import type { TaskStatus } from '@opsflow/types/task'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -32,6 +33,7 @@ import {
   removeProjectMember,
   updateProjectPriority,
 } from '@/lib/projects'
+import { tasksQueryOptions } from '@/lib/tasks'
 import { usersQueryOptions } from '@/lib/users'
 
 const NONE = 'none'
@@ -45,6 +47,7 @@ function ProjectDetailPage() {
   const { user: actor } = Route.useRouteContext()
   const project = useQuery(projectQueryOptions(projectId))
   const canWrite = can(actor.role.name, 'projects:write')
+  const canWriteTasks = can(actor.role.name, 'tasks:write')
   const [nextStatus, setNextStatus] = useState<ProjectStatus | null>(null)
 
   return (
@@ -151,6 +154,8 @@ function ProjectDetailPage() {
             members={project.data.members}
           />
 
+          <TasksCard projectId={project.data.id} canWrite={canWriteTasks} />
+
           <ProjectStatusDialog
             projectId={project.data.id}
             name={project.data.name}
@@ -206,6 +211,87 @@ function PriorityControl({
       </SelectContent>
     </Select>
   )
+}
+
+function TasksCard({ projectId, canWrite }: { projectId: string; canWrite: boolean }) {
+  const tasks = useQuery(tasksQueryOptions({ projectId, pageSize: 100 }))
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="text-lg">Tasks</CardTitle>
+          <CardDescription>
+            {tasks.data
+              ? `${tasks.data.total} ${tasks.data.total === 1 ? 'task' : 'tasks'}`
+              : 'Work on this project'}
+          </CardDescription>
+        </div>
+        {canWrite ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/tasks/new" search={{ projectId }}>
+              Add task
+            </Link>
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        {tasks.isPending ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : null}
+
+        {tasks.isError ? (
+          <p className="text-sm text-destructive">
+            {tasks.error instanceof ApiRequestError
+              ? tasks.error.message
+              : 'Tasks could not be loaded.'}
+          </p>
+        ) : null}
+
+        {tasks.data?.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No tasks on this project yet.</p>
+        ) : null}
+
+        {tasks.data && tasks.data.items.length > 0 ? (
+          <ul className="flex flex-col gap-3">
+            {tasks.data.items.map((task) => (
+              <li key={task.id} className="flex items-start justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <Link
+                    to="/tasks/$taskId"
+                    params={{ taskId: task.id }}
+                    className="font-medium hover:underline"
+                  >
+                    {task.title}
+                  </Link>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <StatusBadge status={task.status} />
+                    <span className="text-muted-foreground">
+                      {task.assignee?.name ?? 'Unassigned'}
+                    </span>
+                    <ProjectTaskDue value={task.dueDate} status={task.status} />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProjectTaskDue({ value, status }: { value: string | null; status: TaskStatus }) {
+  if (!value) {
+    return null
+  }
+
+  const overdue = status !== 'completed' && value < new Date().toISOString().slice(0, 10)
+
+  return <span className={overdue ? 'text-destructive' : 'text-muted-foreground'}>{value}</span>
 }
 
 function MembersCard({

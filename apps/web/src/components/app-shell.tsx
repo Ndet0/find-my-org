@@ -7,6 +7,7 @@ import {
   Contact,
   FolderKanban,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   type LucideIcon,
   Users,
@@ -17,7 +18,7 @@ import { authClient } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
-  to: '/' | '/projects' | '/users' | '/departments' | '/clients'
+  to: '/' | '/projects' | '/tasks' | '/users' | '/departments' | '/clients'
   label: string
   icon: LucideIcon
   /** Omitted for destinations every signed-in user may reach. */
@@ -27,6 +28,7 @@ type NavItem = {
 const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/projects', label: 'Projects', icon: FolderKanban, permission: 'projects:read' },
+  { to: '/tasks', label: 'Tasks', icon: ListTodo, permission: 'tasks:read' },
   { to: '/clients', label: 'Clients', icon: Contact, permission: 'clients:read' },
   { to: '/users', label: 'Team', icon: Users, permission: 'users:read' },
   { to: '/departments', label: 'Departments', icon: Building2, permission: 'departments:read' },

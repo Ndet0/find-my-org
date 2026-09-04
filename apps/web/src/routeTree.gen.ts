@@ -19,11 +19,15 @@ import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/dep
 import { Route as AuthedProjectsIndexRouteImport } from './routes/_authed/projects/index'
 import { Route as AuthedProjectsProjectIdRouteImport } from './routes/_authed/projects/$projectId'
 import { Route as AuthedProjectsNewRouteImport } from './routes/_authed/projects/new'
+import { Route as AuthedTasksIndexRouteImport } from './routes/_authed/tasks/index'
+import { Route as AuthedTasksTaskIdRouteImport } from './routes/_authed/tasks/$taskId'
+import { Route as AuthedTasksNewRouteImport } from './routes/_authed/tasks/new'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedUsersNewRouteImport } from './routes/_authed/users/new'
 import { Route as AuthedClientsClientIdEditRouteImport } from './routes/_authed/clients/$clientId_.edit'
 import { Route as AuthedProjectsProjectIdEditRouteImport } from './routes/_authed/projects/$projectId_.edit'
+import { Route as AuthedTasksTaskIdEditRouteImport } from './routes/_authed/tasks/$taskId_.edit'
 import { Route as AuthedUsersUserIdEditRouteImport } from './routes/_authed/users/$userId_.edit'
 
 const AuthedRoute = AuthedRouteImport.update({
@@ -75,6 +79,21 @@ const AuthedProjectsNewRoute = AuthedProjectsNewRouteImport.update({
   path: '/projects/new',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTasksIndexRoute = AuthedTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTasksTaskIdRoute = AuthedTasksTaskIdRouteImport.update({
+  id: '/tasks/$taskId',
+  path: '/tasks/$taskId',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTasksNewRoute = AuthedTasksNewRouteImport.update({
+  id: '/tasks/new',
+  path: '/tasks/new',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersIndexRoute = AuthedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -102,6 +121,11 @@ const AuthedProjectsProjectIdEditRoute =
     path: '/projects/$projectId/edit',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedTasksTaskIdEditRoute = AuthedTasksTaskIdEditRouteImport.update({
+  id: '/tasks/$taskId_/edit',
+  path: '/tasks/$taskId/edit',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersUserIdEditRoute = AuthedUsersUserIdEditRouteImport.update({
   id: '/users/$userId_/edit',
   path: '/users/$userId/edit',
@@ -115,14 +139,18 @@ export interface FileRoutesByFullPath {
   '/clients/new': typeof AuthedClientsNewRoute
   '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
   '/projects/new': typeof AuthedProjectsNewRoute
+  '/tasks/$taskId': typeof AuthedTasksTaskIdRoute
+  '/tasks/new': typeof AuthedTasksNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
   '/clients/': typeof AuthedClientsIndexRoute
   '/departments/': typeof AuthedDepartmentsIndexRoute
   '/projects/': typeof AuthedProjectsIndexRoute
+  '/tasks/': typeof AuthedTasksIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
   '/clients/$clientId/edit': typeof AuthedClientsClientIdEditRoute
   '/projects/$projectId/edit': typeof AuthedProjectsProjectIdEditRoute
+  '/tasks/$taskId/edit': typeof AuthedTasksTaskIdEditRoute
   '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -132,14 +160,18 @@ export interface FileRoutesByTo {
   '/clients/new': typeof AuthedClientsNewRoute
   '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
   '/projects/new': typeof AuthedProjectsNewRoute
+  '/tasks/$taskId': typeof AuthedTasksTaskIdRoute
+  '/tasks/new': typeof AuthedTasksNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
   '/clients': typeof AuthedClientsIndexRoute
   '/departments': typeof AuthedDepartmentsIndexRoute
   '/projects': typeof AuthedProjectsIndexRoute
+  '/tasks': typeof AuthedTasksIndexRoute
   '/users': typeof AuthedUsersIndexRoute
   '/clients/$clientId/edit': typeof AuthedClientsClientIdEditRoute
   '/projects/$projectId/edit': typeof AuthedProjectsProjectIdEditRoute
+  '/tasks/$taskId/edit': typeof AuthedTasksTaskIdEditRoute
   '/users/$userId/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRoutesById {
@@ -151,14 +183,18 @@ export interface FileRoutesById {
   '/_authed/clients/new': typeof AuthedClientsNewRoute
   '/_authed/projects/$projectId': typeof AuthedProjectsProjectIdRoute
   '/_authed/projects/new': typeof AuthedProjectsNewRoute
+  '/_authed/tasks/$taskId': typeof AuthedTasksTaskIdRoute
+  '/_authed/tasks/new': typeof AuthedTasksNewRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/users/new': typeof AuthedUsersNewRoute
   '/_authed/clients/': typeof AuthedClientsIndexRoute
   '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
   '/_authed/projects/': typeof AuthedProjectsIndexRoute
+  '/_authed/tasks/': typeof AuthedTasksIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
   '/_authed/clients/$clientId_/edit': typeof AuthedClientsClientIdEditRoute
   '/_authed/projects/$projectId_/edit': typeof AuthedProjectsProjectIdEditRoute
+  '/_authed/tasks/$taskId_/edit': typeof AuthedTasksTaskIdEditRoute
   '/_authed/users/$userId_/edit': typeof AuthedUsersUserIdEditRoute
 }
 export interface FileRouteTypes {
@@ -170,14 +206,18 @@ export interface FileRouteTypes {
     | '/clients/new'
     | '/projects/$projectId'
     | '/projects/new'
+    | '/tasks/$taskId'
+    | '/tasks/new'
     | '/users/$userId'
     | '/users/new'
     | '/clients/'
     | '/departments/'
     | '/projects/'
+    | '/tasks/'
     | '/users/'
     | '/clients/$clientId/edit'
     | '/projects/$projectId/edit'
+    | '/tasks/$taskId/edit'
     | '/users/$userId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -187,14 +227,18 @@ export interface FileRouteTypes {
     | '/clients/new'
     | '/projects/$projectId'
     | '/projects/new'
+    | '/tasks/$taskId'
+    | '/tasks/new'
     | '/users/$userId'
     | '/users/new'
     | '/clients'
     | '/departments'
     | '/projects'
+    | '/tasks'
     | '/users'
     | '/clients/$clientId/edit'
     | '/projects/$projectId/edit'
+    | '/tasks/$taskId/edit'
     | '/users/$userId/edit'
   id:
     | '__root__'
@@ -205,14 +249,18 @@ export interface FileRouteTypes {
     | '/_authed/clients/new'
     | '/_authed/projects/$projectId'
     | '/_authed/projects/new'
+    | '/_authed/tasks/$taskId'
+    | '/_authed/tasks/new'
     | '/_authed/users/$userId'
     | '/_authed/users/new'
     | '/_authed/clients/'
     | '/_authed/departments/'
     | '/_authed/projects/'
+    | '/_authed/tasks/'
     | '/_authed/users/'
     | '/_authed/clients/$clientId_/edit'
     | '/_authed/projects/$projectId_/edit'
+    | '/_authed/tasks/$taskId_/edit'
     | '/_authed/users/$userId_/edit'
   fileRoutesById: FileRoutesById
 }
@@ -293,6 +341,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedProjectsNewRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/tasks/': {
+      id: '/_authed/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof AuthedTasksIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/tasks/$taskId': {
+      id: '/_authed/tasks/$taskId'
+      path: '/tasks/$taskId'
+      fullPath: '/tasks/$taskId'
+      preLoaderRoute: typeof AuthedTasksTaskIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/tasks/new': {
+      id: '/_authed/tasks/new'
+      path: '/tasks/new'
+      fullPath: '/tasks/new'
+      preLoaderRoute: typeof AuthedTasksNewRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/': {
       id: '/_authed/users/'
       path: '/users'
@@ -328,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedProjectsProjectIdEditRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/tasks/$taskId_/edit': {
+      id: '/_authed/tasks/$taskId_/edit'
+      path: '/tasks/$taskId/edit'
+      fullPath: '/tasks/$taskId/edit'
+      preLoaderRoute: typeof AuthedTasksTaskIdEditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/$userId_/edit': {
       id: '/_authed/users/$userId_/edit'
       path: '/users/$userId/edit'
@@ -344,14 +420,18 @@ interface AuthedRouteChildren {
   AuthedClientsNewRoute: typeof AuthedClientsNewRoute
   AuthedProjectsProjectIdRoute: typeof AuthedProjectsProjectIdRoute
   AuthedProjectsNewRoute: typeof AuthedProjectsNewRoute
+  AuthedTasksTaskIdRoute: typeof AuthedTasksTaskIdRoute
+  AuthedTasksNewRoute: typeof AuthedTasksNewRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
   AuthedUsersNewRoute: typeof AuthedUsersNewRoute
   AuthedClientsIndexRoute: typeof AuthedClientsIndexRoute
   AuthedDepartmentsIndexRoute: typeof AuthedDepartmentsIndexRoute
   AuthedProjectsIndexRoute: typeof AuthedProjectsIndexRoute
+  AuthedTasksIndexRoute: typeof AuthedTasksIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
   AuthedClientsClientIdEditRoute: typeof AuthedClientsClientIdEditRoute
   AuthedProjectsProjectIdEditRoute: typeof AuthedProjectsProjectIdEditRoute
+  AuthedTasksTaskIdEditRoute: typeof AuthedTasksTaskIdEditRoute
   AuthedUsersUserIdEditRoute: typeof AuthedUsersUserIdEditRoute
 }
 
@@ -361,14 +441,18 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedClientsNewRoute: AuthedClientsNewRoute,
   AuthedProjectsProjectIdRoute: AuthedProjectsProjectIdRoute,
   AuthedProjectsNewRoute: AuthedProjectsNewRoute,
+  AuthedTasksTaskIdRoute: AuthedTasksTaskIdRoute,
+  AuthedTasksNewRoute: AuthedTasksNewRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
   AuthedUsersNewRoute: AuthedUsersNewRoute,
   AuthedClientsIndexRoute: AuthedClientsIndexRoute,
   AuthedDepartmentsIndexRoute: AuthedDepartmentsIndexRoute,
   AuthedProjectsIndexRoute: AuthedProjectsIndexRoute,
+  AuthedTasksIndexRoute: AuthedTasksIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
   AuthedClientsClientIdEditRoute: AuthedClientsClientIdEditRoute,
   AuthedProjectsProjectIdEditRoute: AuthedProjectsProjectIdEditRoute,
+  AuthedTasksTaskIdEditRoute: AuthedTasksTaskIdEditRoute,
   AuthedUsersUserIdEditRoute: AuthedUsersUserIdEditRoute,
 }
 

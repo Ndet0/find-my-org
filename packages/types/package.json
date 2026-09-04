@@ -10,6 +10,7 @@
     "./department": "./src/department.ts",
     "./permissions": "./src/permissions.ts",
     "./project": "./src/project.ts",
+    "./task": "./src/task.ts",
     "./user": "./src/user.ts"
   },
   "scripts": {
