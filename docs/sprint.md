@@ -1215,11 +1215,11 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/config` — shared TypeScript configs
 - [x] `packages/db` — Prisma client export
 - [x] `packages/auth` — Better Auth configuration
-- [-] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
-  `CurrentUser`, user, department, client, project, task, activity and
-  notification shapes, plus the matching Zod schemas. Exposed as subpath
-  exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`, `/client`,
-  `/project`, `/task`, `/activity`, `/notification`)
+- [x] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
+  `CurrentUser`, user, department, client, project, task, activity,
+  notification and dashboard shapes, plus the matching Zod schemas. Exposed
+  as subpath exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`,
+  `/client`, `/project`, `/task`, `/activity`, `/notification`, `/dashboard`)
 - [ ] `packages/ui` — design tokens
 
 ## Phase 3 — Authentication (web + API complete)
@@ -1398,6 +1398,33 @@ Progress is a writable integer. It is not calculated from task completion.
 
 Deadline-approaching notifications need a scheduler and were left out.
 
+## Phase 11 — Dashboard
+
+- [x] `dashboard:read` permission on all three roles; the route is gated like
+  every other module
+- [x] `GET /api/dashboard` — one `DashboardStats` object computed server-side
+  in a single `prisma.$transaction` of counts, so every card reflects the
+  same snapshot. Project and task counts reuse `projectVisibilityWhere` /
+  `taskVisibilityWhere` (now exported from their services), so an employee's
+  numbers are "my" numbers; overdue uses the exact semantics of the list
+  filters. The `org` section (users, employees, departments, clients) is
+  keyed off `users:read` and is `null` for employees — directory sizes never
+  leave the server
+- [x] `utcToday()` deduplicated out of the project and task services into
+  `apps/api/src/lib/dates.ts`
+- [x] `apps/web` — the placeholder landing page replaced with the role-based
+  dashboard: KPI cards (linked, alert colouring on overdue counts), quick
+  actions gated by `can()`, project progress, upcoming deadlines (the tasks
+  list already orders by due date ascending, so overdue items surface
+  first), recent/system/personal activity, and a notifications card with the
+  unread badge. Admin leads with the directory, manager with delivery,
+  employee sees only their own scope
+- [x] Feeds reuse the existing list endpoints with `pageSize=5` — they are
+  already row-scoped and ordered, so no new query parameters were added
+
+Stats refetch every 30s, the same cadence as the unread badge; there is
+still no realtime channel.
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1409,9 +1436,6 @@ Deadline-approaching notifications need a scheduler and were left out.
   deployment needs `SameSite=None; Secure` (Phase 18).
 - The users table pages, but has no sortable columns. Sorting is a service-layer
   `orderBy` plus a search parameter; it was left out until a screen needs it.
-- `turbo.json` sets `globalDependencies` to a root `tsconfig.base.json` that does
-  not exist — the shared configs live in `packages/config`. Harmless today, but the
-  cache will not invalidate when they change.
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
   and the create form share, so they cannot drift.
@@ -1426,7 +1450,6 @@ Deadline-approaching notifications need a scheduler and were left out.
 
 ## Not started
 
-- [ ] Phase 11 — Dashboard
 - [ ] Phase 12 — TanStack Optimization
 - [ ] Phase 13 — Mobile Application
 - [ ] Phases 14-20 — Polish, performance, testing, security, deployment, demo
@@ -1442,19 +1465,23 @@ was updated to v2.1 to reflect them.
 
 # 25. Immediate Next Steps
 
-Users, Departments, Clients, Projects, Tasks, Activity and Notifications are
-complete vertical slices: authentication, RBAC, service layer, Prisma, and both
-reads and writes on the web (§24). Activity logs and notifications now record
-the mutations those modules already perform.
+Users, Departments, Clients, Projects, Tasks, Activity, Notifications and the
+Dashboard are complete: every module is a full vertical slice — authentication,
+RBAC, service layer, Prisma, and both reads and writes on the web (§24) — and
+the dashboard now gives each role its operational overview from real rows.
 
-The same pipeline, without inventing a new one:
+Next:
 
 ```text
-1. Phase 11 — Dashboard
+1. Phase 12 — TanStack Optimization
 ```
 
-The dashboard can now show recent activity and unread notifications from real
-rows. Do not begin mobile until the web operational overview exists.
+Much of Phase 12 already exists in passing (protected routes, TanStack Form on
+every module, query keys and invalidation per module); the work is an audit
+against its acceptance criteria — loaders/prefetching where they remove a
+spinner, and evaluating TanStack Virtual against the list tables — rather than
+new construction. The web overview now exists, so Phase 13 (mobile) is
+unblocked after it.
 
 Do not begin building all remaining modules simultaneously.
 

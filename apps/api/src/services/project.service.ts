@@ -12,6 +12,7 @@ import type {
   UpdateProjectInput,
 } from '@opsflow/types/project'
 import type { NamedRef } from '@opsflow/types/user'
+import { utcToday } from '../lib/dates.js'
 import { AppError, conflict, notFound } from '../lib/errors.js'
 import { type EventActor, recordActivity } from './activity.service.js'
 import { notify } from './notification.service.js'
@@ -96,7 +97,7 @@ function toDetail(row: DetailRow): ProjectDetail {
  * manager see the whole table. Misses are 404 rather than 403 so the
  * existence of a hidden row is not advertised.
  */
-function visibilityWhere(actor: ProjectActor): Prisma.ProjectWhereInput {
+export function projectVisibilityWhere(actor: ProjectActor): Prisma.ProjectWhereInput {
   if (actor.role !== 'employee') {
     return {}
   }
@@ -140,18 +141,13 @@ function buildWhere(query: ProjectListQuery, actor: ProjectActor): Prisma.Projec
       : { notIn: ['completed', 'cancelled'] satisfies ProjectStatus[] }
   }
 
-  const visibility = visibilityWhere(actor)
+  const visibility = projectVisibilityWhere(actor)
 
   if (!Object.keys(visibility).length) {
     return filters
   }
 
   return { AND: [visibility, filters] }
-}
-
-function utcToday(): Date {
-  const now = new Date()
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 }
 
 export async function listProjects(
@@ -182,7 +178,7 @@ export async function listProjects(
 
 export async function getProject(id: string, actor: ProjectActor): Promise<ProjectDetail> {
   const row = await prisma.project.findFirst({
-    where: { id, ...visibilityWhere(actor) },
+    where: { id, ...projectVisibilityWhere(actor) },
     select: detailSelect,
   })
 

@@ -8,6 +8,7 @@
     "./api": "./src/api.ts",
     "./auth": "./src/auth.ts",
     "./client": "./src/client.ts",
+    "./dashboard": "./src/dashboard.ts",
     "./notification": "./src/notification.ts",
     "./department": "./src/department.ts",
     "./permissions": "./src/permissions.ts",

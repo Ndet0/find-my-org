@@ -439,6 +439,7 @@ Departments → CRUD
 Clients     → CRUD
 Projects    → CRUD
 Tasks       → CRUD
+Dashboard   → Read
 Reports     → Read
 System      → Manage
 
@@ -451,6 +452,7 @@ Clients  → CRUD
 Projects → CRUD
 Tasks    → CRUD
 Users    → Read
+Dashboard → Read
 Reports  → Read
 
 ```
@@ -460,6 +462,7 @@ Reports  → Read
 ```text
 Projects → Assigned projects
 Tasks    → Assigned tasks
+Dashboard → Own scope
 Profile  → Own profile
 
 ```

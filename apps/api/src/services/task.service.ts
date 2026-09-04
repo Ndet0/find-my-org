@@ -10,6 +10,7 @@ import type {
   UpdateTaskInput,
 } from '@opsflow/types/task'
 import type { NamedRef } from '@opsflow/types/user'
+import { utcToday } from '../lib/dates.js'
 import { conflict, notFound } from '../lib/errors.js'
 import { type EventActor, recordActivity } from './activity.service.js'
 import { notify } from './notification.service.js'
@@ -79,7 +80,7 @@ function toDetail(row: DetailRow): TaskDetail {
  * the whole table. Misses are 404 rather than 403 so the existence of a
  * hidden row is not advertised.
  */
-function visibilityWhere(actor: TaskActor): Prisma.TaskWhereInput {
+export function taskVisibilityWhere(actor: TaskActor): Prisma.TaskWhereInput {
   if (actor.role !== 'employee') {
     return {}
   }
@@ -119,18 +120,13 @@ function buildWhere(query: TaskListQuery, actor: TaskActor): Prisma.TaskWhereInp
     filters.status = query.status ? query.status : { not: 'completed' satisfies TaskStatus }
   }
 
-  const visibility = visibilityWhere(actor)
+  const visibility = taskVisibilityWhere(actor)
 
   if (!Object.keys(visibility).length) {
     return filters
   }
 
   return { AND: [visibility, filters] }
-}
-
-function utcToday(): Date {
-  const now = new Date()
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 }
 
 export async function listTasks(
@@ -380,7 +376,7 @@ export async function deleteTask(id: string, actor: TaskActor): Promise<TaskDeta
 
 async function findVisible(id: string, actor: TaskActor): Promise<DetailRow | null> {
   return prisma.task.findFirst({
-    where: { id, ...visibilityWhere(actor) },
+    where: { id, ...taskVisibilityWhere(actor) },
     select: detailSelect,
   })
 }

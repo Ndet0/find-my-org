@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   'tasks:write',
   'activity:read',
   'notifications:read',
+  'dashboard:read',
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -55,8 +56,15 @@ export const ROLE_PERMISSIONS: Record<RoleName, readonly Permission[]> = {
     'tasks:write',
     'activity:read',
     'notifications:read',
+    'dashboard:read',
   ],
-  employee: ['projects:read', 'tasks:read', 'activity:read', 'notifications:read'],
+  employee: [
+    'projects:read',
+    'tasks:read',
+    'activity:read',
+    'notifications:read',
+    'dashboard:read',
+  ],
 }
 
 export function can(role: RoleName, permission: Permission): boolean {
