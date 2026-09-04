@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { eventActor } from '../lib/actor.js'
 import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -36,7 +37,7 @@ projectRoutes.get('/', validateProjectListQuery, async (c) => {
 })
 
 projectRoutes.post('/', requirePermission('projects:write'), validateCreateProject, async (c) => {
-  return ok(c, await createProject(c.req.valid('json')), 201)
+  return ok(c, await createProject(c.req.valid('json'), eventActor(c)), 201)
 })
 
 projectRoutes.get('/:id', validateProjectIdParam, async (c) => {
@@ -52,7 +53,10 @@ projectRoutes.patch(
   validateProjectIdParam,
   validateUpdateProjectStatus,
   async (c) => {
-    return ok(c, await setProjectStatus(c.req.valid('param').id, c.req.valid('json').status))
+    return ok(
+      c,
+      await setProjectStatus(c.req.valid('param').id, c.req.valid('json').status, eventActor(c)),
+    )
   },
 )
 
@@ -62,7 +66,14 @@ projectRoutes.patch(
   validateProjectIdParam,
   validateUpdateProjectPriority,
   async (c) => {
-    return ok(c, await setProjectPriority(c.req.valid('param').id, c.req.valid('json').priority))
+    return ok(
+      c,
+      await setProjectPriority(
+        c.req.valid('param').id,
+        c.req.valid('json').priority,
+        eventActor(c),
+      ),
+    )
   },
 )
 
@@ -72,7 +83,11 @@ projectRoutes.post(
   validateProjectIdParam,
   validateAddProjectMember,
   async (c) => {
-    return ok(c, await addProjectMember(c.req.valid('param').id, c.req.valid('json')), 201)
+    return ok(
+      c,
+      await addProjectMember(c.req.valid('param').id, c.req.valid('json'), eventActor(c)),
+      201,
+    )
   },
 )
 
@@ -82,7 +97,7 @@ projectRoutes.delete(
   validateProjectMemberParam,
   async (c) => {
     const { id, userId } = c.req.valid('param')
-    return ok(c, await removeProjectMember(id, userId))
+    return ok(c, await removeProjectMember(id, userId, eventActor(c)))
   },
 )
 
@@ -92,6 +107,6 @@ projectRoutes.patch(
   validateProjectIdParam,
   validateUpdateProject,
   async (c) => {
-    return ok(c, await updateProject(c.req.valid('param').id, c.req.valid('json')))
+    return ok(c, await updateProject(c.req.valid('param').id, c.req.valid('json'), eventActor(c)))
   },
 )

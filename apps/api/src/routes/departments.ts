@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { eventActor } from '../lib/actor.js'
 import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -28,7 +29,7 @@ departmentRoutes.post(
   requirePermission('departments:write'),
   validateCreateDepartment,
   async (c) => {
-    return ok(c, await createDepartment(c.req.valid('json')), 201)
+    return ok(c, await createDepartment(c.req.valid('json'), eventActor(c)), 201)
   },
 )
 
@@ -47,6 +48,6 @@ departmentRoutes.delete(
   requirePermission('departments:write'),
   validateDepartmentIdParam,
   async (c) => {
-    return ok(c, await deleteDepartment(c.req.valid('param').id))
+    return ok(c, await deleteDepartment(c.req.valid('param').id, eventActor(c)))
   },
 )

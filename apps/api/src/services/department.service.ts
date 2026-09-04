@@ -5,6 +5,7 @@ import type {
   UpdateDepartmentInput,
 } from '@opsflow/types/department'
 import { conflict, notFound } from '../lib/errors.js'
+import { type EventActor, recordActivity } from './activity.service.js'
 
 const departmentSelect = {
   id: true,
@@ -34,15 +35,28 @@ export async function listDepartments(): Promise<DepartmentListItem[]> {
   return rows.map(toListItem)
 }
 
-export async function createDepartment(input: CreateDepartmentInput): Promise<DepartmentListItem> {
+export async function createDepartment(
+  input: CreateDepartmentInput,
+  actor: EventActor,
+): Promise<DepartmentListItem> {
   await assertNameAvailable(input.name)
 
-  const row = await prisma.department.create({
-    data: { name: input.name, description: input.description ?? null },
-    select: departmentSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.department.create({
+      data: { name: input.name, description: input.description ?? null },
+      select: departmentSelect,
+    })
 
-  return toListItem(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'created',
+      entityType: 'department',
+      entityId: row.id,
+      description: `${actor.name} created ${row.name}`,
+    })
+
+    return toListItem(row)
+  })
 }
 
 export async function updateDepartment(
@@ -71,7 +85,7 @@ export async function updateDepartment(
   return toListItem(row)
 }
 
-export async function deleteDepartment(id: string): Promise<DepartmentListItem> {
+export async function deleteDepartment(id: string, actor: EventActor): Promise<DepartmentListItem> {
   const row = await prisma.department.findUnique({
     where: { id },
     select: departmentSelect,
@@ -88,7 +102,16 @@ export async function deleteDepartment(id: string): Promise<DepartmentListItem> 
     )
   }
 
-  await prisma.department.delete({ where: { id } })
+  await prisma.$transaction(async (tx) => {
+    await recordActivity(tx, {
+      actor,
+      action: 'deleted',
+      entityType: 'department',
+      entityId: row.id,
+      description: `${actor.name} deleted ${row.name}`,
+    })
+    await tx.department.delete({ where: { id } })
+  })
 
   return toListItem(row)
 }

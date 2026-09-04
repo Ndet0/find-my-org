@@ -1216,10 +1216,10 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/db` — Prisma client export
 - [x] `packages/auth` — Better Auth configuration
 - [-] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
-  `CurrentUser`, user, department, client, project and task shapes, plus the matching
-  Zod schemas. Exposed as subpath exports (`/api`, `/auth`, `/permissions`, `/user`,
-  `/department`, `/client`, `/project`, `/task`) and extended per module as the
-  remaining ones land
+  `CurrentUser`, user, department, client, project, task, activity and
+  notification shapes, plus the matching Zod schemas. Exposed as subpath
+  exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`, `/client`,
+  `/project`, `/task`, `/activity`, `/notification`)
 - [ ] `packages/ui` — design tokens
 
 ## Phase 3 — Authentication (web + API complete)
@@ -1255,8 +1255,8 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Zod request validation via `@hono/zod-validator`, reported through the standard
   error envelope as `VALIDATION_ERROR` with flattened field errors
 - [ ] Request logging beyond Hono's default
-- [x] Domain routes — `/users`, `/departments`, `/clients`, `/projects` and
-  `/tasks` are complete
+- [x] Domain routes — `/users`, `/departments`, `/clients`, `/projects`,
+  `/tasks`, `/activity` and `/notifications` are complete
 
 ## Phase 4 — Authorization / RBAC
 
@@ -1279,7 +1279,8 @@ The matrix answers "may this role attempt this operation". It deliberately does 
 answer "which rows may this user see" — rules like "an employee sees only assigned
 tasks" cannot be expressed as a flat permission string. Phase 8 added that as a
 `where` clause on projects (manager or member); Phase 9 does the same for tasks
-(`assignedTo` is the caller).
+(`assignedTo` is the caller). Phase 10 scopes activity to the actor for employees
+and notifications to `userId = caller` for everyone.
 
 ## Phase 6 — Users & Departments
 
@@ -1376,6 +1377,27 @@ Progress is a writable integer. It is not calculated from task completion.
   navigation gated by `can('tasks:read')`. Employees see this module; they
   cannot create, edit, reassign or delete
 
+## Phase 10 — Activity & Notifications
+
+- [x] `GET /api/activity` — paginated, searchable by description, filterable by
+  entity type and entity id. Offset paging, same `Paginated<T>` contract.
+  Employees only see rows they performed; admin and manager see the trail
+- [x] `GET /api/notifications` — paginated, searchable, filterable to unread.
+  Always scoped to the caller
+- [x] `GET /api/notifications/unread-count`
+- [x] `PATCH /api/notifications/:id/read` and `POST /api/notifications/read-all`
+- [x] Mutations write an `activity_logs` row in the same Prisma transaction.
+  Notifications fire when someone else should know: task assigned, task
+  completed (project manager), project created (manager), project status
+  (manager and members), member added or removed. The actor is never notified
+  of their own action
+- [x] `activity:read` and `notifications:read` on all three roles
+- [x] `apps/web` — activity feed with URL-backed filters and entity links;
+  notifications list with mark-one and mark-all; unread badge on the nav.
+  Count refetches every 30s; there is no realtime channel
+
+Deadline-approaching notifications need a scheduler and were left out.
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1404,7 +1426,6 @@ Progress is a writable integer. It is not calculated from task completion.
 
 ## Not started
 
-- [ ] Phase 10 — Activity & Notifications
 - [ ] Phase 11 — Dashboard
 - [ ] Phase 12 — TanStack Optimization
 - [ ] Phase 13 — Mobile Application
@@ -1421,19 +1442,19 @@ was updated to v2.1 to reflect them.
 
 # 25. Immediate Next Steps
 
-Users, Departments, Clients, Projects and Tasks are complete vertical slices:
-authentication, RBAC, service layer, Prisma, and both reads and writes on the
-web (§24). Tasks added assignment, due dates, and employee row scoping on
-`assignedTo`.
+Users, Departments, Clients, Projects, Tasks, Activity and Notifications are
+complete vertical slices: authentication, RBAC, service layer, Prisma, and both
+reads and writes on the web (§24). Activity logs and notifications now record
+the mutations those modules already perform.
 
 The same pipeline, without inventing a new one:
 
 ```text
-1. Phase 10 — Activity & Notifications
+1. Phase 11 — Dashboard
 ```
 
-Activity logs and notifications record the mutations the earlier modules already
-perform. Do not begin mobile or the dashboard until those events exist.
+The dashboard can now show recent activity and unread notifications from real
+rows. Do not begin mobile until the web operational overview exists.
 
 Do not begin building all remaining modules simultaneously.
 

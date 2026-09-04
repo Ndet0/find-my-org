@@ -14,6 +14,7 @@ import type {
 } from '@opsflow/types/user'
 import { AppError, conflict, forbidden, notFound } from '../lib/errors.js'
 import { roleIdByName } from '../lib/roles.js'
+import { type EventActor, recordActivity } from './activity.service.js'
 
 /**
  * The columns every user-shaped response needs. Declared once so the list
@@ -158,7 +159,7 @@ export async function getCurrentUser(id: string): Promise<CurrentUser> {
  * credential row are written together, then patches the OPSflow profile
  * fields Better Auth will not accept on signup (`input: false`).
  */
-export async function createUser(input: CreateUserInput): Promise<UserDetail> {
+export async function createUser(input: CreateUserInput, actor: EventActor): Promise<UserDetail> {
   const taken = await prisma.user.findUnique({
     where: { email: input.email },
     select: { id: true },
@@ -190,17 +191,29 @@ export async function createUser(input: CreateUserInput): Promise<UserDetail> {
     throw error
   }
 
-  const row = await prisma.user.update({
-    where: { id: createdId },
-    data: {
-      roleId,
-      departmentId: input.departmentId ?? null,
-      position: input.position ?? null,
-      phone: input.phone ?? null,
-      joinedAt: input.joinedAt ? new Date(input.joinedAt) : new Date(),
-      emailVerified: true,
-    },
-    select: detailSelect,
+  const row = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: createdId },
+      data: {
+        roleId,
+        departmentId: input.departmentId ?? null,
+        position: input.position ?? null,
+        phone: input.phone ?? null,
+        joinedAt: input.joinedAt ? new Date(input.joinedAt) : new Date(),
+        emailVerified: true,
+      },
+      select: detailSelect,
+    })
+
+    await recordActivity(tx, {
+      actor,
+      action: 'created',
+      entityType: 'user',
+      entityId: updated.id,
+      description: `${actor.name} created ${updated.name}`,
+    })
+
+    return updated
   })
 
   return toDetail(row)
@@ -273,30 +286,41 @@ export async function updateUser(
 export async function setUserStatus(
   id: string,
   status: UserStatus,
-  actorId: string,
+  actor: EventActor,
 ): Promise<UserDetail> {
   const current = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, status: true, role: { select: { name: true } } },
+    select: { id: true, name: true, status: true, role: { select: { name: true } } },
   })
 
   if (!current) {
     throw notFound('User')
   }
 
-  if (id === actorId) {
+  if (id === actor.id) {
     throw forbidden('You cannot change your own status')
   }
 
   await assertNotLastAdmin(id, current, { status })
 
-  const row = await prisma.user.update({
-    where: { id },
-    data: { status },
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.user.update({
+      where: { id },
+      data: { status },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'status_changed',
+      entityType: 'user',
+      entityId: row.id,
+      description: `${actor.name} changed ${row.name} to ${status}`,
+      metadata: { old: current.status, new: status },
+    })
+
+    return toDetail(row)
+  })
 }
 
 type AdminGuardRow = { status: UserStatus; role: { name: string } }

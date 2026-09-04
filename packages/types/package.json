@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./activity": "./src/activity.ts",
     "./api": "./src/api.ts",
     "./auth": "./src/auth.ts",
     "./client": "./src/client.ts",
+    "./notification": "./src/notification.ts",
     "./department": "./src/department.ts",
     "./permissions": "./src/permissions.ts",
     "./project": "./src/project.ts",

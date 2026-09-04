@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { eventActor } from '../lib/actor.js'
 import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -27,7 +28,7 @@ clientRoutes.get('/', validateClientListQuery, async (c) => {
 })
 
 clientRoutes.post('/', requirePermission('clients:write'), validateCreateClient, async (c) => {
-  return ok(c, await createClient(c.req.valid('json')), 201)
+  return ok(c, await createClient(c.req.valid('json'), eventActor(c)), 201)
 })
 
 clientRoutes.get('/:id', validateClientIdParam, async (c) => {
@@ -40,7 +41,10 @@ clientRoutes.patch(
   validateClientIdParam,
   validateUpdateClientStatus,
   async (c) => {
-    return ok(c, await setClientStatus(c.req.valid('param').id, c.req.valid('json').status))
+    return ok(
+      c,
+      await setClientStatus(c.req.valid('param').id, c.req.valid('json').status, eventActor(c)),
+    )
   },
 )
 

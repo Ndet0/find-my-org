@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { eventActor } from '../lib/actor.js'
 import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -27,7 +28,7 @@ userRoutes.get('/', validateUserListQuery, async (c) => {
 })
 
 userRoutes.post('/', requirePermission('users:write'), validateCreateUser, async (c) => {
-  return ok(c, await createUser(c.req.valid('json')), 201)
+  return ok(c, await createUser(c.req.valid('json'), eventActor(c)), 201)
 })
 
 userRoutes.get('/:id', validateUserIdParam, async (c) => {
@@ -42,7 +43,7 @@ userRoutes.patch(
   async (c) => {
     return ok(
       c,
-      await setUserStatus(c.req.valid('param').id, c.req.valid('json').status, c.get('user').id),
+      await setUserStatus(c.req.valid('param').id, c.req.valid('json').status, eventActor(c)),
     )
   },
 )

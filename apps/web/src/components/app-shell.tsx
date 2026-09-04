@@ -1,8 +1,10 @@
 import { can, type Permission } from '@opsflow/types/permissions'
 import type { CurrentUser } from '@opsflow/types/user'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useRouter } from '@tanstack/react-router'
 import {
+  Activity,
+  Bell,
   Building2,
   Contact,
   FolderKanban,
@@ -13,12 +15,22 @@ import {
   Users,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
+import { unreadCountQueryOptions } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
-  to: '/' | '/projects' | '/tasks' | '/users' | '/departments' | '/clients'
+  to:
+    | '/'
+    | '/projects'
+    | '/tasks'
+    | '/users'
+    | '/departments'
+    | '/clients'
+    | '/activity'
+    | '/notifications'
   label: string
   icon: LucideIcon
   /** Omitted for destinations every signed-in user may reach. */
@@ -32,6 +44,8 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/clients', label: 'Clients', icon: Contact, permission: 'clients:read' },
   { to: '/users', label: 'Team', icon: Users, permission: 'users:read' },
   { to: '/departments', label: 'Departments', icon: Building2, permission: 'departments:read' },
+  { to: '/activity', label: 'Activity', icon: Activity, permission: 'activity:read' },
+  { to: '/notifications', label: 'Notifications', icon: Bell, permission: 'notifications:read' },
 ]
 
 /**
@@ -43,6 +57,7 @@ const NAV_ITEMS: readonly NavItem[] = [
  * an error state rather than data.
  */
 export function AppShell({ user, children }: { user: CurrentUser; children: ReactNode }) {
+  const unread = useQuery(unreadCountQueryOptions())
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.permission || can(user.role.name, item.permission),
   )
@@ -57,7 +72,11 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible md:pb-0">
           {visibleItems.map((item) => (
-            <NavLink key={item.to} item={item} />
+            <NavLink
+              key={item.to}
+              item={item}
+              badge={item.to === '/notifications' ? unread.data?.count : undefined}
+            />
           ))}
         </nav>
 
@@ -73,7 +92,7 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
   )
 }
 
-function NavLink({ item }: { item: NavItem }) {
+function NavLink({ item, badge }: { item: NavItem; badge?: number }) {
   const Icon = item.icon
 
   return (
@@ -89,7 +108,12 @@ function NavLink({ item }: { item: NavItem }) {
       activeProps={{ className: 'bg-accent text-accent-foreground' }}
     >
       <Icon className="size-4 shrink-0" aria-hidden />
-      {item.label}
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      {badge ? (
+        <Badge variant="default" className="h-5 min-w-5 px-1">
+          {badge > 99 ? '99+' : badge}
+        </Badge>
+      ) : null}
     </Link>
   )
 }

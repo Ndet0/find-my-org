@@ -6,10 +6,12 @@ import { secureHeaders } from 'hono/secure-headers'
 import { env } from './lib/env.js'
 import { forbidden } from './lib/errors.js'
 import { onError, onNotFound } from './middleware/error.js'
+import { activityRoutes } from './routes/activity.js'
 import { clientRoutes } from './routes/clients.js'
 import { departmentRoutes } from './routes/departments.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
+import { notificationRoutes } from './routes/notifications.js'
 import { projectRoutes } from './routes/projects.js'
 import { taskRoutes } from './routes/tasks.js'
 import { userRoutes } from './routes/users.js'
@@ -60,6 +62,8 @@ api.route('/departments', departmentRoutes)
 api.route('/clients', clientRoutes)
 api.route('/projects', projectRoutes)
 api.route('/tasks', taskRoutes)
+api.route('/activity', activityRoutes)
+api.route('/notifications', notificationRoutes)
 
 app.route('/api', api)
 

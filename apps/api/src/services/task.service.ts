@@ -1,6 +1,5 @@
 import { type Prisma, prisma } from '@opsflow/db'
 import type { Paginated } from '@opsflow/types/api'
-import type { RoleName } from '@opsflow/types/permissions'
 import type { PriorityLevel } from '@opsflow/types/project'
 import type {
   CreateTaskInput,
@@ -12,11 +11,10 @@ import type {
 } from '@opsflow/types/task'
 import type { NamedRef } from '@opsflow/types/user'
 import { conflict, notFound } from '../lib/errors.js'
+import { type EventActor, recordActivity } from './activity.service.js'
+import { notify } from './notification.service.js'
 
-export type TaskActor = {
-  id: string
-  role: RoleName
-}
+export type TaskActor = EventActor
 
 /**
  * The columns every task-shaped response needs. Declared once so the list
@@ -175,20 +173,37 @@ export async function createTask(input: CreateTaskInput, actor: TaskActor): Prom
   await assertProjectExists(input.projectId)
   await assertAssigneeEligible(input.projectId, input.assignedTo)
 
-  const row = await prisma.task.create({
-    data: {
-      title: input.title,
-      description: input.description ?? null,
-      priority: input.priority,
-      dueDate: toDate(input.dueDate),
-      project: { connect: { id: input.projectId } },
-      assignee: input.assignedTo ? { connect: { id: input.assignedTo } } : undefined,
-      creator: { connect: { id: actor.id } },
-    },
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.task.create({
+      data: {
+        title: input.title,
+        description: input.description ?? null,
+        priority: input.priority,
+        dueDate: toDate(input.dueDate),
+        project: { connect: { id: input.projectId } },
+        assignee: input.assignedTo ? { connect: { id: input.assignedTo } } : undefined,
+        creator: { connect: { id: actor.id } },
+      },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'created',
+      entityType: 'task',
+      entityId: row.id,
+      description: `${actor.name} created "${row.title}"`,
+    })
+    await notify(tx, {
+      userId: input.assignedTo,
+      actorId: actor.id,
+      title: 'Task assigned',
+      message: `${actor.name} assigned you "${row.title}"`,
+      type: 'task',
+    })
+
+    return toDetail(row)
+  })
 }
 
 export async function updateTask(
@@ -226,13 +241,37 @@ export async function updateTask(
     data.assignee = input.assignedTo ? { connect: { id: input.assignedTo } } : { disconnect: true }
   }
 
-  const row = await prisma.task.update({
-    where: { id },
-    data,
-    select: detailSelect,
-  })
+  const previousAssigneeId = current.assignee?.id ?? null
+  const assigned = input.assignedTo !== undefined && input.assignedTo !== previousAssigneeId
 
-  return toDetail(row)
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.task.update({
+      where: { id },
+      data,
+      select: detailSelect,
+    })
+
+    await recordActivity(tx, {
+      actor,
+      action: assigned ? 'assigned' : 'updated',
+      entityType: 'task',
+      entityId: row.id,
+      description: assigned
+        ? `${actor.name} assigned "${row.title}"`
+        : `${actor.name} updated "${row.title}"`,
+    })
+    if (assigned) {
+      await notify(tx, {
+        userId: input.assignedTo,
+        actorId: actor.id,
+        title: 'Task assigned',
+        message: `${actor.name} assigned you "${row.title}"`,
+        type: 'task',
+      })
+    }
+
+    return toDetail(row)
+  })
 }
 
 export async function setTaskStatus(
@@ -246,16 +285,45 @@ export async function setTaskStatus(
     throw notFound('Task')
   }
 
-  const row = await prisma.task.update({
-    where: { id },
-    data: {
-      status,
-      completedAt: status === 'completed' ? new Date() : null,
-    },
-    select: detailSelect,
+  const project = await prisma.project.findUnique({
+    where: { id: current.project.id },
+    select: { managerId: true },
   })
 
-  return toDetail(row)
+  const completed = status === 'completed'
+
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.task.update({
+      where: { id },
+      data: {
+        status,
+        completedAt: completed ? new Date() : null,
+      },
+      select: detailSelect,
+    })
+
+    await recordActivity(tx, {
+      actor,
+      action: completed ? 'completed' : 'status_changed',
+      entityType: 'task',
+      entityId: row.id,
+      description: completed
+        ? `${actor.name} completed "${row.title}"`
+        : `${actor.name} changed "${row.title}" to ${labelStatus(status)}`,
+      metadata: { old: current.status, new: status },
+    })
+    if (completed) {
+      await notify(tx, {
+        userId: project?.managerId,
+        actorId: actor.id,
+        title: 'Task completed',
+        message: `${actor.name} completed "${row.title}"`,
+        type: 'task',
+      })
+    }
+
+    return toDetail(row)
+  })
 }
 
 export async function setTaskPriority(
@@ -269,13 +337,24 @@ export async function setTaskPriority(
     throw notFound('Task')
   }
 
-  const row = await prisma.task.update({
-    where: { id },
-    data: { priority },
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.task.update({
+      where: { id },
+      data: { priority },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'priority_changed',
+      entityType: 'task',
+      entityId: row.id,
+      description: `${actor.name} set "${row.title}" to ${priority} priority`,
+      metadata: { old: current.priority, new: priority },
+    })
+
+    return toDetail(row)
+  })
 }
 
 export async function deleteTask(id: string, actor: TaskActor): Promise<TaskDetail> {
@@ -285,7 +364,16 @@ export async function deleteTask(id: string, actor: TaskActor): Promise<TaskDeta
     throw notFound('Task')
   }
 
-  await prisma.task.delete({ where: { id } })
+  await prisma.$transaction(async (tx) => {
+    await recordActivity(tx, {
+      actor,
+      action: 'deleted',
+      entityType: 'task',
+      entityId: current.id,
+      description: `${actor.name} deleted "${current.title}"`,
+    })
+    await tx.task.delete({ where: { id } })
+  })
 
   return toDetail(current)
 }
@@ -350,4 +438,8 @@ async function assertAssigneeEligible(
 
 function toDate(value: string | null | undefined): Date | null {
   return value ? new Date(value) : null
+}
+
+function labelStatus(status: TaskStatus): string {
+  return status.replaceAll('_', ' ')
 }

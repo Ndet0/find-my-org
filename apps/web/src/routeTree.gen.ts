@@ -12,10 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedActivityIndexRouteImport } from './routes/_authed/activity/index'
 import { Route as AuthedClientsIndexRouteImport } from './routes/_authed/clients/index'
 import { Route as AuthedClientsClientIdRouteImport } from './routes/_authed/clients/$clientId'
 import { Route as AuthedClientsNewRouteImport } from './routes/_authed/clients/new'
 import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/departments/index'
+import { Route as AuthedNotificationsIndexRouteImport } from './routes/_authed/notifications/index'
 import { Route as AuthedProjectsIndexRouteImport } from './routes/_authed/projects/index'
 import { Route as AuthedProjectsProjectIdRouteImport } from './routes/_authed/projects/$projectId'
 import { Route as AuthedProjectsNewRouteImport } from './routes/_authed/projects/new'
@@ -44,6 +46,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedActivityIndexRoute = AuthedActivityIndexRouteImport.update({
+  id: '/activity/',
+  path: '/activity/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedClientsIndexRoute = AuthedClientsIndexRouteImport.update({
   id: '/clients/',
   path: '/clients/',
@@ -64,6 +71,12 @@ const AuthedDepartmentsIndexRoute = AuthedDepartmentsIndexRouteImport.update({
   path: '/departments/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedNotificationsIndexRoute =
+  AuthedNotificationsIndexRouteImport.update({
+    id: '/notifications/',
+    path: '/notifications/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedProjectsIndexRoute = AuthedProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -143,8 +156,10 @@ export interface FileRoutesByFullPath {
   '/tasks/new': typeof AuthedTasksNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
+  '/activity/': typeof AuthedActivityIndexRoute
   '/clients/': typeof AuthedClientsIndexRoute
   '/departments/': typeof AuthedDepartmentsIndexRoute
+  '/notifications/': typeof AuthedNotificationsIndexRoute
   '/projects/': typeof AuthedProjectsIndexRoute
   '/tasks/': typeof AuthedTasksIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
@@ -164,8 +179,10 @@ export interface FileRoutesByTo {
   '/tasks/new': typeof AuthedTasksNewRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/users/new': typeof AuthedUsersNewRoute
+  '/activity': typeof AuthedActivityIndexRoute
   '/clients': typeof AuthedClientsIndexRoute
   '/departments': typeof AuthedDepartmentsIndexRoute
+  '/notifications': typeof AuthedNotificationsIndexRoute
   '/projects': typeof AuthedProjectsIndexRoute
   '/tasks': typeof AuthedTasksIndexRoute
   '/users': typeof AuthedUsersIndexRoute
@@ -187,8 +204,10 @@ export interface FileRoutesById {
   '/_authed/tasks/new': typeof AuthedTasksNewRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/users/new': typeof AuthedUsersNewRoute
+  '/_authed/activity/': typeof AuthedActivityIndexRoute
   '/_authed/clients/': typeof AuthedClientsIndexRoute
   '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
+  '/_authed/notifications/': typeof AuthedNotificationsIndexRoute
   '/_authed/projects/': typeof AuthedProjectsIndexRoute
   '/_authed/tasks/': typeof AuthedTasksIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
@@ -210,8 +229,10 @@ export interface FileRouteTypes {
     | '/tasks/new'
     | '/users/$userId'
     | '/users/new'
+    | '/activity/'
     | '/clients/'
     | '/departments/'
+    | '/notifications/'
     | '/projects/'
     | '/tasks/'
     | '/users/'
@@ -231,8 +252,10 @@ export interface FileRouteTypes {
     | '/tasks/new'
     | '/users/$userId'
     | '/users/new'
+    | '/activity'
     | '/clients'
     | '/departments'
+    | '/notifications'
     | '/projects'
     | '/tasks'
     | '/users'
@@ -253,8 +276,10 @@ export interface FileRouteTypes {
     | '/_authed/tasks/new'
     | '/_authed/users/$userId'
     | '/_authed/users/new'
+    | '/_authed/activity/'
     | '/_authed/clients/'
     | '/_authed/departments/'
+    | '/_authed/notifications/'
     | '/_authed/projects/'
     | '/_authed/tasks/'
     | '/_authed/users/'
@@ -292,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/activity/': {
+      id: '/_authed/activity/'
+      path: '/activity'
+      fullPath: '/activity/'
+      preLoaderRoute: typeof AuthedActivityIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/clients/': {
       id: '/_authed/clients/'
       path: '/clients'
@@ -318,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/departments'
       fullPath: '/departments/'
       preLoaderRoute: typeof AuthedDepartmentsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/notifications/': {
+      id: '/_authed/notifications/'
+      path: '/notifications'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof AuthedNotificationsIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/projects/': {
@@ -424,8 +463,10 @@ interface AuthedRouteChildren {
   AuthedTasksNewRoute: typeof AuthedTasksNewRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
   AuthedUsersNewRoute: typeof AuthedUsersNewRoute
+  AuthedActivityIndexRoute: typeof AuthedActivityIndexRoute
   AuthedClientsIndexRoute: typeof AuthedClientsIndexRoute
   AuthedDepartmentsIndexRoute: typeof AuthedDepartmentsIndexRoute
+  AuthedNotificationsIndexRoute: typeof AuthedNotificationsIndexRoute
   AuthedProjectsIndexRoute: typeof AuthedProjectsIndexRoute
   AuthedTasksIndexRoute: typeof AuthedTasksIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
@@ -445,8 +486,10 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTasksNewRoute: AuthedTasksNewRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
   AuthedUsersNewRoute: AuthedUsersNewRoute,
+  AuthedActivityIndexRoute: AuthedActivityIndexRoute,
   AuthedClientsIndexRoute: AuthedClientsIndexRoute,
   AuthedDepartmentsIndexRoute: AuthedDepartmentsIndexRoute,
+  AuthedNotificationsIndexRoute: AuthedNotificationsIndexRoute,
   AuthedProjectsIndexRoute: AuthedProjectsIndexRoute,
   AuthedTasksIndexRoute: AuthedTasksIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,

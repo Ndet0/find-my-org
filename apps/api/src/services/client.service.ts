@@ -9,6 +9,7 @@ import type {
   UpdateClientInput,
 } from '@opsflow/types/client'
 import { notFound } from '../lib/errors.js'
+import { type EventActor, recordActivity } from './activity.service.js'
 
 /**
  * The columns every client-shaped response needs. Declared once so the list
@@ -98,20 +99,33 @@ export async function getClient(id: string): Promise<ClientDetail> {
   return toDetail(row)
 }
 
-export async function createClient(input: CreateClientInput): Promise<ClientDetail> {
-  const row = await prisma.client.create({
-    data: {
-      name: input.name,
-      company: input.company ?? null,
-      email: input.email ?? null,
-      phone: input.phone ?? null,
-      address: input.address ?? null,
-      notes: input.notes ?? null,
-    },
-    select: detailSelect,
-  })
+export async function createClient(
+  input: CreateClientInput,
+  actor: EventActor,
+): Promise<ClientDetail> {
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.client.create({
+      data: {
+        name: input.name,
+        company: input.company ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        address: input.address ?? null,
+        notes: input.notes ?? null,
+      },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'created',
+      entityType: 'client',
+      entityId: row.id,
+      description: `${actor.name} created ${row.name}`,
+    })
+
+    return toDetail(row)
+  })
 }
 
 export async function updateClient(id: string, input: UpdateClientInput): Promise<ClientDetail> {
@@ -137,18 +151,36 @@ export async function updateClient(id: string, input: UpdateClientInput): Promis
   return toDetail(row)
 }
 
-export async function setClientStatus(id: string, status: ClientStatus): Promise<ClientDetail> {
-  const current = await prisma.client.findUnique({ where: { id }, select: { id: true } })
+export async function setClientStatus(
+  id: string,
+  status: ClientStatus,
+  actor: EventActor,
+): Promise<ClientDetail> {
+  const current = await prisma.client.findUnique({
+    where: { id },
+    select: { id: true, name: true, status: true },
+  })
 
   if (!current) {
     throw notFound('Client')
   }
 
-  const row = await prisma.client.update({
-    where: { id },
-    data: { status },
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.client.update({
+      where: { id },
+      data: { status },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'status_changed',
+      entityType: 'client',
+      entityId: row.id,
+      description: `${actor.name} changed ${row.name} to ${status}`,
+      metadata: { old: current.status, new: status },
+    })
+
+    return toDetail(row)
+  })
 }

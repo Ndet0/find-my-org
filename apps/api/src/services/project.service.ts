@@ -13,6 +13,8 @@ import type {
 } from '@opsflow/types/project'
 import type { NamedRef } from '@opsflow/types/user'
 import { AppError, conflict, notFound } from '../lib/errors.js'
+import { type EventActor, recordActivity } from './activity.service.js'
+import { notify } from './notification.service.js'
 
 export type ProjectActor = {
   id: string
@@ -191,30 +193,54 @@ export async function getProject(id: string, actor: ProjectActor): Promise<Proje
   return toDetail(row)
 }
 
-export async function createProject(input: CreateProjectInput): Promise<ProjectDetail> {
+export async function createProject(
+  input: CreateProjectInput,
+  actor: EventActor,
+): Promise<ProjectDetail> {
   await assertClientAssignable(input.clientId)
   await assertManagerEligible(input.managerId)
 
-  const row = await prisma.project.create({
-    data: {
-      name: input.name,
-      description: input.description ?? null,
-      priority: input.priority,
-      startDate: toDate(input.startDate),
-      deadline: toDate(input.deadline),
-      client: input.clientId ? { connect: { id: input.clientId } } : undefined,
-      manager: input.managerId ? { connect: { id: input.managerId } } : undefined,
-    },
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.project.create({
+      data: {
+        name: input.name,
+        description: input.description ?? null,
+        priority: input.priority,
+        startDate: toDate(input.startDate),
+        deadline: toDate(input.deadline),
+        client: input.clientId ? { connect: { id: input.clientId } } : undefined,
+        manager: input.managerId ? { connect: { id: input.managerId } } : undefined,
+      },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'created',
+      entityType: 'project',
+      entityId: row.id,
+      description: `${actor.name} created "${row.name}"`,
+    })
+    await notify(tx, {
+      userId: input.managerId,
+      actorId: actor.id,
+      title: 'Project created',
+      message: `${actor.name} created "${row.name}" and assigned you as manager`,
+      type: 'project',
+    })
+
+    return toDetail(row)
+  })
 }
 
-export async function updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail> {
+export async function updateProject(
+  id: string,
+  input: UpdateProjectInput,
+  actor: EventActor,
+): Promise<ProjectDetail> {
   const current = await prisma.project.findUnique({
     where: { id },
-    select: { id: true, startDate: true, deadline: true },
+    select: { id: true, name: true, startDate: true, deadline: true },
   })
 
   if (!current) {
@@ -248,52 +274,154 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
     data.manager = input.managerId ? { connect: { id: input.managerId } } : { disconnect: true }
   }
 
-  const row = await prisma.project.update({
-    where: { id },
-    data,
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.project.update({
+      where: { id },
+      data,
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'updated',
+      entityType: 'project',
+      entityId: row.id,
+      description: `${actor.name} updated "${row.name}"`,
+    })
+
+    return toDetail(row)
+  })
 }
 
-export async function setProjectStatus(id: string, status: ProjectStatus): Promise<ProjectDetail> {
-  await assertProjectExists(id)
-
-  const row = await prisma.project.update({
+export async function setProjectStatus(
+  id: string,
+  status: ProjectStatus,
+  actor: EventActor,
+): Promise<ProjectDetail> {
+  const current = await prisma.project.findUnique({
     where: { id },
-    data: { status },
-    select: detailSelect,
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      managerId: true,
+      members: { select: { userId: true } },
+    },
   })
 
-  return toDetail(row)
+  if (!current) {
+    throw notFound('Project')
+  }
+
+  const recipients = new Set(
+    [current.managerId, ...current.members.map((member) => member.userId)].filter(
+      (userId): userId is string => Boolean(userId),
+    ),
+  )
+
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.project.update({
+      where: { id },
+      data: { status },
+      select: detailSelect,
+    })
+
+    await recordActivity(tx, {
+      actor,
+      action: 'status_changed',
+      entityType: 'project',
+      entityId: row.id,
+      description: `${actor.name} changed "${row.name}" to ${labelStatus(status)}`,
+      metadata: { old: current.status, new: status },
+    })
+
+    for (const userId of recipients) {
+      await notify(tx, {
+        userId,
+        actorId: actor.id,
+        title: 'Project status changed',
+        message: `${actor.name} changed "${row.name}" to ${labelStatus(status)}`,
+        type: 'project',
+      })
+    }
+
+    return toDetail(row)
+  })
 }
 
 export async function setProjectPriority(
   id: string,
   priority: PriorityLevel,
+  actor: EventActor,
 ): Promise<ProjectDetail> {
-  await assertProjectExists(id)
-
-  const row = await prisma.project.update({
+  const current = await prisma.project.findUnique({
     where: { id },
-    data: { priority },
-    select: detailSelect,
+    select: { id: true, name: true, priority: true },
   })
 
-  return toDetail(row)
+  if (!current) {
+    throw notFound('Project')
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.project.update({
+      where: { id },
+      data: { priority },
+      select: detailSelect,
+    })
+
+    await recordActivity(tx, {
+      actor,
+      action: 'priority_changed',
+      entityType: 'project',
+      entityId: row.id,
+      description: `${actor.name} set "${row.name}" to ${priority} priority`,
+      metadata: { old: current.priority, new: priority },
+    })
+
+    return toDetail(row)
+  })
 }
 
 export async function addProjectMember(
   projectId: string,
   input: AddProjectMemberInput,
+  actor: EventActor,
 ): Promise<ProjectDetail> {
-  await assertProjectExists(projectId)
-  await assertMemberEligible(input.userId)
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, name: true },
+  })
+
+  if (!project) {
+    throw notFound('Project')
+  }
+
+  const member = await assertMemberEligible(input.userId)
 
   try {
-    await prisma.projectMember.create({
-      data: { projectId, userId: input.userId },
+    return await prisma.$transaction(async (tx) => {
+      await tx.projectMember.create({
+        data: { projectId, userId: input.userId },
+      })
+
+      await recordActivity(tx, {
+        actor,
+        action: 'member_added',
+        entityType: 'project',
+        entityId: projectId,
+        description: `${actor.name} added ${member.name} to "${project.name}"`,
+        metadata: { userId: input.userId },
+      })
+      await notify(tx, {
+        userId: input.userId,
+        actorId: actor.id,
+        title: 'Added to project',
+        message: `${actor.name} added you to "${project.name}"`,
+        type: 'project',
+      })
+
+      return getProjectUnscoped(projectId, tx)
     })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -302,46 +430,65 @@ export async function addProjectMember(
 
     throw error
   }
-
-  return getProjectUnscoped(projectId)
 }
 
 export async function removeProjectMember(
   projectId: string,
   userId: string,
+  actor: EventActor,
 ): Promise<ProjectDetail> {
-  await assertProjectExists(projectId)
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, name: true },
+  })
+
+  if (!project) {
+    throw notFound('Project')
+  }
 
   const membership = await prisma.projectMember.findUnique({
     where: { projectId_userId: { projectId, userId } },
-    select: { id: true },
+    select: { id: true, user: { select: { name: true } } },
   })
 
   if (!membership) {
     throw new AppError('PROJECT_MEMBER_NOT_FOUND', 'That person is not on this project', 404)
   }
 
-  await prisma.projectMember.delete({ where: { id: membership.id } })
+  return prisma.$transaction(async (tx) => {
+    await tx.projectMember.delete({ where: { id: membership.id } })
 
-  return getProjectUnscoped(projectId)
+    await recordActivity(tx, {
+      actor,
+      action: 'member_removed',
+      entityType: 'project',
+      entityId: projectId,
+      description: `${actor.name} removed ${membership.user.name} from "${project.name}"`,
+      metadata: { userId },
+    })
+    await notify(tx, {
+      userId,
+      actorId: actor.id,
+      title: 'Removed from project',
+      message: `${actor.name} removed you from "${project.name}"`,
+      type: 'project',
+    })
+
+    return getProjectUnscoped(projectId, tx)
+  })
 }
 
-async function getProjectUnscoped(id: string): Promise<ProjectDetail> {
-  const row = await prisma.project.findUnique({ where: { id }, select: detailSelect })
+async function getProjectUnscoped(
+  id: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<ProjectDetail> {
+  const row = await db.project.findUnique({ where: { id }, select: detailSelect })
 
   if (!row) {
     throw notFound('Project')
   }
 
   return toDetail(row)
-}
-
-async function assertProjectExists(id: string): Promise<void> {
-  const project = await prisma.project.findUnique({ where: { id }, select: { id: true } })
-
-  if (!project) {
-    throw notFound('Project')
-  }
 }
 
 async function assertClientAssignable(clientId: string | null | undefined): Promise<void> {
@@ -383,10 +530,10 @@ async function assertManagerEligible(managerId: string | null | undefined): Prom
   }
 }
 
-async function assertMemberEligible(userId: string): Promise<void> {
+async function assertMemberEligible(userId: string): Promise<{ id: string; name: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, status: true },
+    select: { id: true, name: true, status: true },
   })
 
   if (!user) {
@@ -396,6 +543,8 @@ async function assertMemberEligible(userId: string): Promise<void> {
   if (user.status !== 'active') {
     throw conflict('MEMBER_NOT_ACTIVE', 'Only an active person can be added to a project')
   }
+
+  return { id: user.id, name: user.name }
 }
 
 function assertDeadlineNotBeforeStart(startDate: string | null, deadline: string | null): void {
@@ -408,4 +557,8 @@ function assertDeadlineNotBeforeStart(startDate: string | null, deadline: string
 
 function toDate(value: string | null | undefined): Date | null {
   return value ? new Date(value) : null
+}
+
+function labelStatus(status: ProjectStatus): string {
+  return status.replaceAll('_', ' ')
 }
