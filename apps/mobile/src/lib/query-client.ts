@@ -1,6 +1,8 @@
-import { QueryCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { ApiRequestError } from '@/lib/api'
 import { currentUserQueryOptions } from '@/lib/current-user'
+import { dashboardKeys } from '@/lib/dashboard'
+import { notificationKeys } from '@/lib/notifications'
 
 export const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +29,17 @@ export const queryClient: QueryClient = new QueryClient({
       ) {
         queryClient.setQueryData(currentUserQueryOptions.queryKey, null)
       }
+    },
+  }),
+  mutationCache: new MutationCache({
+    // As on the web: the API moves the dashboard counts and may raise a
+    // notification on every write, so those are derived views refreshed
+    // after any mutation rather than something each mutation remembers.
+    // Invalidating a key that is not in the cache is a no-op, so this is
+    // harmless around sign-in and sign-out.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.stats })
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all })
     },
   }),
 })

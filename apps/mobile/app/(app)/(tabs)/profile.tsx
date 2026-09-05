@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { DetailRow } from '@/components/detail-row'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, useCurrentUser } from '@/lib/current-user'
@@ -34,11 +35,11 @@ export default function ProfileScreen() {
       </View>
 
       <View className="gap-3 rounded-xl border border-neutral-200 bg-white p-4">
-        <Row label="Role" value={user.role.name} capitalize />
-        <Row label="Department" value={user.department?.name ?? 'Unassigned'} />
-        <Row label="Position" value={user.position ?? 'Unassigned'} />
-        <Row label="Phone" value={user.phone ?? 'Not provided'} />
-        <Row label="Joined" value={user.joinedAt ?? 'Unknown'} />
+        <DetailRow label="Role" value={user.role.name} capitalize />
+        <DetailRow label="Department" value={user.department?.name ?? 'Unassigned'} />
+        <DetailRow label="Position" value={user.position ?? 'Unassigned'} />
+        <DetailRow label="Phone" value={user.phone ?? 'Not provided'} />
+        <DetailRow label="Joined" value={user.joinedAt ?? 'Unknown'} />
       </View>
 
       <View className="mt-6">
@@ -53,18 +54,5 @@ export default function ProfileScreen() {
         ) : null}
       </View>
     </Screen>
-  )
-}
-
-function Row({ label, value, capitalize }: { label: string; value: string; capitalize?: boolean }) {
-  return (
-    <View className="flex-row justify-between gap-4">
-      <Text className="text-sm text-neutral-500">{label}</Text>
-      <Text
-        className={`flex-1 text-right text-sm text-neutral-900 ${capitalize ? 'capitalize' : ''}`}
-      >
-        {value}
-      </Text>
-    </View>
   )
 }

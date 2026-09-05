@@ -9,6 +9,7 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="tasks/[taskId]" options={{ headerShown: true, title: 'Task' }} />
+      <Stack.Screen name="projects/[projectId]" options={{ headerShown: true, title: 'Project' }} />
     </Stack>
   )
 }

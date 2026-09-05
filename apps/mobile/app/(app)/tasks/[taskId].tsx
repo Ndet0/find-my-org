@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { DetailRow } from '@/components/detail-row'
 import { describeError, Message } from '@/components/message'
 import { PriorityBadge, StatusBadge, taskStatusLabel } from '@/components/status-badge'
 import { isOverdue } from '@/lib/dates'
@@ -48,14 +49,17 @@ export default function TaskDetailScreen() {
       </View>
 
       <View className="gap-3 rounded-xl border border-neutral-200 bg-white p-4">
-        <Row label="Assignee" value={data.assignee?.name ?? 'Unassigned'} />
-        <Row
+        <DetailRow label="Assignee" value={data.assignee?.name ?? 'Unassigned'} />
+        <DetailRow
           label="Due date"
           value={data.dueDate ? (overdue ? `${data.dueDate} · overdue` : data.dueDate) : 'Not set'}
           tone={overdue ? 'alert' : 'default'}
         />
-        <Row label="Created by" value={data.creator?.name ?? 'Unknown'} />
-        <Row label="Completed" value={data.completedAt ? data.completedAt.slice(0, 10) : '—'} />
+        <DetailRow label="Created by" value={data.creator?.name ?? 'Unknown'} />
+        <DetailRow
+          label="Completed"
+          value={data.completedAt ? data.completedAt.slice(0, 10) : '—'}
+        />
         <View className="gap-1">
           <Text className="text-sm text-neutral-500">Description</Text>
           <Text className="text-sm text-neutral-900">{data.description ?? 'None'}</Text>
@@ -137,27 +141,6 @@ function StatusControl({
           ))}
         </View>
       )}
-    </View>
-  )
-}
-
-function Row({
-  label,
-  value,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  tone?: 'default' | 'alert'
-}) {
-  return (
-    <View className="flex-row justify-between gap-4">
-      <Text className="text-sm text-neutral-500">{label}</Text>
-      <Text
-        className={`flex-1 text-right text-sm ${tone === 'alert' ? 'text-red-600' : 'text-neutral-900'}`}
-      >
-        {value}
-      </Text>
     </View>
   )
 }

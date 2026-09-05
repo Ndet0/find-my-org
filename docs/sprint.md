@@ -1181,7 +1181,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-04 — against the working tree, not from memory.
+**Last verified:** 2026-09-05 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1500,7 +1500,30 @@ still no realtime channel.
 - [x] Development conveniences: Expo's web dev server (`http://localhost:8081`)
   is a CORS origin and a trusted origin outside production;
   `EXPO_PUBLIC_API_URL` is read from the root `.env` by the mobile scripts
-- [ ] Dashboard, projects, project detail and notifications screens
+- [x] Dashboard tab over `GET /api/dashboard`: the same role-based KPI set
+  as the web in a two-column grid (directory counts are plain cards, since
+  there is no mobile screen to open), an inbox card with the unread count,
+  and two feeds — upcoming deadlines and active projects — from the
+  row-scoped list endpoints at `pageSize=5`. Pull to refresh refetches all
+  four queries
+- [x] Projects tab (one page at the API ceiling, ordered by name on the
+  server) and a read-only project detail: status, priority, progress,
+  dates, manager and members, and the project's tasks through
+  `GET /api/tasks?projectId=`, so an employee sees only their own
+  assignments there while the card's total is the whole project's
+- [x] Inbox tab: newest first, unread rows marked, tap to mark one read,
+  mark all read, an all/unread filter, and the polled unread count as a
+  badge on the tab bar. The same `MutationCache.onSuccess` rule as the web
+  refreshes the dashboard counts and every notifications query after any
+  mutation, so the badge moves with a task status change too
+- [x] Five tabs — Home, My tasks, Projects, Inbox, Profile — the mobile
+  priorities of product §30. Shared `Card`, `DetailRow` and `ProgressBar`
+  components; `toSearchParams` deduplicated across the list modules
+- [x] Verified through the web build at 390×844 as the employee: dashboard
+  counts and feeds, project detail with the scoped task list, projects
+  list, inbox at 9 unread → tap one (PATCH 200, badge 8) → mark all (badge
+  gone, button disabled). Admin and manager dashboards verified for their
+  KPI sets and org counts
 - [ ] Profile editing (the API has no self-service profile endpoint yet)
 - [ ] App icon and splash assets; a first run on a device or emulator
 
@@ -1590,8 +1613,9 @@ these defects; all are fixed and covered by tests or verified by typecheck.
 
 ## Not started
 
-- [-] Phase 13 — Mobile Application: foundation, authentication and the task
-  workflow are done; remaining screens listed above
+- [-] Phase 13 — Mobile Application: every screen is built and verified
+  through the web build; profile editing, app assets and a first run on a
+  device remain (listed above)
 - [ ] Phases 14-20 — Polish, performance, testing (started), security, deployment, demo
 
 ## Stack amendments
@@ -1613,23 +1637,29 @@ role its operational overview from real rows.
 Next:
 
 ```text
-1. Phase 13 — remaining screens
+1. Phase 13 — close out
 ```
 
-The mobile foundation, authentication and the employee task workflow exist
-and are verified through the web build. In order:
+Every mobile screen exists and is verified through the web build. What is
+left is not code that can be finished on this machine:
 
 1. Run the app on a device or emulator once (`pnpm --filter @opsflow/mobile
    dev`, Expo Go). SecureStore and the `opsflow://` origin are proven against
-   the API but have not been exercised from a phone.
-2. Dashboard tab reusing `GET /api/dashboard`, then projects list and detail,
-   then notifications with the unread badge. Each is a read-only screen over
-   an endpoint the web already consumes.
-3. App icon and splash assets before the demo.
+   the API but have not been exercised from a phone, and the five-tab layout
+   and the pushed record screens have not been seen on a real screen.
+2. App icon and splash assets before the demo (`apps/mobile/assets`, wired
+   into `app.json`).
+3. Profile editing needs a `PATCH /api/me` first — a small service-layer
+   addition scoped to name, phone and position — and then a form on the
+   profile tab. Decide whether it belongs to Phase 13 or to the Phase 14 pass.
+
+Then Phase 14. Before it starts, decide on the project and task lifecycles
+(§24 "Known gaps"): enforce the state machines in the API, or document them
+as guidance.
 
 `packages/ui` design tokens still wait: the mobile palette is the same
-neutral scale as the web's, hard-coded in three components. Extract it when
-the Phase 14 polish pass touches both clients.
+neutral scale as the web's, hard-coded in the mobile components. Extract it
+when the Phase 14 polish pass touches both clients.
 
 Do not begin building all remaining modules simultaneously.
 

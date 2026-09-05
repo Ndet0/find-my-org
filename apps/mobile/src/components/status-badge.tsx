@@ -1,4 +1,4 @@
-import type { PriorityLevel } from '@opsflow/types/project'
+import type { PriorityLevel, ProjectStatus } from '@opsflow/types/project'
 import type { TaskStatus } from '@opsflow/types/task'
 import { Text, View } from 'react-native'
 
@@ -7,6 +7,15 @@ const STATUS: Record<TaskStatus, { label: string; className: string }> = {
   in_progress: { label: 'In progress', className: 'bg-blue-100 text-blue-800' },
   blocked: { label: 'Blocked', className: 'bg-red-100 text-red-800' },
   completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+}
+
+const PROJECT_STATUS: Record<ProjectStatus, { label: string; className: string }> = {
+  planning: { label: 'Planning', className: 'bg-neutral-200 text-neutral-800' },
+  active: { label: 'Active', className: 'bg-blue-100 text-blue-800' },
+  on_hold: { label: 'On hold', className: 'bg-amber-100 text-amber-800' },
+  completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+  delayed: { label: 'Delayed', className: 'bg-red-100 text-red-800' },
+  cancelled: { label: 'Cancelled', className: 'bg-neutral-100 text-neutral-500' },
 }
 
 const PRIORITY: Record<PriorityLevel, string> = {
@@ -28,6 +37,10 @@ function Badge({ label, className }: { label: string; className: string }) {
 
 export function StatusBadge({ status }: { status: TaskStatus }) {
   return <Badge {...STATUS[status]} />
+}
+
+export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
+  return <Badge {...PROJECT_STATUS[status]} />
 }
 
 export function PriorityBadge({ priority }: { priority: PriorityLevel }) {

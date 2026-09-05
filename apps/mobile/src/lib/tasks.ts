@@ -7,26 +7,13 @@ import type {
 } from '@opsflow/types/task'
 import { queryOptions } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { toSearchParams } from '@/lib/search-params'
 
 /** Same key layout as the web client, so the two stay comparable. */
 export const taskKeys = {
   all: ['tasks'] as const,
   list: (filters: TaskListFilters) => ['tasks', 'list', filters] as const,
   detail: (id: string) => ['tasks', 'detail', id] as const,
-}
-
-function toSearchParams(filters: TaskListFilters): string {
-  const params = new URLSearchParams()
-
-  for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== '' && value !== false) {
-      params.set(key, String(value))
-    }
-  }
-
-  const query = params.toString()
-
-  return query ? `?${query}` : ''
 }
 
 export const tasksQueryOptions = (filters: TaskListFilters) =>
