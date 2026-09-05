@@ -1,3 +1,4 @@
+import { expo } from '@better-auth/expo'
 import { prismaAdapter } from '@better-auth/prisma-adapter'
 import { prisma } from '@opsflow/db'
 import { PASSWORD_MIN_LENGTH } from '@opsflow/types/auth'
@@ -13,6 +14,28 @@ const DEFAULT_ROLE_NAME = 'employee'
 
 /** The value shipped in `.env.example`; booting with it would be insecure. */
 const PLACEHOLDER_SECRET = 'replace-me-with-a-32-byte-random-string'
+
+/**
+ * The mobile app identifies itself by its URL scheme (`expo.scheme` in
+ * apps/mobile/app.json) rather than by an HTTP origin. Better Auth checks
+ * it the same way it checks the web origin, so a request from an app that
+ * is not ours is refused before it reaches the credential check.
+ */
+const MOBILE_SCHEME = 'opsflow://'
+
+/**
+ * Development-only origins. Expo Go presents itself as `exp://<lan-ip>`,
+ * and the mobile app's web build, used to exercise it in a browser, runs
+ * on Expo's dev server. None of these exist in a production deployment.
+ */
+const DEVELOPMENT_ORIGINS = [
+  'exp://',
+  'exp://**',
+  'exp://192.168.*.*:*/**',
+  'http://localhost:8081',
+]
+
+const isProduction = process.env.NODE_ENV === 'production'
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -57,7 +80,14 @@ export const auth = betterAuth({
   secret: requireSecret(),
   baseURL: requireEnv('BETTER_AUTH_URL'),
   basePath: '/api/auth',
-  trustedOrigins: [requireEnv('WEB_URL')],
+  trustedOrigins: [
+    requireEnv('WEB_URL'),
+    MOBILE_SCHEME,
+    ...(isProduction ? [] : DEVELOPMENT_ORIGINS),
+  ],
+
+  // Adds the endpoints and cookie handling the Expo client relies on.
+  plugins: [expo()],
 
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
@@ -105,6 +135,11 @@ export const auth = betterAuth({
   },
 
   advanced: {
+    // Better Auth turns its origin check off by default whenever NODE_ENV is
+    // `test`, which Bun's test runner sets. Pinning it on means the API tests
+    // exercise the same trusted-origin rule as production, and a stray
+    // NODE_ENV can never switch it off silently.
+    disableOriginCheck: false,
     database: {
       // Let Prisma's `@default(uuid(7))` supply ids. Better Auth's own
       // generator does not emit UUIDs, which the `uuid` columns reject.

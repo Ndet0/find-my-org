@@ -9,7 +9,9 @@
     "BETTER_AUTH_URL",
     "API_PORT",
     "WEB_URL",
-    "VITE_API_URL"
+    "VITE_API_URL",
+    "EXPO_PUBLIC_API_URL",
+    "SEED_USER_PASSWORD"
   ],
   "tasks": {
     "build": {
@@ -25,6 +27,10 @@
       "dependsOn": ["^build", "db:generate"]
     },
     "db:generate": {
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["db:generate"],
       "cache": false
     },
     "clean": {

@@ -1,0 +1,9 @@
+{
+  "extends": "@opsflow/config/tsconfig.expo.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["app", "src", "nativewind-env.d.ts"]
+}

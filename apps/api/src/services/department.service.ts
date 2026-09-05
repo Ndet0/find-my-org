@@ -62,6 +62,7 @@ export async function createDepartment(
 export async function updateDepartment(
   id: string,
   input: UpdateDepartmentInput,
+  actor: EventActor,
 ): Promise<DepartmentListItem> {
   const current = await prisma.department.findUnique({ where: { id }, select: { id: true } })
 
@@ -73,16 +74,26 @@ export async function updateDepartment(
     await assertNameAvailable(input.name, id)
   }
 
-  const row = await prisma.department.update({
-    where: { id },
-    data: {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-    },
-    select: departmentSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.department.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      },
+      select: departmentSelect,
+    })
 
-  return toListItem(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'updated',
+      entityType: 'department',
+      entityId: row.id,
+      description: `${actor.name} updated ${row.name}`,
+    })
+
+    return toListItem(row)
+  })
 }
 
 export async function deleteDepartment(id: string, actor: EventActor): Promise<DepartmentListItem> {

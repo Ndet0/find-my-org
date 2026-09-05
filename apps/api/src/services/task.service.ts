@@ -166,7 +166,7 @@ export async function getTask(id: string, actor: TaskActor): Promise<TaskDetail>
 }
 
 export async function createTask(input: CreateTaskInput, actor: TaskActor): Promise<TaskDetail> {
-  await assertProjectExists(input.projectId)
+  await assertProjectOpen(input.projectId)
   await assertAssigneeEligible(input.projectId, input.assignedTo)
 
   return prisma.$transaction(async (tx) => {
@@ -218,7 +218,7 @@ export async function updateTask(
     input.assignedTo !== undefined ? input.assignedTo : (current.assignee?.id ?? null)
 
   if (input.projectId !== undefined) {
-    await assertProjectExists(input.projectId)
+    await assertProjectOpen(input.projectId)
   }
 
   if (input.projectId !== undefined || input.assignedTo !== undefined) {
@@ -381,11 +381,20 @@ async function findVisible(id: string, actor: TaskActor): Promise<DetailRow | nu
   })
 }
 
-async function assertProjectExists(id: string): Promise<void> {
-  const project = await prisma.project.findUnique({ where: { id }, select: { id: true } })
+/**
+ * A task can only be created on, or moved to, a project that is still
+ * taking work. Completed and cancelled projects are closed; the tasks
+ * already on them stay editable so history can be tidied.
+ */
+async function assertProjectOpen(id: string): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id }, select: { status: true } })
 
   if (!project) {
     throw notFound('Project')
+  }
+
+  if (project.status === 'completed' || project.status === 'cancelled') {
+    throw conflict('PROJECT_CLOSED', `A ${project.status} project cannot take new tasks`)
   }
 }
 

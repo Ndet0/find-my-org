@@ -222,8 +222,9 @@ export async function createUser(input: CreateUserInput, actor: EventActor): Pro
 export async function updateUser(
   id: string,
   input: UpdateUserInput,
-  actorId: string,
+  actor: EventActor,
 ): Promise<UserDetail> {
+  const actorId = actor.id
   const current = await prisma.user.findUnique({
     where: { id },
     select: { id: true, email: true, status: true, role: { select: { name: true } } },
@@ -273,7 +274,24 @@ export async function updateUser(
   }
 
   try {
-    const row = await prisma.user.update({ where: { id }, data, select: detailSelect })
+    const row = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id }, data, select: detailSelect })
+
+      await recordActivity(tx, {
+        actor,
+        action: input.role !== undefined ? 'role_changed' : 'updated',
+        entityType: 'user',
+        entityId: updated.id,
+        description:
+          input.role !== undefined
+            ? `${actor.name} changed ${updated.name}'s role to ${input.role}`
+            : `${actor.name} updated ${updated.name}`,
+        metadata:
+          input.role !== undefined ? { old: current.role.name, new: input.role } : undefined,
+      })
+
+      return updated
+    })
     return toDetail(row)
   } catch (error) {
     if (isUniqueOn(error, 'email')) {

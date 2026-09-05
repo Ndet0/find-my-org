@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ApiRequestError, type FieldErrorMap, fieldErrorsFrom } from '@/lib/api'
+import { type FieldErrorMap, fieldErrorsFrom, formErrorMessage } from '@/lib/api'
 import { currentUserQueryOptions } from '@/lib/current-user'
 import { departmentKeys, departmentsQueryOptions } from '@/lib/departments'
 import { createUser, updateUser, userKeys } from '@/lib/users'
@@ -101,7 +101,7 @@ export function UserForm({ user }: { user?: UserDetail }) {
     },
     onError: (error) => {
       setServerErrors(fieldErrorsFrom(error))
-      setFormError(error instanceof ApiRequestError ? error.message : 'The form could not be saved')
+      setFormError(formErrorMessage(error, 'The form could not be saved'))
     },
   })
 

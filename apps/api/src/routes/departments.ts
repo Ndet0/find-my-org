@@ -39,7 +39,10 @@ departmentRoutes.patch(
   validateDepartmentIdParam,
   validateUpdateDepartment,
   async (c) => {
-    return ok(c, await updateDepartment(c.req.valid('param').id, c.req.valid('json')))
+    return ok(
+      c,
+      await updateDepartment(c.req.valid('param').id, c.req.valid('json'), eventActor(c)),
+    )
   },
 )
 

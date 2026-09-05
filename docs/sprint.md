@@ -1243,7 +1243,8 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] Verified cross-origin `:5173` -> `:3000`: preflight returns
   `Access-Control-Allow-Credentials`, sign-in sets an HttpOnly `SameSite=Lax` session
   cookie, `/api/me` returns the profile, and sign-out invalidates it
-- [ ] Mobile authentication — blocked on `apps/mobile`
+- [x] Mobile authentication — Better Auth's Expo plugin with the session cookie in
+  SecureStore; see Phase 13
 
 ## Phase 5 — API Foundation (partial, out of order)
 
@@ -1465,6 +1466,85 @@ still no realtime channel.
   server-side mid-visit (401 to login). Every endpoint was requested exactly
   once per state
 
+## Phase 13 — React Native Mobile Application (in progress)
+
+- [x] `apps/mobile` scaffolded: Expo SDK 57, Expo Router, NativeWind 4 on
+  Tailwind CSS 3, TanStack Query, `@opsflow/types` for every contract and
+  never `@opsflow/db`. Runs inside the pnpm workspace with isolated
+  `node_modules` (supported from SDK 54); Expo's default Metro config handles
+  the monorepo, NativeWind is layered on top in `metro.config.js`
+- [x] `packages/config/tsconfig.expo.json` — the shared base with Expo's
+  `react-native` custom condition and DOM lib. Root TypeScript 7 is kept even
+  though `expo install --check` expects 6; the typecheck passes
+- [x] Authentication. `packages/auth` registers the Better Auth Expo plugin
+  and trusts the app by its URL scheme (`opsflow://`, from `expo.scheme`).
+  The mobile client keeps the session cookie in SecureStore and
+  `src/lib/api.ts` attaches it by hand with `credentials: 'omit'`; on the web
+  build the browser's cookie jar is used exactly as in `apps/web`
+- [x] `/api/me` is the client's source of truth, as on the web, but a 401
+  resolves to `null` rather than throwing: "signed out" is a normal state
+  for the root layout, which mounts either the login or the app stack
+  through `Stack.Protected`. A 401 from any other query sets it to null
+  (`QueryCache.onError`), so an expired session drops to login from any screen
+- [x] Login (shared Zod schema, field errors, pending state), My tasks
+  (assigned to the signed-in user, ordered by due date, overdue in red,
+  pull to refresh), task detail with an inline status confirmation, and a
+  profile tab with sign-out. The status change is the employee workflow the
+  phase's acceptance criterion names
+- [x] Verified in a browser through the app's web build at 390×844: sign-in
+  as the employee, empty state, list with an overdue task, detail, status to
+  in progress (PATCH 200, list and detail refetched), reload keeps the
+  session, profile, sign-out returns to login. Native devices were not
+  available here, so SecureStore and the `opsflow://` origin were verified
+  against the API in-process (see Phase 16) rather than from a phone
+- [x] Development conveniences: Expo's web dev server (`http://localhost:8081`)
+  is a CORS origin and a trusted origin outside production;
+  `EXPO_PUBLIC_API_URL` is read from the root `.env` by the mobile scripts
+- [ ] Dashboard, projects, project detail and notifications screens
+- [ ] Profile editing (the API has no self-service profile endpoint yet)
+- [ ] App icon and splash assets; a first run on a device or emulator
+
+## Phase 16 — Testing (pulled forward, partial)
+
+- [x] `apps/api/test/api.test.ts` — Bun's test runner against the assembled
+  Hono app in-process (`app.request()`), on the seeded development database.
+  Covers the session round trip, sign-out, the closed signup endpoint, the
+  trusted-origin rule for the web origin and the mobile scheme, refusal of
+  an unknown origin, and one authorization decision per role. `pnpm test`
+- [x] `apps/api/src/app.ts` now exports the app without a listener;
+  `index.ts` only serves it
+- [x] Better Auth disables its origin check whenever `NODE_ENV` is `test`,
+  which Bun's runner sets. `advanced.disableOriginCheck: false` pins it on so
+  the tests exercise the production rule and no environment can switch it
+  off silently
+- [x] `apps/api/test/rules.test.ts` — the cross-record rules below, with the
+  fixture rows removed again afterwards
+- [ ] Unit, integration, frontend and mobile tests
+
+## Audit fixes (2026-09-05)
+
+A full read of the code against this plan and the product document found
+these defects; all are fixed and covered by tests or verified by typecheck.
+
+- [x] The user, project, client and department forms parsed their payload
+  with the shared Zod schema but only understood API errors, so a local
+  validation failure showed a generic banner and no field message. The
+  web API client now maps a ZodError the same way as a 422 envelope, and
+  every form uses one `formErrorMessage` helper
+- [x] Editing a user, client or department wrote no activity row, contrary
+  to the "every mutation is logged" rule. All three now log `updated`; a
+  role change logs `role_changed` with the old and new values
+- [x] Removing a project member, or handing the project to a new manager,
+  left open tasks assigned to someone who was neither manager nor member.
+  Both now refuse with `ASSIGNEE_HAS_OPEN_TASKS` until the work is
+  reassigned; completed tasks stay with the person as history
+- [x] Tasks could be created on, or moved to, completed and cancelled
+  projects. Both now refuse with `PROJECT_CLOSED`
+- [x] The users list and detail routes lacked the client-side permission
+  redirect the other admin pages have
+- [x] The mobile current-user hook threw during the sign-out frame; it now
+  returns `null` and the two screens render nothing for that frame
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1476,6 +1556,26 @@ still no realtime channel.
   deployment needs `SameSite=None; Secure` (Phase 18).
 - The users table pages, but has no sortable columns. Sorting is a service-layer
   `orderBy` plus a search parameter; it was left out until a screen needs it.
+  The product document (§29) also lists bulk actions; none exist.
+- There is no global search (product §27); each list searches itself.
+- Project and task lifecycles (product §14, §21) are not enforced: the API
+  accepts any status transition, and completing a project neither sets
+  progress nor touches its tasks. Decide before Phase 14 whether to enforce
+  the state machines or to document them as guidance.
+- No detail page links to the entity's activity history, although
+  `GET /api/activity` can filter by entity. Product §24 promises "how an
+  entity evolved".
+- No avatar upload path; `users.avatar_url` is never written.
+- No deadline reminders (product §25 "due tomorrow"); notifications fire only
+  on direct actions.
+- Departments are hard-deleted behind a 409 guard where the product document
+  says archive. A deliberate simplification, recorded here.
+- Creating a user is two steps (Better Auth signup, then the profile patch).
+  If the second fails, an employee-role account without a department remains.
+- Overdue is computed against the UTC date, so a user ahead of UTC sees
+  yesterday's date as "today" for the first hours of their day.
+- Rate limiting is Better Auth's default, which is active only in production.
+- There is no CI, no Dockerfile and no git hooks yet (Phases 16 and 18).
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
   and the create form share, so they cannot drift.
@@ -1490,8 +1590,9 @@ still no realtime channel.
 
 ## Not started
 
-- [ ] Phase 13 — Mobile Application
-- [ ] Phases 14-20 — Polish, performance, testing, security, deployment, demo
+- [-] Phase 13 — Mobile Application: foundation, authentication and the task
+  workflow are done; remaining screens listed above
+- [ ] Phases 14-20 — Polish, performance, testing (started), security, deployment, demo
 
 ## Stack amendments
 
@@ -1512,28 +1613,23 @@ role its operational overview from real rows.
 Next:
 
 ```text
-1. Phase 13 — React Native Mobile Application
+1. Phase 13 — remaining screens
 ```
 
-Mobile is the one MVP must-have (§22) with no code. Build it as a vertical
-slice in this order, and stop to verify each step before the next:
+The mobile foundation, authentication and the employee task workflow exist
+and are verified through the web build. In order:
 
-1. Scaffold Expo with Expo Router and NativeWind, consuming `@opsflow/types`
-   only — never `@opsflow/db`.
-2. Authentication first. The web relies on an HttpOnly cookie; Expo needs the
-   Better Auth Expo plugin with secure storage instead. This is the riskiest
-   unknown in the phase, so prove sign-in and `/api/me` before any screen.
-3. Login, assigned tasks and task status update. That is the phase's
-   acceptance criterion and the employee step of the demo.
-4. Then dashboard, projects, notifications and profile.
+1. Run the app on a device or emulator once (`pnpm --filter @opsflow/mobile
+   dev`, Expo Go). SecureStore and the `opsflow://` origin are proven against
+   the API but have not been exercised from a phone.
+2. Dashboard tab reusing `GET /api/dashboard`, then projects list and detail,
+   then notifications with the unread badge. Each is a read-only screen over
+   an endpoint the web already consumes.
+3. App icon and splash assets before the demo.
 
-While the mobile client is being wired to the API, add a minimal API test
-harness (Phase 16, pulled forward): sign-in, `/api/me`, and one RBAC check
-per module against the seeded database. The API is the security boundary and
-now has two consumers.
-
-`packages/ui` design tokens wait until the NativeWind config needs shared
-colours; that is the moment they earn their place.
+`packages/ui` design tokens still wait: the mobile palette is the same
+neutral scale as the web's, hard-coded in three components. Extract it when
+the Phase 14 polish pass touches both clients.
 
 Do not begin building all remaining modules simultaneously.
 

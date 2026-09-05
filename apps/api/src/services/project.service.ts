@@ -236,11 +236,24 @@ export async function updateProject(
 ): Promise<ProjectDetail> {
   const current = await prisma.project.findUnique({
     where: { id },
-    select: { id: true, name: true, startDate: true, deadline: true },
+    select: { id: true, name: true, startDate: true, deadline: true, managerId: true },
   })
 
   if (!current) {
     throw notFound('Project')
+  }
+
+  // Handing the project to someone else takes the old manager off it. Their
+  // open tasks would then sit with a person who is neither manager nor member,
+  // which no other path allows, so the tasks have to be reassigned first
+  // unless they stay on as a member.
+  if (
+    input.managerId !== undefined &&
+    input.managerId !== current.managerId &&
+    current.managerId &&
+    !(await isMember(id, current.managerId))
+  ) {
+    await assertNoOpenTasks(id, current.managerId, 'the previous manager')
   }
 
   assertDeadlineNotBeforeStart(
@@ -435,7 +448,7 @@ export async function removeProjectMember(
 ): Promise<ProjectDetail> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, managerId: true },
   })
 
   if (!project) {
@@ -449,6 +462,13 @@ export async function removeProjectMember(
 
   if (!membership) {
     throw new AppError('PROJECT_MEMBER_NOT_FOUND', 'That person is not on this project', 404)
+  }
+
+  // A task may only be assigned to the manager or a member; removing someone
+  // with open work would break that for every task they hold. Completed
+  // tasks are history and stay with them.
+  if (project.managerId !== userId) {
+    await assertNoOpenTasks(projectId, userId, membership.user.name)
   }
 
   return prisma.$transaction(async (tx) => {
@@ -541,6 +561,28 @@ async function assertMemberEligible(userId: string): Promise<{ id: string; name:
   }
 
   return { id: user.id, name: user.name }
+}
+
+async function isMember(projectId: string, userId: string): Promise<boolean> {
+  const membership = await prisma.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { id: true },
+  })
+
+  return membership !== null
+}
+
+async function assertNoOpenTasks(projectId: string, userId: string, who: string): Promise<void> {
+  const open = await prisma.task.count({
+    where: { projectId, assignedTo: userId, status: { not: 'completed' } },
+  })
+
+  if (open > 0) {
+    throw conflict(
+      'ASSIGNEE_HAS_OPEN_TASKS',
+      `Reassign the ${open} open ${open === 1 ? 'task' : 'tasks'} held by ${who} first`,
+    )
+  }
 }
 
 function assertDeadlineNotBeforeStart(startDate: string | null, deadline: string | null): void {

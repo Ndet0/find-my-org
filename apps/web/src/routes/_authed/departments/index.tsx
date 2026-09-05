@@ -36,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ApiRequestError, type FieldErrorMap, fieldErrorsFrom } from '@/lib/api'
+import { ApiRequestError, type FieldErrorMap, fieldErrorsFrom, formErrorMessage } from '@/lib/api'
 import {
   createDepartment,
   deleteDepartment,
@@ -180,9 +180,7 @@ function DepartmentFormDialog({
     },
     onError: (error) => {
       setServerErrors(fieldErrorsFrom(error))
-      setFormError(
-        error instanceof ApiRequestError ? error.message : 'The department could not be saved',
-      )
+      setFormError(formErrorMessage(error, 'The department could not be saved'))
     },
   })
 

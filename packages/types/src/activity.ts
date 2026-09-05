@@ -20,6 +20,7 @@ export const ACTIVITY_ACTIONS = [
   'updated',
   'status_changed',
   'priority_changed',
+  'role_changed',
   'assigned',
   'completed',
   'deleted',

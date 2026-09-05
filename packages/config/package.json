@@ -5,6 +5,7 @@
   "files": [
     "tsconfig.base.json",
     "tsconfig.bun.json",
+    "tsconfig.expo.json",
     "tsconfig.react.json"
   ]
 }

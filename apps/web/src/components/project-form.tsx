@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ApiRequestError, type FieldErrorMap, fieldErrorsFrom } from '@/lib/api'
+import { type FieldErrorMap, fieldErrorsFrom, formErrorMessage } from '@/lib/api'
 import { clientKeys, clientsQueryOptions } from '@/lib/clients'
 import { createProject, projectKeys, updateProject } from '@/lib/projects'
 import { usersQueryOptions } from '@/lib/users'
@@ -110,7 +110,7 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
     },
     onError: (error) => {
       setServerErrors(fieldErrorsFrom(error))
-      setFormError(error instanceof ApiRequestError ? error.message : 'The form could not be saved')
+      setFormError(formErrorMessage(error, 'The form could not be saved'))
     },
   })
 

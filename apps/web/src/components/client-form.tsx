@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ApiRequestError, type FieldErrorMap, fieldErrorsFrom } from '@/lib/api'
+import { type FieldErrorMap, fieldErrorsFrom, formErrorMessage } from '@/lib/api'
 import { clientKeys, createClient, updateClient } from '@/lib/clients'
 
 type ClientFormValues = {
@@ -79,7 +79,7 @@ export function ClientForm({ client }: { client?: ClientDetail }) {
     },
     onError: (error) => {
       setServerErrors(fieldErrorsFrom(error))
-      setFormError(error instanceof ApiRequestError ? error.message : 'The form could not be saved')
+      setFormError(formErrorMessage(error, 'The form could not be saved'))
     },
   })
 

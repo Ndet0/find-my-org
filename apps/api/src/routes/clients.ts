@@ -54,6 +54,6 @@ clientRoutes.patch(
   validateClientIdParam,
   validateUpdateClient,
   async (c) => {
-    return ok(c, await updateClient(c.req.valid('param').id, c.req.valid('json')))
+    return ok(c, await updateClient(c.req.valid('param').id, c.req.valid('json'), eventActor(c)))
   },
 )

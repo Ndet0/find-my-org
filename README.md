@@ -19,7 +19,7 @@ current, verified build status.
 | Database | PostgreSQL 16 + Prisma 7 |
 | Auth | Better Auth |
 | Web | React + Vite + TanStack Router/Query + Tailwind + shadcn/ui |
-| Mobile | Expo + Expo Router + NativeWind *(not yet scaffolded)* |
+| Mobile | Expo + Expo Router + NativeWind |
 | Validation | Zod, shared between API and clients |
 | Tooling | Biome |
 
@@ -78,6 +78,7 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm dev` | Run all apps in watch mode |
 | `pnpm build` | Build all apps and packages |
 | `pnpm typecheck` | Type-check the workspace |
+| `pnpm test` | Run the API tests against the local database |
 | `pnpm lint` / `pnpm lint:fix` | Biome check / autofix |
 | `pnpm db:up` / `pnpm db:down` | Start / stop local PostgreSQL |
 | `pnpm db:migrate` | Create and apply a migration |
@@ -86,13 +87,26 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:reset` | Drop, re-migrate and re-seed |
 
+## Mobile app
+
+```bash
+pnpm --filter @opsflow/mobile dev     # Expo dev server; scan the QR code with Expo Go
+pnpm --filter @opsflow/mobile web     # the same app in a browser on :8081
+```
+
+The app reads `EXPO_PUBLIC_API_URL` from the root `.env`. A physical device
+cannot reach `localhost`, so set it to this machine's LAN address (and
+`BETTER_AUTH_URL` to match) when testing on a phone. The API trusts
+`opsflow://`, Expo Go's `exp://` and the web dev server on `:8081` outside
+production.
+
 ## Layout
 
 ```
 apps/
   api/       Hono API (Bun)
   web/       React + Vite SPA         — login and the protected app shell
-  mobile/    Expo app                 — not yet scaffolded
+  mobile/    Expo app                 — login, my tasks, task status, profile
 packages/
   config/    Shared TypeScript configs
   db/        Prisma schema, migrations, client

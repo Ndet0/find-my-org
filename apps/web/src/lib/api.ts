@@ -1,4 +1,5 @@
 import type { ApiResponse } from '@opsflow/types/api'
+import { z } from 'zod'
 import { API_URL } from '@/lib/env'
 
 /** Flattened field errors from a `VALIDATION_ERROR` envelope. */
@@ -61,8 +62,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return body.data
 }
 
-/** Maps a 422 envelope back onto form fields. Anything else is empty. */
+/**
+ * Maps a validation failure back onto form fields. Forms parse their payload
+ * with the shared Zod schema before sending it, so the failure can be a
+ * ZodError raised locally or a 422 envelope from the API; both carry the
+ * same flattened shape. Anything else is empty.
+ */
 export function fieldErrorsFrom(error: unknown): FieldErrorMap {
+  if (error instanceof z.ZodError) {
+    return z.flattenError(error).fieldErrors as FieldErrorMap
+  }
+
   if (
     !(error instanceof ApiRequestError) ||
     error.details === undefined ||
@@ -84,4 +94,13 @@ export function fieldErrorsFrom(error: unknown): FieldErrorMap {
   }
 
   return mapped
+}
+
+/** The banner above a form: what went wrong, in one line. */
+export function formErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof z.ZodError) {
+    return 'Check the highlighted fields'
+  }
+
+  return error instanceof ApiRequestError ? error.message : fallback
 }

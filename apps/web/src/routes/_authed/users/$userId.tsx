@@ -1,7 +1,7 @@
 import { can } from '@opsflow/types/permissions'
 import { USER_STATUSES, type UserStatus } from '@opsflow/types/user'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,11 @@ import { UserStatusDialog } from '@/components/user-status-dialog'
 import { userQueryOptions } from '@/lib/users'
 
 export const Route = createFileRoute('/_authed/users/$userId')({
+  beforeLoad: ({ context }) => {
+    if (!can(context.user.role.name, 'users:read')) {
+      throw redirect({ to: '/' })
+    }
+  },
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(userQueryOptions(params.userId)),
   component: UserDetailPage,

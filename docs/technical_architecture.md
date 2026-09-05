@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.2  
+**Version:** 2.4  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1696,4 +1696,16 @@ than only the outcome.
 | Dropped TanStack Virtual | Every list endpoint caps a page at 100 rows, so tables never hold enough rows to virtualise. See §21 |
 | Route loaders read through the Query cache; pages use `useSuspenseQuery` | Navigation holds the current page until the next has data, and per-page loading and error branches collapse into three router-level components. See §19 |
 | Default query `staleTime` of 30s plus `MutationCache` invalidation of activity, notifications and dashboard stats | Hover preload followed by mount must not cost two requests; the derived modules that every write feeds are invalidated centrally so the longer staleness cannot hide a write |
+| Mobile styling is NativeWind 4 on Tailwind CSS 3, while the web stays on Tailwind 4 | NativeWind 5, the Tailwind 4 line, is still a preview. The two apps do not share a stylesheet, so the versions can differ; `apps/mobile` declares its own `tailwindcss@3` |
+| `react-native-css-interop` is a direct dependency of `apps/mobile` | NativeWind's Babel plugin rewrites JSX to that package's runtime, which pnpm's isolated layout only exposes to NativeWind itself |
+| Tailwind `darkMode: 'class'` in the mobile config | NativeWind on web throws at startup if anything sets the colour scheme while dark mode is the `media` strategy; Expo Router does |
+| Better Auth Expo plugin; the app is trusted by its URL scheme | A native app has no HTTP origin. The plugin keeps the session cookie in SecureStore and presents `opsflow://` as the origin; the API lists it as trusted. Expo Go's `exp://` and the web dev server are trusted outside production only |
+| Mobile attaches the session cookie by hand with `credentials: 'omit'` | There is no cookie jar on a device. `authClient.getCookie()` returns what SecureStore holds; on the web build the browser's jar is used, as in `apps/web` |
+| `/api/me` resolves to `null` on 401 in the mobile client | The root layout switches between the login and app stacks on that value, so signed-out is a state rather than an error. Any other query's 401 sets it to null, which drops an expired session to login from any screen |
+| `advanced.disableOriginCheck: false` pinned in Better Auth | Better Auth turns the check off whenever `NODE_ENV` is `test`, which Bun's test runner sets. Pinning it keeps the tests on the production rule and prevents a stray environment from disabling it |
+| `apps/api/src/app.ts` exports the Hono app; `index.ts` serves it | The API tests call `app.request()` in-process on the seeded database, with no port and no mocking of the middleware chain |
+| TypeScript 7 in `apps/mobile` although Expo expects 6 | One compiler version across the workspace; the mobile typecheck passes on 7 |
+| Removing a member or replacing the manager refuses while they hold open tasks | The assignee rule (manager or member only) is otherwise only checked when a task is written. Blocking with `ASSIGNEE_HAS_OPEN_TASKS` keeps it true at all times, matching how an occupied department refuses deletion |
+| Completed and cancelled projects refuse new tasks | `PROJECT_CLOSED`. Existing tasks on them stay editable so history can be tidied |
+| Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
 

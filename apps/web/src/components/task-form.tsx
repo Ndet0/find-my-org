@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { z } from 'zod'
 import { FieldMessage } from '@/components/field-message'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ApiRequestError, type FieldErrorMap, fieldErrorsFrom } from '@/lib/api'
+import { type FieldErrorMap, fieldErrorsFrom, formErrorMessage } from '@/lib/api'
 import { projectKeys, projectQueryOptions, projectsQueryOptions } from '@/lib/projects'
 import { createTask, taskKeys, updateTask } from '@/lib/tasks'
 
@@ -116,14 +115,8 @@ export function TaskForm({
       await router.navigate({ to: '/tasks/$taskId', params: { taskId: saved.id } })
     },
     onError: (error) => {
-      if (error instanceof z.ZodError) {
-        setServerErrors(z.flattenError(error).fieldErrors)
-        setFormError('The request could not be validated')
-        return
-      }
-
       setServerErrors(fieldErrorsFrom(error))
-      setFormError(error instanceof ApiRequestError ? error.message : 'The form could not be saved')
+      setFormError(formErrorMessage(error, 'The form could not be saved'))
     },
   })
 

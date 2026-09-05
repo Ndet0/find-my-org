@@ -54,6 +54,6 @@ userRoutes.patch(
   validateUserIdParam,
   validateUpdateUser,
   async (c) => {
-    return ok(c, await updateUser(c.req.valid('param').id, c.req.valid('json'), c.get('user').id))
+    return ok(c, await updateUser(c.req.valid('param').id, c.req.valid('json'), eventActor(c)))
   },
 )

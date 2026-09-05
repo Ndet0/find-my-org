@@ -128,27 +128,41 @@ export async function createClient(
   })
 }
 
-export async function updateClient(id: string, input: UpdateClientInput): Promise<ClientDetail> {
+export async function updateClient(
+  id: string,
+  input: UpdateClientInput,
+  actor: EventActor,
+): Promise<ClientDetail> {
   const current = await prisma.client.findUnique({ where: { id }, select: { id: true } })
 
   if (!current) {
     throw notFound('Client')
   }
 
-  const row = await prisma.client.update({
-    where: { id },
-    data: {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.company !== undefined ? { company: input.company } : {}),
-      ...(input.email !== undefined ? { email: input.email } : {}),
-      ...(input.phone !== undefined ? { phone: input.phone } : {}),
-      ...(input.address !== undefined ? { address: input.address } : {}),
-      ...(input.notes !== undefined ? { notes: input.notes } : {}),
-    },
-    select: detailSelect,
-  })
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.client.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.company !== undefined ? { company: input.company } : {}),
+        ...(input.email !== undefined ? { email: input.email } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone } : {}),
+        ...(input.address !== undefined ? { address: input.address } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      },
+      select: detailSelect,
+    })
 
-  return toDetail(row)
+    await recordActivity(tx, {
+      actor,
+      action: 'updated',
+      entityType: 'client',
+      entityId: row.id,
+      description: `${actor.name} updated ${row.name}`,
+    })
+
+    return toDetail(row)
+  })
 }
 
 export async function setClientStatus(

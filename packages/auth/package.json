@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/expo": "1.7.2",
     "@better-auth/prisma-adapter": "^1.7.2",
     "@opsflow/db": "workspace:*",
     "@opsflow/types": "workspace:*",

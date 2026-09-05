@@ -1,0 +1,49 @@
+{
+  "name": "@opsflow/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "bun --env-file=../../.env run expo start",
+    "android": "bun --env-file=../../.env run expo start --android",
+    "ios": "bun --env-file=../../.env run expo start --ios",
+    "web": "bun --env-file=../../.env run expo start --web",
+    "export:web": "bun --env-file=../../.env run expo export --platform web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/expo": "1.7.2",
+    "@expo/metro-runtime": "~57.0.15",
+    "@expo/vector-icons": "^15.1.1",
+    "@opsflow/types": "workspace:*",
+    "@tanstack/react-query": "^5.102.8",
+    "better-auth": "^1.7.2",
+    "expo": "~57.0.20",
+    "expo-constants": "~57.0.17",
+    "expo-linking": "~57.0.9",
+    "expo-network": "~57.0.1",
+    "expo-router": "~57.0.19",
+    "expo-secure-store": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.2",
+    "nativewind": "^4.2.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-css-interop": "0.2.6",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.10.1",
+    "zod": "4.5.2"
+  },
+  "devDependencies": {
+    "@opsflow/config": "workspace:*",
+    "@types/react": "~19.2.2",
+    "babel-preset-expo": "~57.0.10",
+    "tailwindcss": "^3.4.17",
+    "typescript": "7.0.2"
+  }
+}

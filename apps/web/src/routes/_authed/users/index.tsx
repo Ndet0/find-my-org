@@ -1,7 +1,7 @@
 import { can, ROLE_NAMES } from '@opsflow/types/permissions'
 import { USER_STATUSES, type UserListFilters, type UserStatus } from '@opsflow/types/user'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { StatusBadge } from '@/components/status-badge'
@@ -48,6 +48,11 @@ function filtersFrom(search: z.infer<typeof searchSchema>): UserListFilters {
 
 export const Route = createFileRoute('/_authed/users/')({
   validateSearch: (search) => searchSchema.parse(search),
+  beforeLoad: ({ context }) => {
+    if (!can(context.user.role.name, 'users:read')) {
+      throw redirect({ to: '/' })
+    }
+  },
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) => {
     void context.queryClient.prefetchQuery(departmentsQueryOptions)
