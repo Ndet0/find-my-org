@@ -6,6 +6,7 @@ import type {
   CreateUserInput,
   CurrentUser,
   RoleRef,
+  UpdateProfileInput,
   UpdateUserInput,
   UserDetail,
   UserListItem,
@@ -39,6 +40,14 @@ const detailSelect = {
   createdAt: true,
 } satisfies Prisma.UserSelect
 
+/** What `/api/me` returns: the list columns plus the personal ones. */
+const currentSelect = {
+  ...listSelect,
+  phone: true,
+  avatarUrl: true,
+  joinedAt: true,
+} satisfies Prisma.UserSelect
+
 type RoleRow = { id: string; name: string }
 
 /**
@@ -54,6 +63,14 @@ function toRoleRef(role: RoleRow): RoleRef {
 /** Dates cross the wire as date-only strings, not full timestamps. */
 function toDateString(value: Date | null): string | null {
   return value?.toISOString().slice(0, 10) ?? null
+}
+
+function toCurrentUser(row: Prisma.UserGetPayload<{ select: typeof currentSelect }>): CurrentUser {
+  return {
+    ...row,
+    role: toRoleRef(row.role),
+    joinedAt: toDateString(row.joinedAt),
+  }
 }
 
 function buildWhere(query: UserListQuery): Prisma.UserWhereInput {
@@ -133,25 +150,46 @@ function toDetail(row: DetailRow): UserDetail {
  * authenticated user may read themselves.
  */
 export async function getCurrentUser(id: string): Promise<CurrentUser> {
-  const row = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      ...listSelect,
-      phone: true,
-      avatarUrl: true,
-      joinedAt: true,
-    },
-  })
+  const row = await prisma.user.findUnique({ where: { id }, select: currentSelect })
 
   if (!row) {
     throw notFound('User')
   }
 
-  return {
-    ...row,
-    role: toRoleRef(row.role),
-    joinedAt: toDateString(row.joinedAt),
-  }
+  return toCurrentUser(row)
+}
+
+/**
+ * Self-service edit of the caller's own profile. Only name, position and
+ * phone are accepted, so none of the guards in `updateUser` apply: a person
+ * cannot reach their own role, status or email from here. Logged like every
+ * other write so the trail shows who changed what, even about themselves.
+ */
+export async function updateProfile(
+  input: UpdateProfileInput,
+  actor: EventActor,
+): Promise<CurrentUser> {
+  const data: Prisma.UserUpdateInput = {}
+
+  if (input.name !== undefined) data.name = input.name
+  if (input.position !== undefined) data.position = input.position
+  if (input.phone !== undefined) data.phone = input.phone
+
+  const row = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({ where: { id: actor.id }, data, select: currentSelect })
+
+    await recordActivity(tx, {
+      actor,
+      action: 'updated',
+      entityType: 'user',
+      entityId: updated.id,
+      description: `${updated.name} updated their profile`,
+    })
+
+    return updated
+  })
+
+  return toCurrentUser(row)
 }
 
 /**

@@ -106,7 +106,7 @@ production.
 apps/
   api/       Hono API (Bun)
   web/       React + Vite SPA         — login and the protected app shell
-  mobile/    Expo app                 — login, dashboard, tasks, projects, inbox, profile
+  mobile/    Expo app                 — login, dashboard, tasks, projects, inbox, profile (+ edit)
 packages/
   config/    Shared TypeScript configs
   db/        Prisma schema, migrations, client

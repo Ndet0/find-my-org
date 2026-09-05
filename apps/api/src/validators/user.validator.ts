@@ -1,6 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import {
   createUserSchema,
+  updateProfileSchema,
   updateUserSchema,
   updateUserStatusSchema,
   userListQuerySchema,
@@ -23,3 +24,5 @@ export const validateCreateUser = validateJson(createUserSchema)
 export const validateUpdateUser = validateJson(updateUserSchema)
 
 export const validateUpdateUserStatus = validateJson(updateUserStatusSchema)
+
+export const validateUpdateProfile = validateJson(updateProfileSchema)

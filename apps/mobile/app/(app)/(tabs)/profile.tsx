@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'expo-router'
 import { Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { DetailRow } from '@/components/detail-row'
@@ -8,6 +9,7 @@ import { currentUserQueryOptions, useCurrentUser } from '@/lib/current-user'
 
 export default function ProfileScreen() {
   const user = useCurrentUser()
+  const router = useRouter()
   const queryClient = useQueryClient()
 
   const signOut = useMutation({
@@ -42,7 +44,8 @@ export default function ProfileScreen() {
         <DetailRow label="Joined" value={user.joinedAt ?? 'Unknown'} />
       </View>
 
-      <View className="mt-6">
+      <View className="mt-6 gap-3">
+        <Button title="Edit profile" onPress={() => router.push('/profile/edit')} />
         <Button
           title={signOut.isPending ? 'Signing out…' : 'Sign out'}
           variant="outline"

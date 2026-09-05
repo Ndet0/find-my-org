@@ -1,13 +1,15 @@
 import { Hono } from 'hono'
+import { eventActor } from '../lib/actor.js'
 import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
-import { getCurrentUser } from '../services/user.service.js'
+import { getCurrentUser, updateProfile } from '../services/user.service.js'
+import { validateUpdateProfile } from '../validators/user.validator.js'
 
 export const meRoutes = new Hono<AppEnv>()
 
-// Authenticated but not permission-gated: every active user may read their
-// own profile, whatever their role.
+// Authenticated but not permission-gated: every active user may read and
+// edit their own profile, whatever their role.
 meRoutes.use('*', requireAuth)
 
 /**
@@ -17,4 +19,9 @@ meRoutes.use('*', requireAuth)
  */
 meRoutes.get('/', async (c) => {
   return ok(c, await getCurrentUser(c.get('user').id))
+})
+
+/** Name, position and phone. Everything else belongs to an administrator. */
+meRoutes.patch('/', validateUpdateProfile, async (c) => {
+  return ok(c, await updateProfile(c.req.valid('json'), eventActor(c)))
 })

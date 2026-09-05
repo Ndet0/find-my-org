@@ -42,6 +42,17 @@ async function call(method: string, path: string, cookie: string, body?: unknown
 
 const created = { projectId: '', departmentId: '' }
 
+/**
+ * The seeded employee is a shared fixture, so the profile test records the
+ * original values and puts them back rather than deleting anything.
+ */
+let employeeProfile: {
+  id: string
+  name: string
+  phone: string | null
+  position: string | null
+} | null = null
+
 afterAll(async () => {
   if (created.projectId) {
     await prisma.task.deleteMany({ where: { projectId: created.projectId } })
@@ -49,6 +60,10 @@ afterAll(async () => {
   }
   if (created.departmentId) {
     await prisma.department.delete({ where: { id: created.departmentId } }).catch(() => undefined)
+  }
+  if (employeeProfile) {
+    const { id, ...original } = employeeProfile
+    await prisma.user.update({ where: { id }, data: original }).catch(() => undefined)
   }
 })
 
@@ -142,5 +157,55 @@ describe('audit trail', () => {
     const actions = items.map((item) => item.action)
     expect(actions).toContain('updated')
     expect(actions).toContain('created')
+  })
+})
+
+describe('self-service profile', () => {
+  test('a person can edit their own name, position and phone', async () => {
+    employeeProfile = await prisma.user.findUniqueOrThrow({
+      where: { email: 'employee@opsflow.local' },
+      select: { id: true, name: true, phone: true, position: true },
+    })
+    const employee = await signIn('employee@opsflow.local')
+
+    const edited = await call('PATCH', '/api/me', employee, {
+      phone: '+1 555 0100',
+      position: 'Fixture position',
+    })
+    expect(edited.status).toBe(200)
+    expect(edited.data?.phone).toBe('+1 555 0100')
+    expect(edited.data?.position).toBe('Fixture position')
+
+    const me = await call('GET', '/api/me', employee)
+    expect(me.data?.phone).toBe('+1 555 0100')
+    expect(me.data?.position).toBe('Fixture position')
+
+    // Employees see their own actions in the trail.
+    const activity = await call(
+      'GET',
+      `/api/activity?entityType=user&entityId=${employeeProfile.id}`,
+      employee,
+    )
+    const actions = ((activity.data?.items ?? []) as { action: string }[]).map((i) => i.action)
+    expect(actions).toContain('updated')
+  })
+
+  test('the profile endpoint rejects empty, invalid and out-of-scope bodies', async () => {
+    const employee = await signIn('employee@opsflow.local')
+    const before = await call('GET', '/api/me', employee)
+    const role = (before.data?.role as { name: string } | undefined)?.name
+    expect(role).toBeDefined()
+
+    expect((await call('PATCH', '/api/me', employee, {})).status).toBe(422)
+
+    const blank = await call('PATCH', '/api/me', employee, { name: '' })
+    expect(blank.status).toBe(422)
+    expect(blank.error?.code).toBe('VALIDATION_ERROR')
+
+    // Unknown keys are stripped, which leaves nothing to update; the role
+    // is untouched either way.
+    expect((await call('PATCH', '/api/me', employee, { role: 'admin' })).status).toBe(422)
+    const after = await call('GET', '/api/me', employee)
+    expect((after.data?.role as { name: string } | undefined)?.name).toBe(role)
   })
 })

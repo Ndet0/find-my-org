@@ -1524,7 +1524,17 @@ still no realtime channel.
   list, inbox at 9 unread → tap one (PATCH 200, badge 8) → mark all (badge
   gone, button disabled). Admin and manager dashboards verified for their
   KPI sets and org counts
-- [ ] Profile editing (the API has no self-service profile endpoint yet)
+- [x] Profile editing. `PATCH /api/me` accepts name, position and phone
+  under `requireAuth` only, so every active role may edit themselves;
+  email, role, department and status stay on the admin endpoints. The
+  write logs `updated` on the user in the same transaction. On mobile,
+  "Edit profile" pushes a form screen on the same shared Zod schema, with
+  local field errors and 422 envelopes mapped onto the same fields; a save
+  writes the response straight into the current-user cache and returns to
+  the tab. Covered in `rules.test.ts` (happy path, empty and invalid bodies,
+  a stripped `role` key, the activity row) and verified through the web
+  build: local "Enter a name", save, tab shows the new value, reload keeps
+  it, exactly one PATCH and no extra GET
 - [ ] App icon and splash assets; a first run on a device or emulator
 
 ## Phase 16 — Testing (pulled forward, partial)
@@ -1589,6 +1599,9 @@ these defects; all are fixed and covered by tests or verified by typecheck.
   `GET /api/activity` can filter by entity. Product §24 promises "how an
   entity evolved".
 - No avatar upload path; `users.avatar_url` is never written.
+- Self-service profile editing exists only on mobile. The web app has no
+  profile page; `PATCH /api/me` is ready for one when the Phase 14 pass
+  touches the shell.
 - No deadline reminders (product §25 "due tomorrow"); notifications fire only
   on direct actions.
 - Departments are hard-deleted behind a 409 guard where the product document
@@ -1614,8 +1627,8 @@ these defects; all are fixed and covered by tests or verified by typecheck.
 ## Not started
 
 - [-] Phase 13 — Mobile Application: every screen is built and verified
-  through the web build; profile editing, app assets and a first run on a
-  device remain (listed above)
+  through the web build; app assets and a first run on a device remain
+  (listed above)
 - [ ] Phases 14-20 — Polish, performance, testing (started), security, deployment, demo
 
 ## Stack amendments
@@ -1640,8 +1653,9 @@ Next:
 1. Phase 13 — close out
 ```
 
-Every mobile screen exists and is verified through the web build. What is
-left is not code that can be finished on this machine:
+Every mobile screen, including profile editing, exists and is verified
+through the web build. What is left is not code that can be finished on
+this machine:
 
 1. Run the app on a device or emulator once (`pnpm --filter @opsflow/mobile
    dev`, Expo Go). SecureStore and the `opsflow://` origin are proven against
@@ -1649,9 +1663,6 @@ left is not code that can be finished on this machine:
    and the pushed record screens have not been seen on a real screen.
 2. App icon and splash assets before the demo (`apps/mobile/assets`, wired
    into `app.json`).
-3. Profile editing needs a `PATCH /api/me` first — a small service-layer
-   addition scoped to name, phone and position — and then a form on the
-   profile tab. Decide whether it belongs to Phase 13 or to the Phase 14 pass.
 
 Then Phase 14. Before it starts, decide on the project and task lifecycles
 (§24 "Known gaps"): enforce the state machines in the API, or document them

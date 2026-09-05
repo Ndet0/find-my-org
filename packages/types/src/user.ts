@@ -177,6 +177,24 @@ export const updateUserSchema = z
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>
 
+/**
+ * The body of `PATCH /api/me`: the fields a person may change about
+ * themselves. Email, role, department and status stay on the admin
+ * endpoints, and passwords are an account operation, not a profile edit.
+ */
+export const updateProfileSchema = z
+  .object({
+    name,
+    position,
+    phone,
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, {
+    message: 'Provide at least one field to update',
+  })
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+
 /** The body of `PATCH /api/users/:id/status`. */
 export const updateUserStatusSchema = z.object({
   status: z.enum(USER_STATUSES),

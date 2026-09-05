@@ -1,4 +1,4 @@
-import type { CurrentUser } from '@opsflow/types/user'
+import type { CurrentUser, UpdateProfileInput } from '@opsflow/types/user'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { ApiRequestError, apiFetch } from '@/lib/api'
 
@@ -39,4 +39,9 @@ export const currentUserQueryOptions = queryOptions({
  */
 export function useCurrentUser(): CurrentUser | null {
   return useQuery(currentUserQueryOptions).data ?? null
+}
+
+/** `PATCH /api/me`. The result is the full profile, ready for the cache. */
+export function updateProfile(input: UpdateProfileInput): Promise<CurrentUser> {
+  return apiFetch<CurrentUser>('/me', { method: 'PATCH', body: JSON.stringify(input) })
 }
