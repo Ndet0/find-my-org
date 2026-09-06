@@ -120,8 +120,8 @@ type Kpi = {
 
 /**
  * The same figures, in the same emphasis order, as the web dashboard.
- * Directory counts (users, departments, clients) have no mobile screen to
- * open, so they are plain cards.
+ * Clients and departments open their mobile directories; users have no
+ * mobile screen, so that count stays a plain card.
  */
 function kpisFor(role: RoleName, stats: DashboardStats): Kpi[] {
   const { projects, tasks, org } = stats
@@ -150,11 +150,12 @@ function kpisFor(role: RoleName, stats: DashboardStats): Kpi[] {
     return [
       { label: 'Users', value: org?.users.total, sub: subCount(org?.users.active, 'active') },
       { label: 'Employees', value: org?.employees.total },
-      { label: 'Departments', value: org?.departments.total },
+      { label: 'Departments', value: org?.departments.total, to: '/departments' },
       {
         label: 'Active clients',
         value: org?.clients.active,
         sub: subCount(org?.clients.total, 'total'),
+        to: '/clients',
       },
       {
         label: 'Active projects',
@@ -179,7 +180,7 @@ function kpisFor(role: RoleName, stats: DashboardStats): Kpi[] {
     { label: 'Pending tasks', value: tasks.pending, to: '/tasks' },
     { label: 'Overdue tasks', value: tasks.overdue, alert: true, to: '/tasks' },
     { label: 'Team', value: org?.employees.total, sub: 'employees' },
-    { label: 'Active clients', value: org?.clients.active },
+    { label: 'Active clients', value: org?.clients.active, to: '/clients' },
   ]
 }
 

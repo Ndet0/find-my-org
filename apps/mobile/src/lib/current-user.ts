@@ -1,3 +1,4 @@
+import { can, type Permission } from '@opsflow/types/permissions'
 import type { CurrentUser, UpdateProfileInput } from '@opsflow/types/user'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { ApiRequestError, apiFetch } from '@/lib/api'
@@ -39,6 +40,17 @@ export const currentUserQueryOptions = queryOptions({
  */
 export function useCurrentUser(): CurrentUser | null {
   return useQuery(currentUserQueryOptions).data ?? null
+}
+
+/**
+ * Whether the signed-in user's role may attempt an operation. Screens use
+ * it to hide controls the API would refuse; the API checks again regardless,
+ * so this is a courtesy rather than a security boundary.
+ */
+export function useCan(permission: Permission): boolean {
+  const user = useCurrentUser()
+
+  return user !== null && can(user.role.name, permission)
 }
 
 /** `PATCH /api/me`. The result is the full profile, ready for the cache. */

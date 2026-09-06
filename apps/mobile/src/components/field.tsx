@@ -4,6 +4,7 @@ import { Text, TextInput, type TextInputProps, View } from 'react-native'
 export function Field({
   label,
   errors,
+  multiline,
   ...props
 }: TextInputProps & { label: string; errors?: string[] }) {
   const message = errors?.[0]
@@ -14,7 +15,9 @@ export function Field({
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor="#a3a3a3"
-        className={`rounded-lg border bg-white px-3 py-3 text-base text-neutral-900 ${message ? 'border-red-500' : 'border-neutral-300'}`}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : undefined}
+        className={`rounded-lg border bg-white px-3 py-3 text-base text-neutral-900 ${multiline ? 'min-h-28' : ''} ${message ? 'border-red-500' : 'border-neutral-300'}`}
         {...props}
       />
       {message ? <Text className="text-sm text-red-600">{message}</Text> : null}

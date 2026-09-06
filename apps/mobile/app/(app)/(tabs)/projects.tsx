@@ -1,12 +1,13 @@
 import type { ProjectListItem } from '@opsflow/types/project'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'expo-router'
+import { Link, useRouter } from 'expo-router'
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
+import { Button } from '@/components/button'
 import { describeError, Message } from '@/components/message'
 import { ProgressBar } from '@/components/progress-bar'
 import { Screen } from '@/components/screen'
 import { PriorityBadge, ProjectStatusBadge } from '@/components/status-badge'
-import { useCurrentUser } from '@/lib/current-user'
+import { useCan, useCurrentUser } from '@/lib/current-user'
 import { isProjectOverdue } from '@/lib/dates'
 import { projectsQueryOptions } from '@/lib/projects'
 
@@ -14,10 +15,13 @@ import { projectsQueryOptions } from '@/lib/projects'
  * Every project the caller may see, ordered by name on the server. The API
  * already narrows an employee to the projects they manage or belong to.
  * One page at the API's ceiling: the screen is for orientation, and the
- * filtered, paged table stays on the web.
+ * filtered, paged table stays on the web. Roles with `projects:write` add
+ * projects from here and manage them from the project screen.
  */
 export default function ProjectsScreen() {
   const user = useCurrentUser()
+  const router = useRouter()
+  const canWrite = useCan('projects:write')
   const projects = useQuery(projectsQueryOptions({ pageSize: 100 }))
 
   if (!user) {
@@ -26,17 +30,22 @@ export default function ProjectsScreen() {
 
   return (
     <Screen>
-      <View className="gap-1 py-4">
-        <Text className="text-2xl font-semibold text-neutral-900">Projects</Text>
-        <Text className="text-sm text-neutral-500">
-          {projects.data
-            ? projects.data.total > projects.data.items.length
-              ? `Showing ${projects.data.items.length} of ${projects.data.total} projects`
-              : `${projects.data.total} ${projects.data.total === 1 ? 'project' : 'projects'}`
-            : user.role.name === 'employee'
-              ? 'Projects you manage or belong to'
-              : 'Every project in the workspace'}
-        </Text>
+      <View className="flex-row items-start justify-between gap-3 py-4">
+        <View className="flex-1 gap-1">
+          <Text className="text-2xl font-semibold text-neutral-900">Projects</Text>
+          <Text className="text-sm text-neutral-500">
+            {projects.data
+              ? projects.data.total > projects.data.items.length
+                ? `Showing ${projects.data.items.length} of ${projects.data.total} projects`
+                : `${projects.data.total} ${projects.data.total === 1 ? 'project' : 'projects'}`
+              : user.role.name === 'employee'
+                ? 'Projects you manage or belong to'
+                : 'Every project in the workspace'}
+          </Text>
+        </View>
+        {canWrite ? (
+          <Button title="Add" size="sm" onPress={() => router.push('/projects/new')} />
+        ) : null}
       </View>
 
       {projects.isPending ? (
@@ -60,9 +69,9 @@ export default function ProjectsScreen() {
             <Message
               title="No projects yet"
               body={
-                user.role.name === 'employee'
-                  ? 'Projects you are added to will appear here.'
-                  : 'Projects are created on the web.'
+                canWrite
+                  ? 'Add one with the button above.'
+                  : 'Projects you are added to will appear here.'
               }
             />
           }

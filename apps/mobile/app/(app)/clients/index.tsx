@@ -1,0 +1,118 @@
+import type { ClientListItem, ClientStatus } from '@opsflow/types/client'
+import { useQuery } from '@tanstack/react-query'
+import { Link, useRouter } from 'expo-router'
+import { useState } from 'react'
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
+import { Button } from '@/components/button'
+import { describeError, Message } from '@/components/message'
+import { Segmented } from '@/components/segmented'
+import { ClientStatusBadge } from '@/components/status-badge'
+import { clientsQueryOptions } from '@/lib/clients'
+import { useCan } from '@/lib/current-user'
+
+type Filter = 'all' | ClientStatus
+
+/**
+ * The client directory, for administrators and managers. Ordered by name
+ * on the server, one page at the API's ceiling; the searchable, paged table
+ * stays on the web.
+ */
+export default function ClientsScreen() {
+  const router = useRouter()
+  const canWrite = useCan('clients:write')
+  const [filter, setFilter] = useState<Filter>('all')
+  const clients = useQuery(
+    clientsQueryOptions(filter === 'all' ? { pageSize: 100 } : { status: filter, pageSize: 100 }),
+  )
+
+  return (
+    <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-row items-start justify-between gap-3 py-4">
+        <View className="flex-1 gap-1">
+          <Text className="text-2xl font-semibold text-neutral-900">Clients</Text>
+          <Text className="text-sm text-neutral-500">
+            {clients.data
+              ? `${clients.data.total} ${clients.data.total === 1 ? 'client' : 'clients'}`
+              : 'Who the work is for'}
+          </Text>
+        </View>
+        {canWrite ? (
+          <Button title="Add" size="sm" onPress={() => router.push('/clients/new')} />
+        ) : null}
+      </View>
+
+      <View className="pb-3">
+        <Segmented
+          value={filter}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
+            { value: 'archived', label: 'Archived' },
+          ]}
+          onChange={setFilter}
+        />
+      </View>
+
+      {clients.isPending ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" />
+        </View>
+      ) : clients.isError ? (
+        <Message
+          title="Clients could not be loaded"
+          body={describeError(clients.error)}
+          onRetry={() => clients.refetch()}
+        />
+      ) : (
+        <FlatList
+          data={clients.data.items}
+          keyExtractor={(client) => client.id}
+          renderItem={({ item }) => <ClientRow client={item} />}
+          ItemSeparatorComponent={() => <View className="h-2" />}
+          contentContainerClassName="pb-6"
+          ListEmptyComponent={
+            <Message
+              title="No clients here"
+              body={
+                canWrite && filter === 'all'
+                  ? 'Add one with the button above.'
+                  : 'Nothing matches this filter.'
+              }
+            />
+          }
+          refreshControl={
+            <RefreshControl refreshing={clients.isRefetching} onRefresh={() => clients.refetch()} />
+          }
+        />
+      )}
+    </View>
+  )
+}
+
+function ClientRow({ client }: { client: ClientListItem }) {
+  return (
+    <Link href={{ pathname: '/clients/[clientId]', params: { clientId: client.id } }} asChild>
+      <Pressable
+        accessibilityRole="button"
+        className="gap-2 rounded-xl border border-neutral-200 bg-white p-4 active:bg-neutral-50"
+      >
+        <View className="flex-row items-start justify-between gap-3">
+          <View className="flex-1 gap-0.5">
+            <Text className="text-base font-medium text-neutral-900" numberOfLines={1}>
+              {client.name}
+            </Text>
+            <Text className="text-sm text-neutral-500" numberOfLines={1}>
+              {client.company ?? 'No company'}
+            </Text>
+          </View>
+          <ClientStatusBadge status={client.status} />
+        </View>
+        <Text className="text-xs text-neutral-500">
+          {client.projectCount} {client.projectCount === 1 ? 'project' : 'projects'}
+          {client.email ? ` · ${client.email}` : ''}
+        </Text>
+      </Pressable>
+    </Link>
+  )
+}

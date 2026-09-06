@@ -240,6 +240,15 @@ The initial mobile application should focus on high-value operational workflows:
 
 The mobile application should not initially attempt to reproduce every feature of the web application.
 
+### Management on Mobile (Phase 13b)
+
+For the roles that hold the write permissions, the same app also manages the
+work: create, edit and delete tasks; create, edit, staff and progress
+projects; maintain the client directory; and, for administrators, maintain
+departments. Users remain web-only. Every control is hidden with the shared
+`can()` check and enforced again by the API, so the mobile client adds no
+authorization logic of its own.
+
 ---
 
 # 7. API Application

@@ -1,16 +1,19 @@
+import { Ionicons } from '@expo/vector-icons'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'expo-router'
-import { Text, View } from 'react-native'
+import { type Href, Link, useRouter } from 'expo-router'
+import { Pressable, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { DetailRow } from '@/components/detail-row'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
-import { currentUserQueryOptions, useCurrentUser } from '@/lib/current-user'
+import { currentUserQueryOptions, useCan, useCurrentUser } from '@/lib/current-user'
 
 export default function ProfileScreen() {
   const user = useCurrentUser()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const canReadClients = useCan('clients:read')
+  const canReadDepartments = useCan('departments:read')
 
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
@@ -44,6 +47,21 @@ export default function ProfileScreen() {
         <DetailRow label="Joined" value={user.joinedAt ?? 'Unknown'} />
       </View>
 
+      {canReadClients || canReadDepartments ? (
+        <View className="mt-4 gap-2">
+          <Text className="text-sm font-medium text-neutral-500">Directory</Text>
+          <View className="rounded-xl border border-neutral-200 bg-white">
+            {canReadClients ? (
+              <DirectoryLink title="Clients" body="Who the work is for" to="/clients" />
+            ) : null}
+            {canReadClients && canReadDepartments ? <View className="h-px bg-neutral-200" /> : null}
+            {canReadDepartments ? (
+              <DirectoryLink title="Departments" body="The org chart" to="/departments" />
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
       <View className="mt-6 gap-3">
         <Button title="Edit profile" onPress={() => router.push('/profile/edit')} />
         <Button
@@ -57,5 +75,23 @@ export default function ProfileScreen() {
         ) : null}
       </View>
     </Screen>
+  )
+}
+
+/** One row of the directory card: the modules that have no tab of their own. */
+function DirectoryLink({ title, body, to }: { title: string; body: string; to: Href }) {
+  return (
+    <Link href={to} asChild>
+      <Pressable
+        accessibilityRole="button"
+        className="flex-row items-center justify-between gap-3 px-4 py-3 active:bg-neutral-50"
+      >
+        <View className="gap-0.5">
+          <Text className="text-base font-medium text-neutral-900">{title}</Text>
+          <Text className="text-sm text-neutral-500">{body}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#737373" />
+      </Pressable>
+    </Link>
   )
 }

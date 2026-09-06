@@ -9,6 +9,7 @@
     "ios": "bun --env-file=../../.env run expo start --ios",
     "web": "bun --env-file=../../.env run expo start --web",
     "export:web": "bun --env-file=../../.env run expo export --platform web",
+    "assets": "node scripts/make-assets.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "expo-network": "~57.0.1",
     "expo-router": "~57.0.19",
     "expo-secure-store": "~57.0.3",
+    "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
     "expo-web-browser": "~57.0.2",
     "nativewind": "^4.2.6",

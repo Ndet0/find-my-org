@@ -777,6 +777,67 @@ An employee can authenticate and complete basic operational workflows from the m
 
 ---
 
+# Phase 13b — Mobile Management
+
+**Goal:** Let administrators and managers run the work from the phone, not only
+watch it.
+
+Phase 13 delivered the employee's mobile app: see what is assigned, move it
+along. Phase 13b extends the same app to the roles that create and administer
+the work, reusing the API and the permission matrix as they stand — nothing
+is added server-side.
+
+### Tasks (`tasks:write`)
+
+- Create a task, optionally preselecting the project when arriving from it
+- Edit title, description, project, assignee and due date
+- Change priority from the task screen
+- Delete a task after an inline confirmation
+- See every task, not only assigned ones, with a Mine / All switch
+
+### Projects (`projects:write`)
+
+- Create a project with client, manager, priority and dates
+- Edit a project, including progress
+- Change status and priority from the project screen
+- Add and remove team members
+- Add a task to the project from its screen
+
+### Clients (`clients:read` / `clients:write`)
+
+- Client directory with a status filter
+- Client detail
+- Create and edit a client
+- Deactivate, archive and reactivate with an inline confirmation
+
+### Departments (`departments:read` / `departments:write`)
+
+- Department list
+- Add, rename and delete inline; deletion is refused while members remain
+
+### Entry points and gating
+
+- Clients and departments have no tab: the dashboard counts and a directory
+  card on the profile tab open them, only for roles that may read them
+- Every control is hidden with `can()` from `@opsflow/types/permissions`,
+  the same courtesy check the web performs; the API enforces the matrix
+
+### UX
+
+- One-choice pickers open a bottom sheet, identical on iOS, Android and web
+- Forms validate with the shared Zod schemas before the request and map a
+  422 back onto the same fields
+- Confirmations are inline, next to the record, never a native alert
+
+### Acceptance Criteria
+
+A manager can create, staff, edit and progress a project and its tasks, and
+maintain the client directory, from the mobile application. An administrator
+can additionally maintain departments. An employee sees no management
+control.
+
+---
+
 # Phase 14 — UI/UX Polish
 
 **Goal:** Make OPSflow visually impressive and demonstrate the project's strongest differentiator.
@@ -1466,7 +1527,7 @@ still no realtime channel.
   server-side mid-visit (401 to login). Every endpoint was requested exactly
   once per state
 
-## Phase 13 — React Native Mobile Application (in progress)
+## Phase 13 — React Native Mobile Application
 
 - [x] `apps/mobile` scaffolded: Expo SDK 57, Expo Router, NativeWind 4 on
   Tailwind CSS 3, TanStack Query, `@opsflow/types` for every contract and
@@ -1535,7 +1596,70 @@ still no realtime channel.
   a stripped `role` key, the activity row) and verified through the web
   build: local "Enter a name", save, tab shows the new value, reload keeps
   it, exactly one PATCH and no extra GET
-- [ ] App icon and splash assets; a first run on a device or emulator
+- [x] First run on a device: an iPhone running Expo Go over the LAN, with
+  `EXPO_PUBLIC_API_URL` and `BETTER_AUTH_URL` on the machine's address. The
+  app loaded and the workflows worked from the phone, so the SecureStore
+  cookie and the `credentials: 'omit'` path are exercised for real, not only
+  in-process. Expo Go shows the project card with the app icon; it renders
+  its own launcher instead of the app's splash, which needs a native build
+- [x] App assets. `apps/mobile/assets` holds the icon, the Android adaptive
+  icon (mark inside the 66% safe zone over `#171717`), the splash image and
+  a favicon, all drawn by `scripts/make-assets.mjs` — a dependency-free
+  Node script (`pnpm --filter @opsflow/mobile assets`) that encodes the
+  PNGs itself, since the machine has no image tooling. The mark is three
+  stacked pills in the neutral scale the components already hard-code, so
+  the Phase 14 token extraction can recolour it in one place. `app.json`
+  wires `icon`, `android.adaptiveIcon`, `web.favicon` and the
+  `expo-splash-screen` plugin (SDK 57 dropped the top-level `splash` key);
+  `expo-splash-screen` is installed at the SDK-pinned version. `expo export
+  --platform web` now emits `favicon.ico` and links it from `index.html`.
+  The template's `newArchEnabled` and `android.edgeToEdgeEnabled` keys are
+  gone: SDK 57 has both always on, dropped them from the config schema, and
+  `expo-doctor` rejected them
+
+## Phase 13b — Mobile Management
+
+- [x] Write side of the mobile data modules: `tasks.ts` and `projects.ts`
+  gain the same mutations as the web (`create`, `update`, status, priority,
+  delete / members); new `clients.ts`, `departments.ts` and a read-only
+  `users.ts` for the manager and member pickers. Query keys match the web
+  client's, so the invalidation rules carry over unchanged
+- [x] Shared pieces: `Picker` (a bottom-sheet single choice, with an optional
+  "none" row for nullable foreign keys), `InlineConfirm`, `FormScreen` (the
+  keyboard-aware card every create/edit screen uses), `Segmented`, a
+  multiline mode on `Field`, client status badges, and `useCan()` on top of
+  the current-user query
+- [x] Tasks: `tasks/new` (with `?projectId=`), `tasks/[taskId]/edit`, and on
+  the task screen an Edit button, a priority picker and a delete
+  confirmation for `tasks:write`. The tab gains a Mine / All switch and an
+  Add button for the same roles; employees see exactly what they saw before.
+  Detail routes moved from `[taskId].tsx` to `[taskId]/index.tsx` so the
+  edit screen can sit beside them
+- [x] Projects: `projects/new`, `projects/[projectId]/edit` (progress is
+  edited here, priority only on create, as on the web), and on the project
+  screen status buttons with confirmation, a priority picker, add/remove
+  team members from the active people directory, and an Add task button
+  that preselects the project
+- [x] Clients: `clients/index` with an all / active / inactive / archived
+  filter, `clients/[clientId]`, `clients/new`, `clients/[clientId]/edit`,
+  and deactivate / archive / reactivate with the same projects note as the
+  web dialog
+- [x] Departments: one screen with the list, an inline add/rename form and
+  an inline delete; a department with members shows the reassign message
+  instead of a delete button, mirroring the API's 409
+- [x] Entry points: the dashboard's Departments and Active clients counts
+  open their screens; the profile tab gets a Directory card with the same
+  links, both gated on the read permission. The stack registers every new
+  screen with a header title
+- [x] Verified through the web build at 390×844 against the running API as
+  the manager: client create (local email validation first, then POST 201),
+  edit, deactivate; task create with project and assignee pickers, priority
+  to critical, edit, delete (back to the list, row gone); project create
+  with client and manager pickers (deadline-before-start refused locally),
+  status to active, member added and removed, progress edited to 40%, Add
+  task lands on the form with the project preselected; departments
+  read-only for the manager. As the admin: department add, rename and
+  delete. As the employee: no Add, Edit or Delete control anywhere
 
 ## Phase 16 — Testing (pulled forward, partial)
 
@@ -1626,9 +1750,6 @@ these defects; all are fixed and covered by tests or verified by typecheck.
 
 ## Not started
 
-- [-] Phase 13 — Mobile Application: every screen is built and verified
-  through the web build; app assets and a first run on a device remain
-  (listed above)
 - [ ] Phases 14-20 — Polish, performance, testing (started), security, deployment, demo
 
 ## Stack amendments
@@ -1642,35 +1763,34 @@ is at v2.2 to reflect them.
 
 # 25. Immediate Next Steps
 
-The web application is complete through Phase 12: every module is a full
+The application is complete through Phase 13b: every web module is a full
 vertical slice — authentication, RBAC, service layer, Prisma, reads and writes
-on the web (§24) — navigation is loader-driven, and the dashboard gives each
-role its operational overview from real rows.
+(§24) — navigation is loader-driven, the dashboard gives each role its
+operational overview from real rows, and the mobile app covers the employee
+workflows and, for managers and administrators, the management of tasks,
+projects, clients and departments, with its own icon set.
 
 Next:
 
 ```text
-1. Phase 13 — close out
+1. Phase 14 — UI/UX Polish
 ```
 
-Every mobile screen, including profile editing, exists and is verified
-through the web build. What is left is not code that can be finished on
-this machine:
+Before it starts, decide on the project and task lifecycles (§24 "Known
+gaps"): enforce the state machines in the API, or document them as guidance.
 
-1. Run the app on a device or emulator once (`pnpm --filter @opsflow/mobile
-   dev`, Expo Go). SecureStore and the `opsflow://` origin are proven against
-   the API but have not been exercised from a phone, and the five-tab layout
-   and the pushed record screens have not been seen on a real screen.
-2. App icon and splash assets before the demo (`apps/mobile/assets`, wired
-   into `app.json`).
+`packages/ui` design tokens are the first thing the polish pass should
+extract: the mobile palette is the same neutral scale as the web's, hard-coded
+in the mobile components and again in `apps/mobile/scripts/make-assets.mjs`,
+which draws the app icon from it. Recolour once, regenerate the assets, and
+both clients follow.
 
-Then Phase 14. Before it starts, decide on the project and task lifecycles
-(§24 "Known gaps"): enforce the state machines in the API, or document them
-as guidance.
-
-`packages/ui` design tokens still wait: the mobile palette is the same
-neutral scale as the web's, hard-coded in the mobile components. Extract it
-when the Phase 14 polish pass touches both clients.
+Two `expo-doctor` notes are carried, not fixed: `typescript` 7 against the
+SDK's expected 6 (accepted in Phase 13, the typecheck passes) and
+`expo-font` as a direct dependency for `@expo/vector-icons`, which only
+matters for a native build outside Expo Go — install it with
+`npx expo install expo-font` when the first development build is made
+(Phase 18).
 
 Do not begin building all remaining modules simultaneously.
 

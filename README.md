@@ -100,13 +100,18 @@ cannot reach `localhost`, so set it to this machine's LAN address (and
 `opsflow://`, Expo Go's `exp://` and the web dev server on `:8081` outside
 production.
 
+The app icon, adaptive icon, splash image and favicon under `apps/mobile/assets`
+are drawn by `pnpm --filter @opsflow/mobile assets`; re-run it after changing the
+palette in `scripts/make-assets.mjs`.
+
 ## Layout
 
 ```
 apps/
   api/       Hono API (Bun)
   web/       React + Vite SPA         — login and the protected app shell
-  mobile/    Expo app                 — login, dashboard, tasks, projects, inbox, profile (+ edit)
+  mobile/    Expo app                 — login, dashboard, tasks, projects, inbox, profile; managers and
+                                         admins also manage tasks, projects, clients and departments
 packages/
   config/    Shared TypeScript configs
   db/        Prisma schema, migrations, client

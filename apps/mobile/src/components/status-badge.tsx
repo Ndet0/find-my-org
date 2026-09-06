@@ -1,3 +1,4 @@
+import type { ClientStatus } from '@opsflow/types/client'
 import type { PriorityLevel, ProjectStatus } from '@opsflow/types/project'
 import type { TaskStatus } from '@opsflow/types/task'
 import { Text, View } from 'react-native'
@@ -16,6 +17,12 @@ const PROJECT_STATUS: Record<ProjectStatus, { label: string; className: string }
   completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
   delayed: { label: 'Delayed', className: 'bg-red-100 text-red-800' },
   cancelled: { label: 'Cancelled', className: 'bg-neutral-100 text-neutral-500' },
+}
+
+const CLIENT_STATUS: Record<ClientStatus, { label: string; className: string }> = {
+  active: { label: 'Active', className: 'bg-green-100 text-green-800' },
+  inactive: { label: 'Inactive', className: 'bg-amber-100 text-amber-800' },
+  archived: { label: 'Archived', className: 'bg-neutral-100 text-neutral-500' },
 }
 
 const PRIORITY: Record<PriorityLevel, string> = {
@@ -43,10 +50,22 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   return <Badge {...PROJECT_STATUS[status]} />
 }
 
+export function ClientStatusBadge({ status }: { status: ClientStatus }) {
+  return <Badge {...CLIENT_STATUS[status]} />
+}
+
 export function PriorityBadge({ priority }: { priority: PriorityLevel }) {
   return <Badge label={priority} className={PRIORITY[priority]} />
 }
 
 export function taskStatusLabel(status: TaskStatus): string {
   return STATUS[status].label
+}
+
+export function projectStatusLabel(status: ProjectStatus): string {
+  return PROJECT_STATUS[status].label
+}
+
+export function clientStatusLabel(status: ClientStatus): string {
+  return CLIENT_STATUS[status].label
 }
