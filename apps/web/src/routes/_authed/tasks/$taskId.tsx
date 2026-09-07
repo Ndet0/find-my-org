@@ -1,6 +1,6 @@
 import { can } from '@opsflow/types/permissions'
 import { PRIORITY_LEVELS, type PriorityLevel } from '@opsflow/types/project'
-import { TASK_STATUSES, type TaskStatus } from '@opsflow/types/task'
+import { nextTaskStatuses, type TaskStatus } from '@opsflow/types/task'
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -109,7 +109,7 @@ function TaskDetailPage() {
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        {TASK_STATUSES.filter((status) => status !== task.status).map((status) => (
+        {nextTaskStatuses(task.status).map((status) => (
           <Button
             key={status}
             variant={status === 'blocked' ? 'destructive' : 'outline'}

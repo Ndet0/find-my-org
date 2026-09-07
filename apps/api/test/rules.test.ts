@@ -40,7 +40,7 @@ async function call(method: string, path: string, cookie: string, body?: unknown
   return { status: response.status, ...json }
 }
 
-const created = { projectId: '', departmentId: '' }
+const created = { projectId: '', departmentId: '', lifecycleProjectId: '' }
 
 /**
  * The seeded employee is a shared fixture, so the profile test records the
@@ -57,6 +57,12 @@ afterAll(async () => {
   if (created.projectId) {
     await prisma.task.deleteMany({ where: { projectId: created.projectId } })
     await prisma.project.delete({ where: { id: created.projectId } }).catch(() => undefined)
+  }
+  if (created.lifecycleProjectId) {
+    await prisma.task.deleteMany({ where: { projectId: created.lifecycleProjectId } })
+    await prisma.project
+      .delete({ where: { id: created.lifecycleProjectId } })
+      .catch(() => undefined)
   }
   if (created.departmentId) {
     await prisma.department.delete({ where: { id: created.departmentId } }).catch(() => undefined)
@@ -102,6 +108,12 @@ describe('assignment rules', () => {
     expect(blocked.status).toBe(409)
     expect(blocked.error?.code).toBe('ASSIGNEE_HAS_OPEN_TASKS')
 
+    // Through `in_progress`: the lifecycle has no pending-to-completed edge.
+    const started = await call('PATCH', `/api/tasks/${task.data?.id}/status`, manager, {
+      status: 'in_progress',
+    })
+    expect(started.status).toBe(200)
+
     const completed = await call('PATCH', `/api/tasks/${task.data?.id}/status`, manager, {
       status: 'completed',
     })
@@ -129,6 +141,111 @@ describe('assignment rules', () => {
     })
     expect(task.status).toBe(409)
     expect(task.error?.code).toBe('PROJECT_CLOSED')
+  })
+})
+
+describe('lifecycle rules', () => {
+  test('a project walks its lifecycle and refuses the moves that skip it', async () => {
+    const manager = await signIn('manager@opsflow.local')
+
+    const project = await call('POST', '/api/projects', manager, {
+      name: 'Lifecycle rules fixture',
+      priority: 'low',
+    })
+    expect(project.status).toBe(201)
+    created.lifecycleProjectId = project.data?.id as string
+    expect(project.data?.status).toBe('planning')
+
+    const path = `/api/projects/${created.lifecycleProjectId}/status`
+
+    // Planning goes to active or straight to cancelled; it cannot complete
+    // work that never started, nor be put on hold before it began.
+    const skipped = await call('PATCH', path, manager, { status: 'completed' })
+    expect(skipped.status).toBe(409)
+    expect(skipped.error?.code).toBe('INVALID_PROJECT_TRANSITION')
+    expect((await call('PATCH', path, manager, { status: 'on_hold' })).status).toBe(409)
+
+    const unchanged = await call('PATCH', path, manager, { status: 'planning' })
+    expect(unchanged.status).toBe(409)
+    expect(unchanged.error?.code).toBe('PROJECT_STATUS_UNCHANGED')
+
+    expect((await call('PATCH', path, manager, { status: 'active' })).status).toBe(200)
+    expect((await call('PATCH', path, manager, { status: 'on_hold' })).status).toBe(200)
+
+    // On hold resumes through active; it cannot complete from there.
+    expect((await call('PATCH', path, manager, { status: 'completed' })).status).toBe(409)
+    expect((await call('PATCH', path, manager, { status: 'active' })).status).toBe(200)
+
+    const completed = await call('PATCH', path, manager, { status: 'completed' })
+    expect(completed.status).toBe(200)
+    // Completion settles the progress figure the dashboard averages.
+    expect(completed.data?.progress).toBe(100)
+
+    // A completed project reopens, because completion is a claim that can
+    // be wrong. Cancellation is a decision, so it is the terminal state.
+    expect((await call('PATCH', path, manager, { status: 'active' })).status).toBe(200)
+    expect((await call('PATCH', path, manager, { status: 'cancelled' })).status).toBe(200)
+
+    const revived = await call('PATCH', path, manager, { status: 'active' })
+    expect(revived.status).toBe(409)
+    expect(revived.error?.code).toBe('INVALID_PROJECT_TRANSITION')
+  })
+
+  test('a task walks its lifecycle and refuses the moves that skip it', async () => {
+    const manager = await signIn('manager@opsflow.local')
+    const employee = await prisma.user.findUniqueOrThrow({
+      where: { email: 'employee@opsflow.local' },
+      select: { id: true },
+    })
+
+    const project = await prisma.project.create({
+      data: { name: 'Task lifecycle fixture', status: 'active' },
+      select: { id: true },
+    })
+    await prisma.projectMember.create({
+      data: { projectId: project.id, userId: employee.id },
+    })
+
+    const task = await call('POST', '/api/tasks', manager, {
+      title: 'Lifecycle task',
+      projectId: project.id,
+      assignedTo: employee.id,
+    })
+    expect(task.status).toBe(201)
+    const path = `/api/tasks/${task.data?.id}/status`
+    expect(task.data?.status).toBe('pending')
+
+    const assignee = await signIn('employee@opsflow.local')
+
+    // Pending cannot jump the work: neither straight to done nor to blocked.
+    const jumped = await call('PATCH', path, assignee, { status: 'completed' })
+    expect(jumped.status).toBe(409)
+    expect(jumped.error?.code).toBe('INVALID_TASK_TRANSITION')
+    expect((await call('PATCH', path, assignee, { status: 'blocked' })).status).toBe(409)
+
+    const unchanged = await call('PATCH', path, assignee, { status: 'pending' })
+    expect(unchanged.status).toBe(409)
+    expect(unchanged.error?.code).toBe('TASK_STATUS_UNCHANGED')
+
+    expect((await call('PATCH', path, assignee, { status: 'in_progress' })).status).toBe(200)
+    expect((await call('PATCH', path, assignee, { status: 'blocked' })).status).toBe(200)
+
+    // Blocked resumes through in progress; it cannot complete from there.
+    expect((await call('PATCH', path, assignee, { status: 'completed' })).status).toBe(409)
+    expect((await call('PATCH', path, assignee, { status: 'in_progress' })).status).toBe(200)
+
+    const done = await call('PATCH', path, assignee, { status: 'completed' })
+    expect(done.status).toBe(200)
+    expect(done.data?.completedAt).not.toBeNull()
+
+    // Reopening clears the completion time rather than leaving a stale one.
+    const reopened = await call('PATCH', path, assignee, { status: 'in_progress' })
+    expect(reopened.status).toBe(200)
+    expect(reopened.data?.completedAt).toBeNull()
+
+    await prisma.task.deleteMany({ where: { projectId: project.id } })
+    await prisma.projectMember.deleteMany({ where: { projectId: project.id } })
+    await prisma.project.delete({ where: { id: project.id } })
   })
 })
 

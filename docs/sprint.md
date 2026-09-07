@@ -1242,7 +1242,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-05 — against the working tree, not from memory.
+**Last verified:** 2026-09-07 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1702,6 +1702,45 @@ these defects; all are fixed and covered by tests or verified by typecheck.
 - [x] The mobile current-user hook threw during the sign-out frame; it now
   returns `null` and the two screens render nothing for that frame
 
+## Lifecycle enforcement (2026-09-07)
+
+The Phase 14 prerequisite in §25 — enforce the project and task state
+machines, or document them as guidance — was decided in favour of
+enforcement.
+
+- [x] `TASK_TRANSITIONS` and `PROJECT_TRANSITIONS` in `@opsflow/types`,
+  beside the status arrays and in the same spirit as the permission matrix:
+  one table, enforced server-side, mirrored by the clients
+- [x] `setTaskStatus` and `setProjectStatus` refuse an unreachable move with
+  `INVALID_TASK_TRANSITION` / `INVALID_PROJECT_TRANSITION` (409), and a
+  no-op with `TASK_STATUS_UNCHANGED` / `PROJECT_STATUS_UNCHANGED`. A no-op
+  previously wrote an activity row saying nothing changed and reset
+  `completedAt` on an already-completed task
+- [x] The status controls on all four detail screens — web and mobile,
+  project and task — now offer `nextTaskStatuses()` / `nextProjectStatuses()`
+  instead of every status but the current one
+- [x] Moving a project to `completed` sets `progress` to 100. A completed
+  project reading 60% is a contradiction the dashboard averages into its
+  figures
+- [x] `apps/api/test/rules.test.ts` walks both lifecycles end to end and
+  asserts every refusal. 17 tests pass
+
+The two edges the product document does not draw, and why they are open:
+
+- A completed task or project reopens (`completed → in_progress`,
+  `completed → active`), because completion is a claim that can turn out to
+  be wrong. Reopening a project does not reverse the progress figure; it is
+  edited back with the rest of the plan
+- A task un-starts (`in_progress → pending`), which corrects a misclick
+  rather than skipping a step
+
+`cancelled` is the one terminal status: cancelling is a decision that was
+taken, not a claim that can be wrong. Both project detail screens say so in
+place of the status controls rather than rendering an empty row. `cancelled`
+is also reachable from every open status, not only from `planning` as
+product §14 draws it — work is abandoned mid-flight more often than during
+planning.
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1715,10 +1754,9 @@ these defects; all are fixed and covered by tests or verified by typecheck.
   `orderBy` plus a search parameter; it was left out until a screen needs it.
   The product document (§29) also lists bulk actions; none exist.
 - There is no global search (product §27); each list searches itself.
-- Project and task lifecycles (product §14, §21) are not enforced: the API
-  accepts any status transition, and completing a project neither sets
-  progress nor touches its tasks. Decide before Phase 14 whether to enforce
-  the state machines or to document them as guidance.
+- Completing a project does not touch its tasks. Deliberate: auto-completing
+  them would invent completion times and activity rows for work nobody
+  finished. The open tasks stay open and visible on a completed project.
 - No detail page links to the entity's activity history, although
   `GET /api/activity` can filter by entity. Product §24 promises "how an
   entity evolved".
@@ -1757,7 +1795,7 @@ these defects; all are fixed and covered by tests or verified by typecheck.
 The stack decisions taken during implementation now live in
 [`technical_architecture.md`](technical_architecture.md) §43, alongside the
 sections they changed, rather than being tracked separately here. That document
-is at v2.2 to reflect them.
+is at v2.5 to reflect them.
 
 ---
 
@@ -1776,8 +1814,9 @@ Next:
 1. Phase 14 — UI/UX Polish
 ```
 
-Before it starts, decide on the project and task lifecycles (§24 "Known
-gaps"): enforce the state machines in the API, or document them as guidance.
+The lifecycle question that gated Phase 14 is settled: the state machines
+are enforced in the API and mirrored by both clients (§24 "Lifecycle
+enforcement").
 
 `packages/ui` design tokens are the first thing the polish pass should
 extract: the mobile palette is the same neutral scale as the web's, hard-coded

@@ -149,3 +149,43 @@ export const updateTaskPrioritySchema = z.object({
 })
 
 export type UpdateTaskPriorityInput = z.infer<typeof updateTaskPrioritySchema>
+
+/**
+ * The task lifecycle from product_architecture.md §21:
+ *
+ * ```text
+ * pending → in_progress → completed
+ *                ↓
+ *             blocked
+ * ```
+ *
+ * Enforced in the task service and mirrored by the clients, so a status
+ * control only offers moves the API will accept.
+ *
+ * Two recoveries the product document does not draw are allowed, because
+ * each corrects a mistake rather than skipping a step: un-starting a task
+ * back to `pending`, and reopening a completed one. What stays closed is
+ * skipping the work — `pending` cannot jump straight to `completed` or
+ * `blocked`, and a `blocked` task cannot complete without passing back
+ * through `in_progress`.
+ */
+export const TASK_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
+  pending: ['in_progress'],
+  in_progress: ['pending', 'blocked', 'completed'],
+  blocked: ['in_progress'],
+  completed: ['in_progress'],
+}
+
+/** The statuses a task currently in `from` may move to. */
+export function nextTaskStatuses(from: TaskStatus): readonly TaskStatus[] {
+  return TASK_TRANSITIONS[from]
+}
+
+export function canTransitionTask(from: TaskStatus, to: TaskStatus): boolean {
+  return TASK_TRANSITIONS[from].includes(to)
+}
+
+/** `in_progress` reads badly in a sentence; every caller wants "in progress". */
+export function taskStatusText(status: TaskStatus): string {
+  return status.replaceAll('_', ' ')
+}

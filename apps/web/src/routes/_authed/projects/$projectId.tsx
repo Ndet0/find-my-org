@@ -1,7 +1,7 @@
 import { can } from '@opsflow/types/permissions'
 import {
+  nextProjectStatuses,
   PRIORITY_LEVELS,
-  PROJECT_STATUSES,
   type PriorityLevel,
   type ProjectStatus,
 } from '@opsflow/types/project'
@@ -123,17 +123,25 @@ function ProjectDetailPage() {
 
       {canWrite ? (
         <div className="flex flex-wrap gap-2">
-          {PROJECT_STATUSES.filter((status) => status !== project.status).map((status) => (
-            <Button
-              key={status}
-              variant={status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'}
-              size="sm"
-              className="capitalize"
-              onClick={() => setNextStatus(status)}
-            >
-              {status.replaceAll('_', ' ')}
-            </Button>
-          ))}
+          {nextProjectStatuses(project.status).length ? (
+            nextProjectStatuses(project.status).map((status) => (
+              <Button
+                key={status}
+                variant={status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'}
+                size="sm"
+                className="capitalize"
+                onClick={() => setNextStatus(status)}
+              >
+                {status.replaceAll('_', ' ')}
+              </Button>
+            ))
+          ) : (
+            // `cancelled` is the one terminal status. Say so, rather than
+            // leaving the row where the controls were silently empty.
+            <p className="text-muted-foreground text-sm">
+              A cancelled project cannot be reopened. Its team and history stay in place.
+            </p>
+          )}
         </div>
       ) : null}
 

@@ -1,5 +1,5 @@
 import { PRIORITY_LEVELS, type PriorityLevel } from '@opsflow/types/project'
-import { TASK_STATUSES, type TaskStatus } from '@opsflow/types/task'
+import { nextTaskStatuses, type TaskStatus } from '@opsflow/types/task'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
@@ -152,7 +152,7 @@ function StatusControl({
         />
       ) : (
         <View className="flex-row flex-wrap gap-2">
-          {TASK_STATUSES.filter((status) => status !== current).map((status) => (
+          {nextTaskStatuses(current).map((status) => (
             <Button
               key={status}
               title={taskStatusLabel(status)}

@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.4  
+**Version:** 2.5  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1716,5 +1716,8 @@ than only the outcome.
 | TypeScript 7 in `apps/mobile` although Expo expects 6 | One compiler version across the workspace; the mobile typecheck passes on 7 |
 | Removing a member or replacing the manager refuses while they hold open tasks | The assignee rule (manager or member only) is otherwise only checked when a task is written. Blocking with `ASSIGNEE_HAS_OPEN_TASKS` keeps it true at all times, matching how an occupied department refuses deletion |
 | Completed and cancelled projects refuse new tasks | `PROJECT_CLOSED`. Existing tasks on them stay editable so history can be tidied |
+| Project and task status transitions are enforced against a table in `@opsflow/types` | Product §14 and §21 define state machines; the API accepted any move. `TASK_TRANSITIONS` and `PROJECT_TRANSITIONS` sit beside the status arrays, are enforced in the two services (`INVALID_TASK_TRANSITION`, `INVALID_PROJECT_TRANSITION`) and are mirrored by the web and mobile status controls, which offer only reachable moves. `cancelled` is terminal; `completed` reopens |
+| A status PATCH that does not change the status is a 409 | `TASK_STATUS_UNCHANGED` / `PROJECT_STATUS_UNCHANGED`. It otherwise wrote an activity row saying nothing changed, and reset `completedAt` on an already-completed task |
+| Completing a project sets `progress` to 100 | A completed project reading 60% is a contradiction the dashboard averages into its figures. Its tasks are left alone: auto-completing them would invent completion times for work nobody finished |
 | Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
 

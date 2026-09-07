@@ -1,15 +1,17 @@
 import { Prisma, prisma } from '@opsflow/db'
 import type { Paginated } from '@opsflow/types/api'
 import type { RoleName } from '@opsflow/types/permissions'
-import type {
-  AddProjectMemberInput,
-  CreateProjectInput,
-  PriorityLevel,
-  ProjectDetail,
-  ProjectListItem,
-  ProjectListQuery,
-  ProjectStatus,
-  UpdateProjectInput,
+import {
+  type AddProjectMemberInput,
+  type CreateProjectInput,
+  canTransitionProject,
+  type PriorityLevel,
+  type ProjectDetail,
+  type ProjectListItem,
+  type ProjectListQuery,
+  type ProjectStatus,
+  projectStatusText,
+  type UpdateProjectInput,
 } from '@opsflow/types/project'
 import type { NamedRef } from '@opsflow/types/user'
 import { utcToday } from '../lib/dates.js'
@@ -322,6 +324,8 @@ export async function setProjectStatus(
     throw notFound('Project')
   }
 
+  assertProjectTransition(current.status, status)
+
   const recipients = new Set(
     [current.managerId, ...current.members.map((member) => member.userId)].filter(
       (userId): userId is string => Boolean(userId),
@@ -331,7 +335,13 @@ export async function setProjectStatus(
   return prisma.$transaction(async (tx) => {
     const row = await tx.project.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        // A completed project reading 60% is a contradiction the dashboard
+        // would then average into its progress figures. Reopening does not
+        // reverse it: the number is edited back with the rest of the plan.
+        ...(status === 'completed' ? { progress: 100 } : {}),
+      },
       select: detailSelect,
     })
 
@@ -340,7 +350,7 @@ export async function setProjectStatus(
       action: 'status_changed',
       entityType: 'project',
       entityId: row.id,
-      description: `${actor.name} changed "${row.name}" to ${labelStatus(status)}`,
+      description: `${actor.name} changed "${row.name}" to ${projectStatusText(status)}`,
       metadata: { old: current.status, new: status },
     })
 
@@ -349,7 +359,7 @@ export async function setProjectStatus(
         userId,
         actorId: actor.id,
         title: 'Project status changed',
-        message: `${actor.name} changed "${row.name}" to ${labelStatus(status)}`,
+        message: `${actor.name} changed "${row.name}" to ${projectStatusText(status)}`,
         type: 'project',
       })
     }
@@ -597,6 +607,24 @@ function toDate(value: string | null | undefined): Date | null {
   return value ? new Date(value) : null
 }
 
-function labelStatus(status: ProjectStatus): string {
-  return status.replaceAll('_', ' ')
+/**
+ * The lifecycle in `@opsflow/types/project` is the rule, not a suggestion:
+ * the clients only offer reachable moves, and this is what stops a
+ * hand-written request reviving a cancelled project or completing one that
+ * never started. A no-op is rejected too, so the activity feed never gains
+ * a row saying nothing changed.
+ */
+function assertProjectTransition(from: ProjectStatus, to: ProjectStatus): void {
+  if (from === to) {
+    throw conflict('PROJECT_STATUS_UNCHANGED', `This project is already ${projectStatusText(to)}`)
+  }
+
+  if (!canTransitionProject(from, to)) {
+    throw conflict(
+      'INVALID_PROJECT_TRANSITION',
+      from === 'cancelled'
+        ? 'A cancelled project cannot be reopened'
+        : `A ${projectStatusText(from)} project cannot move straight to ${projectStatusText(to)}`,
+    )
+  }
 }

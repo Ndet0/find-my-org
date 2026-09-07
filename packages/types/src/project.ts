@@ -199,3 +199,47 @@ export const addProjectMemberSchema = z.object({
 })
 
 export type AddProjectMemberInput = z.infer<typeof addProjectMemberSchema>
+
+/**
+ * The project lifecycle from product_architecture.md §14:
+ *
+ * ```text
+ * planning → active → completed
+ *              ↓  ↓
+ *       on_hold    delayed
+ * ```
+ *
+ * Enforced in the project service and mirrored by the clients, so a status
+ * control only offers moves the API will accept.
+ *
+ * `cancelled` is reachable from any open status, not only from `planning`:
+ * work is abandoned mid-flight more often than during planning. It is the
+ * one terminal status, because cancelling is a decision that was taken,
+ * whereas `completed` is a claim that can turn out to be wrong — so a
+ * completed project can be reopened to `active`.
+ *
+ * A project on hold or running late resumes through `active`; it cannot
+ * complete from there without first being active again.
+ */
+export const PROJECT_TRANSITIONS: Record<ProjectStatus, readonly ProjectStatus[]> = {
+  planning: ['active', 'cancelled'],
+  active: ['on_hold', 'delayed', 'completed', 'cancelled'],
+  on_hold: ['active', 'cancelled'],
+  delayed: ['active', 'cancelled'],
+  completed: ['active'],
+  cancelled: [],
+}
+
+/** The statuses a project currently in `from` may move to. */
+export function nextProjectStatuses(from: ProjectStatus): readonly ProjectStatus[] {
+  return PROJECT_TRANSITIONS[from]
+}
+
+export function canTransitionProject(from: ProjectStatus, to: ProjectStatus): boolean {
+  return PROJECT_TRANSITIONS[from].includes(to)
+}
+
+/** `on_hold` reads badly in a sentence; every caller wants "on hold". */
+export function projectStatusText(status: ProjectStatus): string {
+  return status.replaceAll('_', ' ')
+}

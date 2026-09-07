@@ -1,6 +1,6 @@
 import {
+  nextProjectStatuses,
   PRIORITY_LEVELS,
-  PROJECT_STATUSES,
   type PriorityLevel,
   type ProjectDetail,
   type ProjectStatus,
@@ -234,15 +234,23 @@ function StatusControl({
         />
       ) : (
         <View className="flex-row flex-wrap gap-2">
-          {PROJECT_STATUSES.filter((status) => status !== current).map((status) => (
-            <Button
-              key={status}
-              title={projectStatusLabel(status)}
-              variant={status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'}
-              size="sm"
-              onPress={() => setNext(status)}
-            />
-          ))}
+          {nextProjectStatuses(current).length ? (
+            nextProjectStatuses(current).map((status) => (
+              <Button
+                key={status}
+                title={projectStatusLabel(status)}
+                variant={status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'}
+                size="sm"
+                onPress={() => setNext(status)}
+              />
+            ))
+          ) : (
+            // `cancelled` is the one terminal status. Say so, rather than
+            // leaving the row where the controls were silently empty.
+            <Text className="text-sm text-neutral-500">
+              A cancelled project cannot be reopened. Its team and history stay in place.
+            </Text>
+          )}
         </View>
       )}
     </Card>

@@ -1,13 +1,15 @@
 import { type Prisma, prisma } from '@opsflow/db'
 import type { Paginated } from '@opsflow/types/api'
 import type { PriorityLevel } from '@opsflow/types/project'
-import type {
-  CreateTaskInput,
-  TaskDetail,
-  TaskListItem,
-  TaskListQuery,
-  TaskStatus,
-  UpdateTaskInput,
+import {
+  type CreateTaskInput,
+  canTransitionTask,
+  type TaskDetail,
+  type TaskListItem,
+  type TaskListQuery,
+  type TaskStatus,
+  taskStatusText,
+  type UpdateTaskInput,
 } from '@opsflow/types/task'
 import type { NamedRef } from '@opsflow/types/user'
 import { utcToday } from '../lib/dates.js'
@@ -281,6 +283,8 @@ export async function setTaskStatus(
     throw notFound('Task')
   }
 
+  assertTaskTransition(current.status, status)
+
   const project = await prisma.project.findUnique({
     where: { id: current.project.id },
     select: { managerId: true },
@@ -305,7 +309,7 @@ export async function setTaskStatus(
       entityId: row.id,
       description: completed
         ? `${actor.name} completed "${row.title}"`
-        : `${actor.name} changed "${row.title}" to ${labelStatus(status)}`,
+        : `${actor.name} changed "${row.title}" to ${taskStatusText(status)}`,
       metadata: { old: current.status, new: status },
     })
     if (completed) {
@@ -441,10 +445,26 @@ async function assertAssigneeEligible(
   }
 }
 
-function toDate(value: string | null | undefined): Date | null {
-  return value ? new Date(value) : null
+/**
+ * The lifecycle in `@opsflow/types/task` is the rule, not a suggestion: the
+ * clients only offer reachable moves, and this is what stops a hand-written
+ * request skipping the work. A no-op is rejected too — it would otherwise
+ * write an activity row saying nothing changed, and reset `completedAt` on
+ * an already-completed task.
+ */
+function assertTaskTransition(from: TaskStatus, to: TaskStatus): void {
+  if (from === to) {
+    throw conflict('TASK_STATUS_UNCHANGED', `This task is already ${taskStatusText(to)}`)
+  }
+
+  if (!canTransitionTask(from, to)) {
+    throw conflict(
+      'INVALID_TASK_TRANSITION',
+      `A ${taskStatusText(from)} task cannot move straight to ${taskStatusText(to)}`,
+    )
+  }
 }
 
-function labelStatus(status: TaskStatus): string {
-  return status.replaceAll('_', ' ')
+function toDate(value: string | null | undefined): Date | null {
+  return value ? new Date(value) : null
 }
