@@ -104,8 +104,8 @@ cannot reach `localhost`, so set it to this machine's LAN address (and
 production.
 
 The app icon, adaptive icon, splash image and favicon under `apps/mobile/assets`
-are drawn by `pnpm --filter @opsflow/mobile assets`; re-run it after changing the
-palette in `scripts/make-assets.mjs`.
+are drawn by `pnpm --filter @opsflow/mobile assets` from the palette in
+`packages/ui/src/palette.json`; re-run it after changing the palette.
 
 ## Layout
 
@@ -120,7 +120,7 @@ packages/
   db/        Prisma schema, migrations, client
   auth/      Better Auth configuration
   types/     Shared types and Zod schemas
-  ui/        Design tokens                 — not yet built
+  ui/        Design tokens                 — palette, status tones, generated Tailwind CSS
 docs/        Product, technical and database documentation
 ```
 

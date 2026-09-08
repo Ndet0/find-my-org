@@ -2,48 +2,55 @@ import type { ClientStatus } from '@opsflow/types/client'
 import type { PriorityLevel, ProjectStatus } from '@opsflow/types/project'
 import type { TaskStatus } from '@opsflow/types/task'
 import type { UserStatus } from '@opsflow/types/user'
+import {
+  CLIENT_STATUS_TONES,
+  PRIORITY_TONES,
+  PROJECT_STATUS_TONES,
+  TASK_STATUS_TONES,
+  type Tone,
+  toneLabel,
+  USER_STATUS_TONES,
+} from '@opsflow/ui/tones'
 import { Badge } from '@/components/ui/badge'
 
 type DirectoryStatus = UserStatus | ClientStatus | ProjectStatus | TaskStatus
 
-const STATUS_VARIANTS: Record<DirectoryStatus, 'default' | 'secondary' | 'destructive'> = {
-  active: 'default',
-  inactive: 'secondary',
-  suspended: 'destructive',
-  archived: 'secondary',
-  planning: 'secondary',
-  on_hold: 'secondary',
-  completed: 'default',
-  delayed: 'destructive',
-  cancelled: 'destructive',
-  pending: 'secondary',
-  in_progress: 'default',
-  blocked: 'destructive',
+/**
+ * Tone → classes stays here, spelled out, because Tailwind only scans this
+ * app's sources: a class assembled from a string in `@opsflow/ui` would
+ * never be generated. The tone tables themselves are shared with mobile.
+ */
+const TONE_CLASSES: Record<Tone, string> = {
+  muted: 'bg-tone-muted text-tone-muted-foreground',
+  neutral: 'bg-tone-neutral text-tone-neutral-foreground',
+  info: 'bg-tone-info text-tone-info-foreground',
+  success: 'bg-tone-success text-tone-success-foreground',
+  warning: 'bg-tone-warning text-tone-warning-foreground',
+  danger: 'bg-tone-danger text-tone-danger-foreground',
 }
 
-const PRIORITY_VARIANTS: Record<PriorityLevel, 'default' | 'secondary' | 'destructive'> = {
-  low: 'secondary',
-  medium: 'default',
-  high: 'destructive',
-  critical: 'destructive',
+// The status unions overlap (`active`, `completed`, `inactive`), and the
+// tone tables agree wherever they do, so one lookup can serve all four.
+const STATUS_TONES: Record<DirectoryStatus, Tone> = {
+  ...USER_STATUS_TONES,
+  ...CLIENT_STATUS_TONES,
+  ...PROJECT_STATUS_TONES,
+  ...TASK_STATUS_TONES,
 }
 
-function labelFor(value: string) {
-  return value.replaceAll('_', ' ')
+function ToneBadge({ tone, children }: { tone: Tone; children: string }) {
+  // `ghost` sets no colour of its own, so the tone classes are the only ones.
+  return (
+    <Badge variant="ghost" className={TONE_CLASSES[tone]}>
+      {children}
+    </Badge>
+  )
 }
 
 export function StatusBadge({ status }: { status: DirectoryStatus }) {
-  return (
-    <Badge variant={STATUS_VARIANTS[status]} className="capitalize">
-      {labelFor(status)}
-    </Badge>
-  )
+  return <ToneBadge tone={STATUS_TONES[status]}>{toneLabel(status)}</ToneBadge>
 }
 
 export function PriorityBadge({ priority }: { priority: PriorityLevel }) {
-  return (
-    <Badge variant={PRIORITY_VARIANTS[priority]} className="capitalize">
-      {priority}
-    </Badge>
-  )
+  return <ToneBadge tone={PRIORITY_TONES[priority]}>{toneLabel(priority)}</ToneBadge>
 }

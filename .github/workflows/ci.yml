@@ -66,6 +66,10 @@ jobs:
       # schedules the db package's generate task, so do it explicitly.
       - run: pnpm db:generate
 
+      # tokens.css is generated from packages/ui/src/palette.json and committed;
+      # fail if someone edited one without the other.
+      - run: pnpm --filter @opsflow/ui generate && git diff --exit-code -- packages/ui/src/tokens.css
+
       - run: pnpm lint
       - run: pnpm typecheck
 

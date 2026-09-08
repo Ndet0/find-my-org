@@ -1,0 +1,24 @@
+{
+  "name": "@opsflow/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./palette.json": "./src/palette.json",
+    "./colors": "./src/colors.ts",
+    "./tones": "./src/tones.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "generate": "bun scripts/generate-css.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opsflow/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@opsflow/config": "workspace:*",
+    "@types/bun": "latest",
+    "typescript": "7.0.2"
+  }
+}

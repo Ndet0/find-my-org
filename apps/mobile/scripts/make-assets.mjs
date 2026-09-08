@@ -1,14 +1,16 @@
 // Generates the app icon set under `apps/mobile/assets` with nothing but Node:
 // a procedural mark (three stacked pills — a task list, a flow) rendered onto
 // hand-encoded PNGs. Re-run with `pnpm --filter @opsflow/mobile assets` after
-// changing the palette; the colours are the neutral scale the mobile
-// components hard-code until `packages/ui` design tokens exist (Phase 14).
+// changing the palette in `packages/ui`; the ink is the neutral-900 the
+// components and the tab bar use.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
+import palette from '@opsflow/ui/palette.json' with { type: 'json' }
 
-const INK = [0x17, 0x17, 0x17]
+const hexToRgb = (hex) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
+const INK = hexToRgb(palette.neutral[900])
 const WHITE = [0xff, 0xff, 0xff]
 
 const assetsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets')

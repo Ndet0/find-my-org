@@ -17,6 +17,7 @@
     "@expo/metro-runtime": "~57.0.15",
     "@expo/vector-icons": "^15.1.1",
     "@opsflow/types": "workspace:*",
+    "@opsflow/ui": "workspace:*",
     "@tanstack/react-query": "^5.102.8",
     "better-auth": "^1.7.2",
     "expo": "~57.0.20",

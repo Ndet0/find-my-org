@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
+import { colors } from '@opsflow/ui/colors'
 import { useState } from 'react'
 import { FlatList, Modal, Pressable, Text, View } from 'react-native'
 import { Button } from '@/components/button'
@@ -55,7 +56,7 @@ export function Picker({
         >
           {loading ? 'Loading…' : selected ? selected.label : (emptyLabel ?? placeholder)}
         </Text>
-        <Ionicons name="chevron-down" size={18} color="#737373" />
+        <Ionicons name="chevron-down" size={18} color={colors.neutral[500]} />
       </Pressable>
       {message ? <Text className="text-sm text-red-600">{message}</Text> : null}
 
@@ -99,7 +100,9 @@ export function Picker({
                         <Text className="text-xs text-neutral-500">{item.hint}</Text>
                       ) : null}
                     </View>
-                    {active ? <Ionicons name="checkmark" size={20} color="#171717" /> : null}
+                    {active ? (
+                      <Ionicons name="checkmark" size={20} color={colors.neutral[900]} />
+                    ) : null}
                   </Pressable>
                 )
               }}

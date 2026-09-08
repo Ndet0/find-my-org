@@ -4,6 +4,7 @@ import type { DashboardStats } from '@opsflow/types/dashboard'
 import type { RoleName } from '@opsflow/types/permissions'
 import type { ProjectListItem } from '@opsflow/types/project'
 import type { TaskListItem } from '@opsflow/types/task'
+import { colors } from '@opsflow/ui/colors'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { type Href, Link } from 'expo-router'
 import type { ReactNode } from 'react'
@@ -253,7 +254,7 @@ function InboxCard({ count }: { count: number | undefined }) {
                   : `${count} unread ${count === 1 ? 'notification' : 'notifications'}`}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#737373" />
+          <Ionicons name="chevron-forward" size={20} color={colors.neutral[500]} />
         </Card>
       </Pressable>
     </Link>

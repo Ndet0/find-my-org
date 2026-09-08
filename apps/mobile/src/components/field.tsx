@@ -1,3 +1,4 @@
+import { colors } from '@opsflow/ui/colors'
 import { Text, TextInput, type TextInputProps, View } from 'react-native'
 
 /** A labelled input with the first validation message underneath it. */
@@ -14,7 +15,7 @@ export function Field({
       <Text className="text-sm font-medium text-neutral-800">{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor="#a3a3a3"
+        placeholderTextColor={colors.neutral[400]}
         multiline={multiline}
         textAlignVertical={multiline ? 'top' : undefined}
         className={`rounded-lg border bg-white px-3 py-3 text-base text-neutral-900 ${multiline ? 'min-h-28' : ''} ${message ? 'border-red-500' : 'border-neutral-300'}`}

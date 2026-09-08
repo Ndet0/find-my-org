@@ -1,0 +1,26 @@
+/* Generated from palette.json by `pnpm --filter @opsflow/ui generate`. Do not edit. */
+@theme {
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+  --color-tone-muted: #f5f5f5;
+  --color-tone-muted-foreground: #737373;
+  --color-tone-neutral: #e5e5e5;
+  --color-tone-neutral-foreground: #262626;
+  --color-tone-info: #dbeafe;
+  --color-tone-info-foreground: #1e40af;
+  --color-tone-success: #dcfce7;
+  --color-tone-success-foreground: #166534;
+  --color-tone-warning: #fef3c7;
+  --color-tone-warning-foreground: #92400e;
+  --color-tone-danger: #fee2e2;
+  --color-tone-danger-foreground: #991b1b;
+}

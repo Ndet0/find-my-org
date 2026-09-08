@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
+import { colors } from '@opsflow/ui/colors'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type Href, Link, useRouter } from 'expo-router'
 import { Pressable, Text, View } from 'react-native'
@@ -90,7 +91,7 @@ function DirectoryLink({ title, body, to }: { title: string; body: string; to: H
           <Text className="text-base font-medium text-neutral-900">{title}</Text>
           <Text className="text-sm text-neutral-500">{body}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color="#737373" />
+        <Ionicons name="chevron-forward" size={20} color={colors.neutral[500]} />
       </Pressable>
     </Link>
   )

@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.5  
+**Version:** 2.6  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -727,16 +727,6 @@ packages/ui/
 
 The UI package holds **design tokens, not components**.
 
-```text
-Colour palette
-Status colours
-Spacing scale
-Typography scale
-Radii
-Iconography conventions
-
-```
-
 An earlier revision planned to put shared `Button`, `Modal`, `Table` and similar
 components here. That is not possible: React DOM components cannot render in
 React Native, so a component in `packages/ui` could only ever serve one of the
@@ -744,16 +734,55 @@ two clients. Rather than maintain two implementations behind one import path,
 the package carries the values both platforms agree on and each renders them
 natively.
 
-Components therefore live with their platform:
+What ships:
+
+```text
+src/palette.json   the single source of truth: the neutral scale (50–950) and six
+                   semantic tones — muted, neutral, info, success, warning,
+                   danger — each a background (DEFAULT) and a text colour
+                   (foreground). Plain JSON so that Node scripts and Tailwind 3
+                   configs can require() it
+src/colors.ts      the typed view of the palette, plus hexToRgb()
+src/tones.ts       which tone each task, project, client and user status, and
+                   each priority, renders in. The one table both badges read
+src/tokens.css     a Tailwind 4 @theme block generated from palette.json by
+                   `pnpm --filter @opsflow/ui generate`; committed, and CI fails
+                   if it drifts from the JSON
+
+```
+
+How each side consumes it:
+
+- **Web** imports `@opsflow/ui/tokens.css` in `app.css`, which gives Tailwind the
+  `bg-tone-info` / `text-tone-info-foreground` utilities alongside the shadcn
+  surface variables. The block is plain `@theme`, not `@theme inline`, so a
+  future `.dark { --color-tone-info: … }` override in `app.css` takes effect
+  without regenerating the file.
+- **Mobile** extends `theme.colors` in `tailwind.config.js` from `palette.json`,
+  which produces the same utility names under NativeWind. Components that need
+  a colour outside a class name (`SafeAreaView`, icon tints, placeholder text)
+  read `@opsflow/ui/colors`. `app.config.js` overrides the two colours in
+  `app.json` that the launcher and splash screen paint, and
+  `scripts/make-assets.mjs` draws the icon set in the same ink.
+- **Tone → class names** live in each app's own badge component, spelled out.
+  Tailwind only scans an app's own sources, so a class assembled from a string
+  in the package would never be generated. The package shares the decision, not
+  the class.
+
+The web's grey surfaces are shadcn's zinc-toned `oklch` variables, not this
+neutral scale; the two are visually close and unifying them is a Phase 14 task,
+not a prerequisite for the tones.
+
+Spacing, typography and radii are Tailwind's defaults on both platforms and are
+not overridden, so they need no token yet.
+
+Components live with their platform:
 
 ```text
 apps/web/src/components/ui     shadcn/ui, Tailwind CSS
 apps/mobile/src/components     React Native, NativeWind
 
 ```
-
-The goal is a consistent OPSflow visual language, achieved through shared tokens
-rather than shared component code.
 
 ---
 
@@ -1720,4 +1749,5 @@ than only the outcome.
 | A status PATCH that does not change the status is a 409 | `TASK_STATUS_UNCHANGED` / `PROJECT_STATUS_UNCHANGED`. It otherwise wrote an activity row saying nothing changed, and reset `completedAt` on an already-completed task |
 | Completing a project sets `progress` to 100 | A completed project reading 60% is a contradiction the dashboard averages into its figures. Its tasks are left alone: auto-completing them would invent completion times for work nobody finished |
 | Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
+| `@opsflow/ui` ships a JSON palette, a status → tone table and a generated `tokens.css` | The web badge collapsed every status into three shadcn variants while the mobile badge coloured each one; the two clients disagreed on what `completed` or `cancelled` looks like. One tone table, read by both, settles it. JSON rather than TypeScript because the mobile Tailwind 3 config and the icon script `require()` it; the CSS is generated so the web's Tailwind 4 build reads the same values |
 

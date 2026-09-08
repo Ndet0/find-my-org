@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
+import { colors } from '@opsflow/ui/colors'
 import { useQuery } from '@tanstack/react-query'
 import { Tabs } from 'expo-router'
 import { unreadCountQueryOptions } from '@/lib/notifications'
@@ -13,7 +14,7 @@ export default function TabsLayout() {
   const badge = unread.data && unread.data.count > 0 ? unread.data.count : undefined
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: '#171717' }}>
+    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.neutral[900] }}>
       <Tabs.Screen
         name="index"
         options={{

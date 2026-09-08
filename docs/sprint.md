@@ -1284,7 +1284,8 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
   notification and dashboard shapes, plus the matching Zod schemas. Exposed
   as subpath exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`,
   `/client`, `/project`, `/task`, `/activity`, `/notification`, `/dashboard`)
-- [ ] `packages/ui` — design tokens
+- [x] `packages/ui` — design tokens: a JSON palette, the status → tone table and a
+  generated Tailwind 4 `tokens.css`. See Phase 14 below
 
 ## Phase 3 — Authentication (web + API complete)
 
@@ -1748,6 +1749,43 @@ is also reachable from every open status, not only from `planning` as
 product §14 draws it — work is abandoned mid-flight more often than during
 planning.
 
+## Phase 14 — UI/UX Polish (started 2026-09-08)
+
+- [x] `@opsflow/ui` design tokens. `src/palette.json` is the single source of
+  truth — the neutral scale the mobile components are built on, and six
+  semantic tones (muted, neutral, info, success, warning, danger), each a
+  background and a text colour. `src/tones.ts` says which tone every task,
+  project, client and user status, and every priority, renders in.
+  `src/tokens.css` is a Tailwind 4 `@theme` block generated from the JSON by
+  `pnpm --filter @opsflow/ui generate`, committed, and checked for drift in CI
+- [x] Web and mobile now agree on status colours. The web badge had collapsed
+  every status into three shadcn variants, so completed, active and in
+  progress were indistinguishable and cancelled read as destructive; the
+  mobile badge coloured each one. Both badge components read the shared
+  tone table and keep their own tone → class map, because Tailwind only
+  scans each app's sources. Labels come from one `toneLabel()`, so the web
+  now reads "In progress" like mobile rather than "In Progress"
+- [x] Mobile reads the palette everywhere a colour is not a class name:
+  `tailwind.config.js` extends `neutral` and `tone` from the JSON, the
+  `SafeAreaView` background, icon tints and placeholder text import
+  `@opsflow/ui/colors`, `app.config.js` overrides the launcher and splash
+  colours in `app.json` from it, and `scripts/make-assets.mjs` draws the
+  icon set in the same ink. The regenerated PNGs are byte-identical, which
+  is the point: nothing moved, it is now defined once
+- [x] Verified: `pnpm lint`, `pnpm typecheck`, 17 API tests, `pnpm build`
+  (the web bundle contains all twelve tone utilities), `expo config` shows
+  the palette-driven colours, `pnpm --filter @opsflow/mobile assets` is a
+  no-op
+- [ ] The remaining Phase 14 items — typography and spacing review, the
+  mobile error and overdue reds (`text-red-600`, `bg-red-600`), dark mode
+  on the web (the `.dark` block exists, no toggle is wired, and the tone
+  tokens have no dark values yet), dashboard hierarchy, accessibility review
+
+Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
+variables, not this neutral scale. §25 previously said the two were the
+same; they are close, not identical, and unifying them is a later polish
+item rather than a prerequisite
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -1795,7 +1833,8 @@ planning.
 
 ## Not started
 
-- [ ] Phases 14-20 — Polish, performance, testing (started), security, deployment, demo
+- [ ] Phases 15-20 — Performance, testing (started), security, deployment, demo.
+  Phase 14 is in progress (above)
 
 ## Stack amendments
 
@@ -1825,11 +1864,17 @@ The lifecycle question that gated Phase 14 is settled: the state machines
 are enforced in the API and mirrored by both clients (§24 "Lifecycle
 enforcement").
 
-`packages/ui` design tokens are the first thing the polish pass should
-extract: the mobile palette is the same neutral scale as the web's, hard-coded
-in the mobile components and again in `apps/mobile/scripts/make-assets.mjs`,
-which draws the app icon from it. Recolour once, regenerate the assets, and
-both clients follow.
+The first polish slice is done: `packages/ui` holds the palette and the
+status → tone table, both badges read it, and the mobile icon set is drawn
+from the same JSON (§24 "Phase 14"). CI runs lint, typecheck, the API tests
+and the build on every push and pull request, so each polish commit from
+here is verified.
+
+The next slice should be the web dashboard's information hierarchy
+(`apps/web/src/routes/_authed/index.tsx` is the largest single route) and
+the remaining mobile reds, then typography and spacing across both clients.
+Dark mode on the web needs tone values for the `.dark` block before a
+toggle is worth wiring.
 
 Two `expo-doctor` notes are carried, not fixed: `typescript` 7 against the
 SDK's expected 6 (accepted in Phase 13, the typecheck passes) and
