@@ -1676,6 +1676,13 @@ still no realtime channel.
   off silently
 - [x] `apps/api/test/rules.test.ts` — the cross-record rules below, with the
   fixture rows removed again afterwards
+- [x] `.github/workflows/ci.yml` — GitHub Actions on every push to `main` and
+  every pull request: Biome, typecheck, the API tests against a seeded
+  `postgres:16-alpine` service, then a production build. The Prisma client is
+  generated explicitly because `packages/db/src/generated` is gitignored and
+  the `test` task never schedules the db package's generate task; migrations
+  are applied with `migrate deploy`, not `migrate dev`. The same sequence
+  works locally after `rm -rf packages/db/src/generated`
 - [ ] Unit, integration, frontend and mobile tests
 
 ## Audit fixes (2026-09-05)
@@ -1773,7 +1780,7 @@ planning.
 - Overdue is computed against the UTC date, so a user ahead of UTC sees
   yesterday's date as "today" for the first hours of their day.
 - Rate limiting is Better Auth's default, which is active only in production.
-- There is no CI, no Dockerfile and no git hooks yet (Phases 16 and 18).
+- There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
   and the create form share, so they cannot drift.

@@ -1,0 +1,78 @@
+# Runs the Definition of Done from docs/sprint.md §2 on every push and pull
+# request: Biome, TypeScript, the API tests against a seeded PostgreSQL, and a
+# production build of every app that has one.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: opsflow
+          POSTGRES_PASSWORD: opsflow
+          POSTGRES_DB: opsflow
+        # Same host port as docker-compose.yml, so .env.example's DATABASE_URL applies.
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U opsflow -d opsflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://opsflow:opsflow@localhost:5434/opsflow?schema=public
+      # Ephemeral database, throwaway accounts: this only has to be 32+ characters.
+      BETTER_AUTH_SECRET: ci-only-not-a-secret-ci-only-not-a-secret-00
+      BETTER_AUTH_URL: http://localhost:3000
+      API_PORT: 3000
+      WEB_URL: http://localhost:5173
+      VITE_API_URL: http://localhost:3000
+      EXPO_PUBLIC_API_URL: http://localhost:3000
+      TURBO_UI: stream
+      TURBO_TELEMETRY_DISABLED: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the version from package.json's packageManager field. Must run
+      # before setup-node so its pnpm cache has a pnpm to talk to.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - run: pnpm install --frozen-lockfile
+
+      # packages/db/src/generated is gitignored and `turbo run test` never
+      # schedules the db package's generate task, so do it explicitly.
+      - run: pnpm db:generate
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+      - run: pnpm --filter @opsflow/db migrate:deploy
+      - run: pnpm db:seed
+
+      - run: pnpm test
+
+      # Last: vite build rewrites the tracked routeTree.gen.ts.
+      - run: pnpm build

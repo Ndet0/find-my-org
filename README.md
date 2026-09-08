@@ -87,6 +87,9 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:reset` | Drop, re-migrate and re-seed |
 
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, the API tests and the
+build on every push to `main` and every pull request.
+
 ## Mobile app
 
 ```bash
