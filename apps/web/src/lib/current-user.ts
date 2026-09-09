@@ -1,4 +1,4 @@
-import type { CurrentUser } from '@opsflow/types/user'
+import type { CurrentUser, UpdateProfileInput } from '@opsflow/types/user'
 import { queryOptions } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 
@@ -18,3 +18,15 @@ export const currentUserQueryOptions = queryOptions({
   retry: false,
   staleTime: 5 * 60 * 1000,
 })
+
+/**
+ * `PATCH /api/me`. The result is the full profile, so the caller can write it
+ * straight into the cache rather than refetching what the API just returned.
+ *
+ * Only name and phone are accepted. Email, role, department, position and
+ * status belong to an administrator, and a password change is an account
+ * operation that goes to Better Auth rather than here.
+ */
+export function updateProfile(input: UpdateProfileInput): Promise<CurrentUser> {
+  return apiFetch<CurrentUser>('/me', { method: 'PATCH', body: JSON.stringify(input) })
+}

@@ -11,18 +11,19 @@ import { Screen } from '@/components/screen'
 import { fieldErrorsFrom } from '@/lib/api'
 import { currentUserQueryOptions, updateProfile, useCurrentUser } from '@/lib/current-user'
 
-type FieldErrors = { name?: string[]; position?: string[]; phone?: string[] }
+type FieldErrors = { name?: string[]; phone?: string[] }
 
 /**
  * The fields a person may change about themselves. Everything else on the
- * profile tab (email, role, department) belongs to an administrator.
+ * profile tab (email, role, department, position) belongs to an
+ * administrator; the password has its own screen, because Better Auth owns
+ * the hash rather than `PATCH /api/me`.
  */
 export default function EditProfileScreen() {
   const user = useCurrentUser()
   const router = useRouter()
   const queryClient = useQueryClient()
   const [name, setName] = useState(user?.name ?? '')
-  const [position, setPosition] = useState(user?.position ?? '')
   const [phone, setPhone] = useState(user?.phone ?? '')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 
@@ -44,7 +45,7 @@ export default function EditProfileScreen() {
   const errors: FieldErrors = { ...fieldErrorsFrom(save.error), ...fieldErrors }
 
   function submit() {
-    const parsed = updateProfileSchema.safeParse({ name, position, phone })
+    const parsed = updateProfileSchema.safeParse({ name, phone })
 
     if (!parsed.success) {
       setFieldErrors(z.flattenError(parsed.error).fieldErrors)
@@ -66,7 +67,7 @@ export default function EditProfileScreen() {
             <View className="gap-1">
               <Text className="text-xl font-semibold text-neutral-900">Your details</Text>
               <Text className="text-sm text-neutral-500">
-                Email, role and department are managed by an administrator.
+                Email, role, department and position are managed by an administrator.
               </Text>
             </View>
 
@@ -78,14 +79,6 @@ export default function EditProfileScreen() {
                 errors={errors.name}
                 autoComplete="name"
                 textContentType="name"
-              />
-              <Field
-                label="Position"
-                value={position}
-                onChangeText={setPosition}
-                errors={errors.position}
-                placeholder="Optional"
-                textContentType="jobTitle"
               />
               <Field
                 label="Phone"

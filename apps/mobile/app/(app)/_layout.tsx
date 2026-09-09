@@ -49,6 +49,10 @@ export default function AppLayout() {
       <Stack.Screen name="users/new" options={{ headerShown: true, title: 'New person' }} />
       <Stack.Screen name="activity/index" options={{ headerShown: true, title: 'Activity' }} />
       <Stack.Screen name="profile/edit" options={{ headerShown: true, title: 'Edit profile' }} />
+      <Stack.Screen
+        name="profile/password"
+        options={{ headerShown: true, title: 'Change password' }}
+      />
     </Stack>
   )
 }

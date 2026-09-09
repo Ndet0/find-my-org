@@ -172,7 +172,6 @@ export async function updateProfile(
   const data: Prisma.UserUpdateInput = {}
 
   if (input.name !== undefined) data.name = input.name
-  if (input.position !== undefined) data.position = input.position
   if (input.phone !== undefined) data.phone = input.phone
 
   const row = await prisma.$transaction(async (tx) => {

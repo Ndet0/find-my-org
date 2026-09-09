@@ -28,3 +28,41 @@ export const signInSchema = z.object({
 })
 
 export type SignInInput = z.infer<typeof signInSchema>
+
+/**
+ * The password policy as a schema, shared so every place a password is
+ * chosen — an admin creating an account, a person changing their own —
+ * reports the same bounds in the same words.
+ */
+export const password = z
+  .string()
+  .min(PASSWORD_MIN_LENGTH, `A password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+  .max(PASSWORD_MAX_LENGTH, `A password must be ${PASSWORD_MAX_LENGTH} characters or fewer`)
+
+/**
+ * The body of `POST /api/auth/change-password`, Better Auth's own endpoint.
+ *
+ * Changing a password is an account operation rather than a profile edit, so
+ * it does not go through `PATCH /api/me`: Better Auth owns the hash and is
+ * the only thing that can verify the current password before replacing it.
+ *
+ * `confirmPassword` never leaves the client. It exists because the fields are
+ * masked, and a typo in a new password locks someone out of the account they
+ * were trying to secure.
+ */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Enter your current password'),
+    newPassword: password,
+    confirmPassword: z.string().min(1, 'Confirm your new password'),
+  })
+  .refine((body) => body.newPassword !== body.currentPassword, {
+    path: ['newPassword'],
+    message: 'The new password must be different from the current one',
+  })
+  .refine((body) => body.newPassword === body.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'The passwords do not match',
+  })
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

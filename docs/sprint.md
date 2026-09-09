@@ -1643,9 +1643,12 @@ still no realtime channel.
   list, inbox at 9 unread → tap one (PATCH 200, badge 8) → mark all (badge
   gone, button disabled). Admin and manager dashboards verified for their
   KPI sets and org counts
-- [x] Profile editing. `PATCH /api/me` accepts name, position and phone
-  under `requireAuth` only, so every active role may edit themselves;
-  email, role, department and status stay on the admin endpoints. The
+- [x] Profile editing. `PATCH /api/me` accepts name and phone under
+  `requireAuth` only, so every active role may edit themselves; email, role,
+  department, position and status stay on the admin endpoints. Position was
+  self-editable at first and is not any more: it states what someone does for
+  the organisation, which is the work assigner's to say, not the account
+  holder's. The
   write logs `updated` on the user in the same transaction. On mobile,
   "Edit profile" pushes a form screen on the same shared Zod schema, with
   local field errors and 422 envelopes mapped onto the same fields; a save
@@ -1654,6 +1657,23 @@ still no realtime channel.
   a stripped `role` key, the activity row) and verified through the web
   build: local "Enter a name", save, tab shows the new value, reload keeps
   it, exactly one PATCH and no extra GET
+- [x] Changing your own password, the one account operation a person may
+  perform on themselves. It does not go through `PATCH /api/me`: Better Auth
+  owns the hash and is the only thing that can verify the current password
+  before replacing it, so the mobile screen posts to its
+  `/api/auth/change-password` with `revokeOtherSessions: true` — a password is
+  changed because the old one is no longer trusted, and this device gets a
+  fresh cookie in the same response. `changePasswordSchema` in
+  `@opsflow/types/auth` validates locally against the same
+  `PASSWORD_MIN_LENGTH` the API enforces, plus a confirmation field that never
+  leaves the client, because the inputs are masked and a typo would lock
+  someone out of the account they were securing. `INVALID_PASSWORD` lands on
+  the current-password field; everything else is the error line. The screen
+  reports success in place rather than returning to a tab that looks
+  untouched. Covered in `rules.test.ts`: a wrong current password is 400, the
+  change is 200, the old password then fails sign-in and the new one succeeds,
+  and the seeded hash is restored through Prisma in `afterAll` so a failure
+  mid-test cannot strand the fixture
 - [x] First run on a device: an iPhone running Expo Go over the LAN, with
   `EXPO_PUBLIC_API_URL` and `BETTER_AUTH_URL` on the machine's address. The
   app loaded and the workflows worked from the phone, so the SecureStore
@@ -1893,6 +1913,44 @@ planning.
   (the web bundle contains all twelve tone utilities), `expo config` shows
   the palette-driven colours, `pnpm --filter @opsflow/mobile assets` is a
   no-op
+- [x] The web profile page, which closes the last self-service gap between the
+  clients. Three routes under `_authed/profile`, mirroring the mobile screens
+  and the app's own read-page → form-route shape: `/profile` shows your details
+  in the same `dl` the person page uses, `/profile/edit` is name and phone, and
+  `/profile/password` is the Better Auth change. None of them carries a
+  permission guard — `/api/me` is behind `requireAuth` alone, so a check on
+  "yourself" would be the only tautology in the route table. Position is shown
+  and not editable, matching what the API now enforces, and the Status row from
+  the person page is dropped: on your own profile it can only ever read
+  "active", since a suspended session never gets this far
+- [x] Two entry points, mirroring how `SignOutButton` is already mounted twice:
+  the sidebar footer that carries your name and role becomes the link, and
+  because that footer is `hidden md:block`, narrow screens get a labelled
+  person icon beside sign-out in the header. Deliberately not a ninth nav item
+  — every other entry there is a module, and this one is you
+- [x] `ProfileForm` writes the `PATCH /api/me` response straight into the
+  current-user cache and invalidates `userKeys.all`, since your name is a row
+  in the People directory. It also calls `router.invalidate()`: `AppShell`
+  reads the user from the `_authed` route context, a snapshot taken in
+  `beforeLoad` rather than a live subscription, so without it the sidebar keeps
+  showing the old name until a reload. The same latent staleness exists in
+  `user-form.tsx` for an admin renaming themselves; left alone here as it is
+  not this change's to fix
+- [x] `ChangePasswordForm` posts to Better Auth with `revokeOtherSessions: true`
+  and maps `INVALID_PASSWORD` onto the current-password field. Better Auth does
+  not answer with the OPSflow envelope, so its failures become a local
+  `ChangePasswordError` rather than an `ApiRequestError` — that type is defined
+  as an envelope failure and `route-feedback.tsx` reads it as one. A local
+  ZodError still falls through to the shared `fieldErrorsFrom` /
+  `formErrorMessage` helpers, so a short or mismatched password reports itself
+  exactly as in every other form
+- [x] Verified: `pnpm lint`, web `typecheck` and `build` (the route tree
+  regenerated to three new routes), 19 API tests, and the four requests the
+  pages make driven by hand from the web origin — sign-in 200, `PATCH /api/me`
+  200 for name and phone, 422 for a position-only body, and
+  `/api/auth/change-password` 400 with `code: "INVALID_PASSWORD"` for a wrong
+  current password. The browser pass over the rendered pages is still
+  outstanding
 - [ ] The remaining Phase 14 items — typography and spacing review, the
   mobile error and overdue reds (`text-red-600`, `bg-red-600`), dark mode
   on the web (the `.dark` block exists, no toggle is wired, and the tone
@@ -1923,9 +1981,6 @@ item rather than a prerequisite
   `GET /api/activity` can filter by entity. Product §24 promises "how an
   entity evolved".
 - No avatar upload path; `users.avatar_url` is never written.
-- Self-service profile editing exists only on mobile. The web app has no
-  profile page; `PATCH /api/me` is ready for one when the Phase 14 pass
-  touches the shell.
 - No deadline reminders (product §25 "due tomorrow"); notifications fire only
   on direct actions.
 - Departments are hard-deleted behind a 409 guard where the product document
@@ -1939,9 +1994,9 @@ item rather than a prerequisite
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
   and the create form share, so they cannot drift.
-- There is no password reset or change-your-own-password. Email notifications are
-  post-MVP (§23); an admin can set a new person up with a fresh initial password
-  but cannot rotate an existing one from the UI.
+- There is no password reset. Email notifications are post-MVP (§23), so a
+  forgotten password still needs an admin to set a new one out of band.
+  Changing a password you know is self-service on both clients.
 - The last-admin guard in the user service is unreachable with the current matrix:
   only admins have `users:write`, and they cannot change their own role or status.
   The self-modification rule is what actually stops the last admin locking the

@@ -12,6 +12,7 @@ import {
   ListTodo,
   LogOut,
   type LucideIcon,
+  UserRound,
   Users,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -67,7 +68,10 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
       <aside className="flex shrink-0 flex-col border-b bg-sidebar md:w-60 md:border-r md:border-b-0">
         <div className="flex items-center justify-between gap-2 px-5 py-4 md:justify-start">
           <span className="font-semibold tracking-tight">OPSflow</span>
-          <SignOutButton className="md:hidden" />
+          <div className="flex items-center gap-2 md:hidden">
+            <ProfileLink />
+            <SignOutButton />
+          </div>
         </div>
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible md:pb-0">
@@ -81,8 +85,14 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
         </nav>
 
         <div className="mt-auto hidden border-t px-3 py-4 md:block">
-          <p className="truncate px-2 text-sm font-medium">{user.name}</p>
-          <p className="truncate px-2 text-xs text-muted-foreground capitalize">{user.role.name}</p>
+          <Link
+            to="/profile"
+            className="block rounded-md px-2 py-1 transition-colors hover:bg-accent"
+            activeProps={{ className: 'bg-accent' }}
+          >
+            <p className="truncate text-sm font-medium">{user.name}</p>
+            <p className="truncate text-xs text-muted-foreground capitalize">{user.role.name}</p>
+          </Link>
           <SignOutButton className="mt-3 w-full" />
         </div>
       </aside>
@@ -115,6 +125,23 @@ function NavLink({ item, badge }: { item: NavItem; badge?: number }) {
         </Badge>
       ) : null}
     </Link>
+  )
+}
+
+/**
+ * The way into your own profile. It is mounted twice, like sign-out: the
+ * sidebar footer that carries your name is the natural place for it, but that
+ * footer is desktop-only, so narrow screens get an icon beside sign-out in the
+ * header instead. It is deliberately not a nav item — every other entry there
+ * is a module, and this one is you.
+ */
+function ProfileLink({ className }: { className?: string }) {
+  return (
+    <Button asChild variant="outline" size="icon" className={className}>
+      <Link to="/profile" aria-label="Your profile">
+        <UserRound className="size-4" aria-hidden />
+      </Link>
+    </Button>
   )
 }
 

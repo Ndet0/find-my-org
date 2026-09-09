@@ -18,6 +18,9 @@ import { Route as AuthedClientsClientIdRouteImport } from './routes/_authed/clie
 import { Route as AuthedClientsNewRouteImport } from './routes/_authed/clients/new'
 import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/departments/index'
 import { Route as AuthedNotificationsIndexRouteImport } from './routes/_authed/notifications/index'
+import { Route as AuthedProfileIndexRouteImport } from './routes/_authed/profile/index'
+import { Route as AuthedProfileEditRouteImport } from './routes/_authed/profile/edit'
+import { Route as AuthedProfilePasswordRouteImport } from './routes/_authed/profile/password'
 import { Route as AuthedProjectsIndexRouteImport } from './routes/_authed/projects/index'
 import { Route as AuthedProjectsProjectIdRouteImport } from './routes/_authed/projects/$projectId'
 import { Route as AuthedProjectsNewRouteImport } from './routes/_authed/projects/new'
@@ -77,6 +80,21 @@ const AuthedNotificationsIndexRoute =
     path: '/notifications/',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedProfileIndexRoute = AuthedProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedProfileEditRoute = AuthedProfileEditRouteImport.update({
+  id: '/profile/edit',
+  path: '/profile/edit',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedProfilePasswordRoute = AuthedProfilePasswordRouteImport.update({
+  id: '/profile/password',
+  path: '/profile/password',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedProjectsIndexRoute = AuthedProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -150,6 +168,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/clients/new': typeof AuthedClientsNewRoute
+  '/profile/edit': typeof AuthedProfileEditRoute
+  '/profile/password': typeof AuthedProfilePasswordRoute
   '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
   '/projects/new': typeof AuthedProjectsNewRoute
   '/tasks/$taskId': typeof AuthedTasksTaskIdRoute
@@ -160,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/clients/': typeof AuthedClientsIndexRoute
   '/departments/': typeof AuthedDepartmentsIndexRoute
   '/notifications/': typeof AuthedNotificationsIndexRoute
+  '/profile/': typeof AuthedProfileIndexRoute
   '/projects/': typeof AuthedProjectsIndexRoute
   '/tasks/': typeof AuthedTasksIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
@@ -173,6 +194,8 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/clients/new': typeof AuthedClientsNewRoute
+  '/profile/edit': typeof AuthedProfileEditRoute
+  '/profile/password': typeof AuthedProfilePasswordRoute
   '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
   '/projects/new': typeof AuthedProjectsNewRoute
   '/tasks/$taskId': typeof AuthedTasksTaskIdRoute
@@ -183,6 +206,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AuthedClientsIndexRoute
   '/departments': typeof AuthedDepartmentsIndexRoute
   '/notifications': typeof AuthedNotificationsIndexRoute
+  '/profile': typeof AuthedProfileIndexRoute
   '/projects': typeof AuthedProjectsIndexRoute
   '/tasks': typeof AuthedTasksIndexRoute
   '/users': typeof AuthedUsersIndexRoute
@@ -198,6 +222,8 @@ export interface FileRoutesById {
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/_authed/clients/new': typeof AuthedClientsNewRoute
+  '/_authed/profile/edit': typeof AuthedProfileEditRoute
+  '/_authed/profile/password': typeof AuthedProfilePasswordRoute
   '/_authed/projects/$projectId': typeof AuthedProjectsProjectIdRoute
   '/_authed/projects/new': typeof AuthedProjectsNewRoute
   '/_authed/tasks/$taskId': typeof AuthedTasksTaskIdRoute
@@ -208,6 +234,7 @@ export interface FileRoutesById {
   '/_authed/clients/': typeof AuthedClientsIndexRoute
   '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
   '/_authed/notifications/': typeof AuthedNotificationsIndexRoute
+  '/_authed/profile/': typeof AuthedProfileIndexRoute
   '/_authed/projects/': typeof AuthedProjectsIndexRoute
   '/_authed/tasks/': typeof AuthedTasksIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
@@ -223,6 +250,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/clients/$clientId'
     | '/clients/new'
+    | '/profile/edit'
+    | '/profile/password'
     | '/projects/$projectId'
     | '/projects/new'
     | '/tasks/$taskId'
@@ -233,6 +262,7 @@ export interface FileRouteTypes {
     | '/clients/'
     | '/departments/'
     | '/notifications/'
+    | '/profile/'
     | '/projects/'
     | '/tasks/'
     | '/users/'
@@ -246,6 +276,8 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$clientId'
     | '/clients/new'
+    | '/profile/edit'
+    | '/profile/password'
     | '/projects/$projectId'
     | '/projects/new'
     | '/tasks/$taskId'
@@ -256,6 +288,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/departments'
     | '/notifications'
+    | '/profile'
     | '/projects'
     | '/tasks'
     | '/users'
@@ -270,6 +303,8 @@ export interface FileRouteTypes {
     | '/_authed/'
     | '/_authed/clients/$clientId'
     | '/_authed/clients/new'
+    | '/_authed/profile/edit'
+    | '/_authed/profile/password'
     | '/_authed/projects/$projectId'
     | '/_authed/projects/new'
     | '/_authed/tasks/$taskId'
@@ -280,6 +315,7 @@ export interface FileRouteTypes {
     | '/_authed/clients/'
     | '/_authed/departments/'
     | '/_authed/notifications/'
+    | '/_authed/profile/'
     | '/_authed/projects/'
     | '/_authed/tasks/'
     | '/_authed/users/'
@@ -357,6 +393,27 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications/'
       preLoaderRoute: typeof AuthedNotificationsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/profile/': {
+      id: '/_authed/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof AuthedProfileIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/profile/edit': {
+      id: '/_authed/profile/edit'
+      path: '/profile/edit'
+      fullPath: '/profile/edit'
+      preLoaderRoute: typeof AuthedProfileEditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/profile/password': {
+      id: '/_authed/profile/password'
+      path: '/profile/password'
+      fullPath: '/profile/password'
+      preLoaderRoute: typeof AuthedProfilePasswordRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/projects/': {
@@ -457,6 +514,8 @@ interface AuthedRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedClientsClientIdRoute: typeof AuthedClientsClientIdRoute
   AuthedClientsNewRoute: typeof AuthedClientsNewRoute
+  AuthedProfileEditRoute: typeof AuthedProfileEditRoute
+  AuthedProfilePasswordRoute: typeof AuthedProfilePasswordRoute
   AuthedProjectsProjectIdRoute: typeof AuthedProjectsProjectIdRoute
   AuthedProjectsNewRoute: typeof AuthedProjectsNewRoute
   AuthedTasksTaskIdRoute: typeof AuthedTasksTaskIdRoute
@@ -467,6 +526,7 @@ interface AuthedRouteChildren {
   AuthedClientsIndexRoute: typeof AuthedClientsIndexRoute
   AuthedDepartmentsIndexRoute: typeof AuthedDepartmentsIndexRoute
   AuthedNotificationsIndexRoute: typeof AuthedNotificationsIndexRoute
+  AuthedProfileIndexRoute: typeof AuthedProfileIndexRoute
   AuthedProjectsIndexRoute: typeof AuthedProjectsIndexRoute
   AuthedTasksIndexRoute: typeof AuthedTasksIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
@@ -480,6 +540,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedClientsClientIdRoute: AuthedClientsClientIdRoute,
   AuthedClientsNewRoute: AuthedClientsNewRoute,
+  AuthedProfileEditRoute: AuthedProfileEditRoute,
+  AuthedProfilePasswordRoute: AuthedProfilePasswordRoute,
   AuthedProjectsProjectIdRoute: AuthedProjectsProjectIdRoute,
   AuthedProjectsNewRoute: AuthedProjectsNewRoute,
   AuthedTasksTaskIdRoute: AuthedTasksTaskIdRoute,
@@ -490,6 +552,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedClientsIndexRoute: AuthedClientsIndexRoute,
   AuthedDepartmentsIndexRoute: AuthedDepartmentsIndexRoute,
   AuthedNotificationsIndexRoute: AuthedNotificationsIndexRoute,
+  AuthedProfileIndexRoute: AuthedProfileIndexRoute,
   AuthedProjectsIndexRoute: AuthedProjectsIndexRoute,
   AuthedTasksIndexRoute: AuthedTasksIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,

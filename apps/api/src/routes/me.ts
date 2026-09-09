@@ -21,7 +21,10 @@ meRoutes.get('/', async (c) => {
   return ok(c, await getCurrentUser(c.get('user').id))
 })
 
-/** Name, position and phone. Everything else belongs to an administrator. */
+/**
+ * Name and phone. Everything else belongs to an administrator, and a
+ * password change goes to Better Auth's own `/api/auth/change-password`.
+ */
 meRoutes.patch('/', validateUpdateProfile, async (c) => {
   return ok(c, await updateProfile(c.req.valid('json'), eventActor(c)))
 })

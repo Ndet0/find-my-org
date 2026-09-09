@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './api'
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './auth'
+import { password } from './auth'
 import { ROLE_NAMES, type RoleName } from './permissions'
 
 /**
@@ -117,11 +117,6 @@ const email = z
   // sign-in, so anything written here has to match that.
   .toLowerCase()
 
-const password = z
-  .string()
-  .min(PASSWORD_MIN_LENGTH, `A password must be at least ${PASSWORD_MIN_LENGTH} characters`)
-  .max(PASSWORD_MAX_LENGTH, `A password must be ${PASSWORD_MAX_LENGTH} characters or fewer`)
-
 /** Roles are chosen by name: the permission matrix is keyed by it, and it
  *  keeps opaque role ids out of the request. */
 const role = z.enum(ROLE_NAMES)
@@ -179,13 +174,17 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>
 
 /**
  * The body of `PATCH /api/me`: the fields a person may change about
- * themselves. Email, role, department and status stay on the admin
- * endpoints, and passwords are an account operation, not a profile edit.
+ * themselves.
+ *
+ * Position is not here. It says what someone does for the organisation, so
+ * it belongs to whoever assigns the work, not to the holder of the account —
+ * it stays on the admin endpoints with email, role, department and status.
+ * Passwords are not here either: changing one is an account operation, and
+ * `changePasswordSchema` in ./auth covers it through Better Auth.
  */
 export const updateProfileSchema = z
   .object({
     name,
-    position,
     phone,
   })
   .partial()

@@ -83,6 +83,11 @@ export default function ProfileScreen() {
       <View className="mt-6 gap-3">
         <Button title="Edit profile" onPress={() => router.push('/profile/edit')} />
         <Button
+          title="Change password"
+          variant="outline"
+          onPress={() => router.push('/profile/password')}
+        />
+        <Button
           title={signOut.isPending ? 'Signing out…' : 'Sign out'}
           variant="outline"
           disabled={signOut.isPending}

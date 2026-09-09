@@ -11,11 +11,11 @@ import { app } from '../src/app'
 const PASSWORD = process.env.SEED_USER_PASSWORD ?? 'opsflow-dev-password'
 const WEB_ORIGIN = process.env.WEB_URL ?? 'http://localhost:5173'
 
-async function signIn(email: string) {
+async function signIn(email: string, password = PASSWORD) {
   const response = await app.request('/api/auth/sign-in/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: WEB_ORIGIN },
-    body: JSON.stringify({ email, password: PASSWORD }),
+    body: JSON.stringify({ email, password }),
   })
   expect(response.status).toBe(200)
 
@@ -23,6 +23,32 @@ async function signIn(email: string) {
     .getSetCookie()
     .map((header) => header.split(';')[0])
     .join('; ')
+}
+
+/** Sign-in reduced to its status, for asserting that a password is refused. */
+async function signInStatus(email: string, password: string) {
+  const response = await app.request('/api/auth/sign-in/email', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: WEB_ORIGIN },
+    body: JSON.stringify({ email, password }),
+  })
+
+  return response.status
+}
+
+/**
+ * Better Auth's own endpoint, which answers with its shape rather than the
+ * OPSflow envelope `call` expects. `revokeOtherSessions` matches what the
+ * mobile screen sends.
+ */
+async function changePassword(cookie: string, currentPassword: string, newPassword: string) {
+  const response = await app.request('/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: WEB_ORIGIN, cookie },
+    body: JSON.stringify({ currentPassword, newPassword, revokeOtherSessions: true }),
+  })
+
+  return { status: response.status }
 }
 
 async function call(method: string, path: string, cookie: string, body?: unknown) {
@@ -53,6 +79,15 @@ let employeeProfile: {
   position: string | null
 } | null = null
 
+/**
+ * The seeded employee's password hash, captured before the change-password
+ * test rewrites it. It is put back through Prisma rather than through the
+ * API so the fixture is restored even if the test fails halfway, which would
+ * otherwise leave every later sign-in in this file — and the dev database —
+ * on a password nobody knows.
+ */
+let employeeCredential: { id: string; password: string | null } | null = null
+
 afterAll(async () => {
   if (created.projectId) {
     await prisma.task.deleteMany({ where: { projectId: created.projectId } })
@@ -70,6 +105,10 @@ afterAll(async () => {
   if (employeeProfile) {
     const { id, ...original } = employeeProfile
     await prisma.user.update({ where: { id }, data: original }).catch(() => undefined)
+  }
+  if (employeeCredential) {
+    const { id, password } = employeeCredential
+    await prisma.account.update({ where: { id }, data: { password } }).catch(() => undefined)
   }
 })
 
@@ -278,24 +317,19 @@ describe('audit trail', () => {
 })
 
 describe('self-service profile', () => {
-  test('a person can edit their own name, position and phone', async () => {
+  test('a person can edit their own name and phone', async () => {
     employeeProfile = await prisma.user.findUniqueOrThrow({
       where: { email: 'employee@opsflow.local' },
       select: { id: true, name: true, phone: true, position: true },
     })
     const employee = await signIn('employee@opsflow.local')
 
-    const edited = await call('PATCH', '/api/me', employee, {
-      phone: '+1 555 0100',
-      position: 'Fixture position',
-    })
+    const edited = await call('PATCH', '/api/me', employee, { phone: '+1 555 0100' })
     expect(edited.status).toBe(200)
     expect(edited.data?.phone).toBe('+1 555 0100')
-    expect(edited.data?.position).toBe('Fixture position')
 
     const me = await call('GET', '/api/me', employee)
     expect(me.data?.phone).toBe('+1 555 0100')
-    expect(me.data?.position).toBe('Fixture position')
 
     // Employees see their own actions in the trail.
     const activity = await call(
@@ -324,5 +358,56 @@ describe('self-service profile', () => {
     expect((await call('PATCH', '/api/me', employee, { role: 'admin' })).status).toBe(422)
     const after = await call('GET', '/api/me', employee)
     expect((after.data?.role as { name: string } | undefined)?.name).toBe(role)
+  })
+
+  test('a person changes their own password and the old one stops working', async () => {
+    const NEW_PASSWORD = 'fixture-rotated-password'
+    employeeCredential = await prisma.account.findFirstOrThrow({
+      where: { user: { email: 'employee@opsflow.local' }, providerId: 'credential' },
+      select: { id: true, password: true },
+    })
+    const employee = await signIn('employee@opsflow.local')
+
+    // Changing a password is Better Auth's endpoint, not PATCH /api/me: it
+    // owns the hash and is the only thing that can check the current
+    // password before replacing it.
+    const wrong = await changePassword(employee, 'not-the-current-password', NEW_PASSWORD)
+    expect(wrong.status).toBe(400)
+
+    const changed = await changePassword(employee, PASSWORD, NEW_PASSWORD)
+    expect(changed.status).toBe(200)
+
+    expect(await signInStatus('employee@opsflow.local', PASSWORD)).toBe(401)
+    expect(await signInStatus('employee@opsflow.local', NEW_PASSWORD)).toBe(200)
+
+    // Put it back through the API too, so the rest of the file signs in
+    // normally; `afterAll` restores the hash if this line is never reached.
+    const restored = await changePassword(
+      await signIn('employee@opsflow.local', NEW_PASSWORD),
+      NEW_PASSWORD,
+      PASSWORD,
+    )
+    expect(restored.status).toBe(200)
+  })
+
+  test('a person cannot give themselves a position', async () => {
+    const employee = await signIn('employee@opsflow.local')
+    const before = await call('GET', '/api/me', employee)
+
+    // Position is an administrator's field, so it is stripped like any other
+    // key that is not in the schema — which leaves nothing to update.
+    expect((await call('PATCH', '/api/me', employee, { position: 'Chief of Self' })).status).toBe(
+      422,
+    )
+
+    // A body that is valid on its own still must not carry the position
+    // through: the name changes, the position does not.
+    const edited = await call('PATCH', '/api/me', employee, {
+      name: 'Seeded Employee',
+      position: 'Chief of Self',
+    })
+    expect(edited.status).toBe(200)
+    expect(edited.data?.name).toBe('Seeded Employee')
+    expect(edited.data?.position).toBe(before.data?.position ?? null)
   })
 })
