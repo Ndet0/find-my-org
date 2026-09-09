@@ -838,6 +838,63 @@ control.
 
 ---
 
+# Phase 13c — Mobile People & Activity
+
+**Goal:** Close the two gaps between the mobile application and the product
+document: administer people from the phone, and show the activity trail.
+
+Phase 13b ruled that "users remain web-only". That is reversed here. The
+call was defensible — user administration is where roles and credentials are
+granted — but §33 of the product document rates Users as *Limited* on
+mobile, not absent, and the mobile dashboard was rendering a Users count
+with nothing behind it. Activity was never a decision at all: §33 rates it
+*View*, the technical document lists "basic activity information" among the
+first mobile priorities, and it was simply missed by both mobile phases.
+
+Nothing is added server-side. Every endpoint, schema and guard this needs
+was finished in Phase 6 and Phase 10.
+
+### Activity (`activity:read`, all three roles)
+
+- A feed screen, newest first, filtered by entity type with a scrolling
+  chip row
+- One card per event — actor, action, description, timestamp, entity —
+  because the web's five-column table does not fit a phone
+- A row opens the record it refers to, subject to the same permission
+  checks the web's `EntityLink` makes: an employee holds `activity:read`
+  without `users:read` or `clients:read`, so those rows are plain text for
+  them. A deleted entity has no id to open, and departments have no mobile
+  detail screen, so neither is tappable
+
+### People (`users:read` to see, `users:write` to change)
+
+- Directory with role and status chip rows; managers reach it read-only,
+  administrators get the Add button
+- Person detail — status, role, department, position, phone, joined
+- Create and edit in one form; the initial password is create-only, since
+  there is no invite email
+- Activate, deactivate and suspend behind an inline confirmation, absent on
+  your own record
+
+### Entry points and gating
+
+- The profile tab's Directory card becomes four rows, each gated on its read
+  permission; the hand-written separators became a filtered list
+- The dashboard's Users, Employees and Team counts open the directory, where
+  before they were plain cards with nowhere to go
+- Self-demotion, self-suspension, the last active administrator and a
+  duplicate email are all refused by the API; the phone shows each refusal
+  where the action was taken, and asserts none of them itself
+
+### Acceptance Criteria
+
+An administrator can add a person, change their role and department, and
+suspend them, from the phone. A manager sees the directory and no control
+that writes to it. An employee cannot reach it, sees only their own actions
+in the feed, and is offered no link to a record they may not open.
+
+---
+
 # Phase 14 — UI/UX Polish
 
 **Goal:** Make OPSflow visually impressive and demonstrate the project's strongest differentiator.
@@ -1662,6 +1719,66 @@ still no realtime channel.
   read-only for the manager. As the admin: department add, rename and
   delete. As the employee: no Add, Edit or Delete control anywhere
 
+## Phase 13c — Mobile People & Activity
+
+- [x] `src/lib/activity.ts` — keys and one query; the feed is read-only,
+  there being no endpoint that writes or clears a log. `src/lib/users.ts`
+  gains `detail`, `createUser`, `updateUser` and `updateUserStatus`, so the
+  module that existed for the project pickers now backs a directory too
+- [x] `usersQueryOptions` lost its five-minute `staleTime`. It was tuned for
+  picker use; a directory you can edit from would have shown a stale row for
+  five minutes after a save. The global 30s default is right for both
+- [x] `UserStatusBadge` — `USER_STATUS_TONES` was already in `@opsflow/ui`
+  and unused by mobile, so this is the shared table finding its second
+  reader. `Badge` is now exported for labels that are not a status, which is
+  what an activity action is
+- [x] `FilterChip` moved out of the notifications screen into
+  `components/filter-chip.tsx`, joined by `ChipRow`. `Segmented` divides its
+  width between options and stops reading past three or four; activity needs
+  six and people needs two rows of four, so the chips scroll instead
+- [x] Activity: one card per event, filtered by entity type. A row opens the
+  record it names, subject to the same checks the web's `EntityLink` makes.
+  This is not hypothetical — the seeded employee's feed contains `user`
+  rows, and an employee has no `users:read`, so those render as plain text
+  with no chevron
+- [x] People: directory with role and status chips, detail, one create/edit
+  form, and activate / deactivate / suspend behind an inline confirmation.
+  The password is create-only; the status control is absent on your own
+  record; the role picker is not, because the API's 403 is the guard and
+  hiding the control would differ from the web
+- [x] Entry points: the profile Directory card is now a filtered list of
+  four rather than a chain of conditional separators, and the dashboard's
+  Users, Employees and Team counts open the directory instead of being
+  plain cards
+- [x] Every route registered in `(app)/_layout.tsx` with a header title
+
+Verified against the seeded database with the API running. Per role, over
+HTTP: `GET /users` is 200 for admin and manager and 403 for an employee,
+while `GET /activity` is 200 for all three; the employee's feed is 43 rows
+against the other roles' 266, every one of them their own action. A manager
+is refused `POST /users` with 403. A create with the exact payload the form
+builds — empty strings for the optional profile fields, `null` for a cleared
+department and joined date — returns 201 with those fields nulled, the email
+lowercased, `joinedAt` defaulted to today, and the new person signs in with
+the initial password. A duplicate email is 409 and a five-character password
+is 422 with the message under `details.password`, which is why one lands on
+the form's error line and the other on the field. Self-demotion and
+self-suspension are both 403. The fixture user and the role changes made
+during this were removed again afterwards.
+
+`LAST_ADMIN` could not be provoked over HTTP, and on reading
+`assertNotLastAdmin` it cannot be: the self-guard rejects a caller acting on
+themselves before the count is taken, and anyone else holding `users:write`
+is by definition another active admin, so the remaining count is never zero.
+It is a defensive guard for a future in which `users:write` is not the
+admin's alone. The mobile screen predicts none of this — it shows whatever
+the API refuses, wherever the action was taken.
+
+Two doc corrections came out of this. `technical_architecture.md` said users
+were web-only, which this phase reverses. `product_architecture.md` §33
+rated Clients as *View* on mobile, which Phase 13b had already outgrown —
+create, edit and the status actions all shipped there.
+
 ## Phase 16 — Testing (pulled forward, partial)
 
 - [x] `apps/api/test/api.test.ts` — Bun's test runner against the assembled
@@ -1847,12 +1964,20 @@ is at v2.5 to reflect them.
 
 # 25. Immediate Next Steps
 
-The application is complete through Phase 13b: every web module is a full
+The application is complete through Phase 13c: every web module is a full
 vertical slice — authentication, RBAC, service layer, Prisma, reads and writes
 (§24) — navigation is loader-driven, the dashboard gives each role its
-operational overview from real rows, and the mobile app covers the employee
-workflows and, for managers and administrators, the management of tasks,
-projects, clients and departments, with its own icon set.
+operational overview from real rows, and the mobile app now reaches every
+module the web does. It covers the employee workflows and, for managers and
+administrators, the management of tasks, projects, clients, departments and
+people, plus the activity trail, with its own icon set.
+
+Mobile is no longer missing a module. What it still does differently is
+paging: every mobile list is one page at the API's ceiling, filtered with
+chips, where the web has search, filters and jump-to-page. That is a
+deliberate trade, but it is also the next thing that will hurt — an
+organisation with more than a hundred people or a busy activity trail sees
+only the first page on a phone, and the header count is what tells them so.
 
 Next:
 

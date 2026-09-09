@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { FilterChip } from '@/components/filter-chip'
 import { describeError, Message } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { useCurrentUser } from '@/lib/current-user'
@@ -113,29 +114,6 @@ export default function NotificationsScreen() {
         />
       )}
     </Screen>
-  )
-}
-
-function FilterChip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string
-  active: boolean
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      className={`rounded-full border px-3 py-1.5 ${active ? 'border-neutral-900 bg-neutral-900' : 'border-neutral-300 bg-white active:bg-neutral-100'}`}
-    >
-      <Text className={`text-sm font-medium ${active ? 'text-white' : 'text-neutral-700'}`}>
-        {label}
-      </Text>
-    </Pressable>
   )
 }
 

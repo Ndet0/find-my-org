@@ -3,8 +3,9 @@ import { Stack } from 'expo-router'
 /**
  * Everything behind the sign-in guard. The tabs are the home; record and
  * form screens push on top of them so the tab bar stays out of the way.
- * Clients and departments have no tab — they are reached from the dashboard
- * counts and the profile tab, by the roles that may read them.
+ * Clients, departments, people and activity have no tab — they are reached
+ * from the dashboard counts and the profile tab's directory, by the roles
+ * that may read them.
  */
 export default function AppLayout() {
   return (
@@ -39,6 +40,14 @@ export default function AppLayout() {
         name="departments/index"
         options={{ headerShown: true, title: 'Departments' }}
       />
+      <Stack.Screen name="users/index" options={{ headerShown: true, title: 'People' }} />
+      <Stack.Screen name="users/[userId]/index" options={{ headerShown: true, title: 'Person' }} />
+      <Stack.Screen
+        name="users/[userId]/edit"
+        options={{ headerShown: true, title: 'Edit person' }}
+      />
+      <Stack.Screen name="users/new" options={{ headerShown: true, title: 'New person' }} />
+      <Stack.Screen name="activity/index" options={{ headerShown: true, title: 'Activity' }} />
       <Stack.Screen name="profile/edit" options={{ headerShown: true, title: 'Edit profile' }} />
     </Stack>
   )

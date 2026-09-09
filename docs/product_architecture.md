@@ -951,9 +951,9 @@ Review Progress
 | -------------- | --- | ------- |
 | Authentication | ✓   | ✓       |
 | Dashboard      | ✓   | ✓       |
-| Users          | ✓   | Limited |
+| Users          | ✓   | ✓       |
 | Departments    | ✓   | Limited |
-| Clients        | ✓   | View    |
+| Clients        | ✓   | ✓       |
 | Projects       | ✓   | ✓       |
 | Tasks          | ✓   | ✓       |
 | Activity       | ✓   | View    |
@@ -961,6 +961,11 @@ Review Progress
 | Administration | ✓   | Limited |
 | Reporting      | ✓   | Limited |
 
+
+Every mobile list is a single page ordered by the server, filtered with
+chips rather than searched. The filtered, paged, sortable tables — and
+reporting — remain the web's, which is what "Limited" means in the rows
+above.
 
 The web application remains the primary administrative platform.
 

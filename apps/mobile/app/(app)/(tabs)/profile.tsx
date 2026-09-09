@@ -13,8 +13,10 @@ export default function ProfileScreen() {
   const user = useCurrentUser()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const canReadUsers = useCan('users:read')
   const canReadClients = useCan('clients:read')
   const canReadDepartments = useCan('departments:read')
+  const canReadActivity = useCan('activity:read')
 
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
@@ -33,6 +35,22 @@ export default function ProfileScreen() {
     return null
   }
 
+  // The modules with no tab of their own, each shown only to the roles that
+  // may read it. Every role holds `activity:read`, so the card itself is
+  // never empty in practice — the length check is what guards that, rather
+  // than a chain of permission flags that has to be kept in step.
+  const directory: { title: string; body: string; to: Href; visible: boolean }[] = [
+    { title: 'People', body: 'Everyone in OPSflow', to: '/users', visible: canReadUsers },
+    { title: 'Clients', body: 'Who the work is for', to: '/clients', visible: canReadClients },
+    {
+      title: 'Departments',
+      body: 'The org chart',
+      to: '/departments',
+      visible: canReadDepartments,
+    },
+    { title: 'Activity', body: 'What changed', to: '/activity', visible: canReadActivity },
+  ].filter((entry) => entry.visible)
+
   return (
     <Screen>
       <View className="gap-1 py-4">
@@ -48,17 +66,16 @@ export default function ProfileScreen() {
         <DetailRow label="Joined" value={user.joinedAt ?? 'Unknown'} />
       </View>
 
-      {canReadClients || canReadDepartments ? (
+      {directory.length > 0 ? (
         <View className="mt-4 gap-2">
           <Text className="text-sm font-medium text-neutral-500">Directory</Text>
           <View className="rounded-xl border border-neutral-200 bg-white">
-            {canReadClients ? (
-              <DirectoryLink title="Clients" body="Who the work is for" to="/clients" />
-            ) : null}
-            {canReadClients && canReadDepartments ? <View className="h-px bg-neutral-200" /> : null}
-            {canReadDepartments ? (
-              <DirectoryLink title="Departments" body="The org chart" to="/departments" />
-            ) : null}
+            {directory.map((entry, index) => (
+              <View key={entry.title}>
+                {index > 0 ? <View className="h-px bg-neutral-200" /> : null}
+                <DirectoryLink title={entry.title} body={entry.body} to={entry.to} />
+              </View>
+            ))}
           </View>
         </View>
       ) : null}

@@ -245,9 +245,26 @@ The mobile application should not initially attempt to reproduce every feature o
 For the roles that hold the write permissions, the same app also manages the
 work: create, edit and delete tasks; create, edit, staff and progress
 projects; maintain the client directory; and, for administrators, maintain
-departments. Users remain web-only. Every control is hidden with the shared
-`can()` check and enforced again by the API, so the mobile client adds no
-authorization logic of its own.
+departments. Every control is hidden with the shared `can()` check and
+enforced again by the API, so the mobile client adds no authorization logic
+of its own.
+
+### People and Activity on Mobile (Phase 13c)
+
+Phase 13b left users web-only. That was reversed: an administrator now
+creates, edits and activates or suspends people from the phone, and the
+activity trail has the mobile screen the product document always asked for.
+Nothing moved to the client — role and status rules stay where they were.
+A caller still cannot change their own role or status, and the organisation
+still keeps one active administrator, because the API refuses each of those
+and the phone only reports the refusal.
+
+Two rules differ between the clients by design. The web redirects a role
+away from a module it may not read; mobile hides the entry point instead,
+since a pushed screen has no loader to redirect from. And mobile lists ask
+for one page at the API's ceiling rather than paging, so the people
+directory and the activity feed are unsearchable single pages — the
+filtered, paged tables stay on the web.
 
 ---
 
