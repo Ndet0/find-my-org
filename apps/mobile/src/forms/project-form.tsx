@@ -77,7 +77,9 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
       deadline: deadline === '' ? null : deadline,
       ...(isEdit ? { progress } : { priority }),
     }
-    const parsed = isEdit
+    // Widened: create requires priority and update has progress, so TS cannot
+    // infer one error type for z.flattenError from the union of the two.
+    const parsed: z.ZodSafeParseResult<unknown> = isEdit
       ? updateProjectSchema.safeParse(payload)
       : createProjectSchema.safeParse(payload)
 
