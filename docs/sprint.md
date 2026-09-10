@@ -1949,8 +1949,26 @@ planning.
   pages make driven by hand from the web origin — sign-in 200, `PATCH /api/me`
   200 for name and phone, 422 for a position-only body, and
   `/api/auth/change-password` 400 with `code: "INVALID_PASSWORD"` for a wrong
-  current password. The browser pass over the rendered pages is still
-  outstanding
+  current password
+- [x] Browser pass (2026-09-10), as the employee at 1280×800 against the running
+  API. `/profile` opens from the sidebar footer and shows role, department,
+  position, "Not provided" for an empty phone and the join date, with no status
+  row. `/profile/edit`: an empty name stays on the page with "Enter a name" on
+  the field and sends no request; a new name and phone save, return to
+  `/profile`, persist, write an `updated` activity row, and the sidebar shows
+  the new name without a reload; clearing the phone stores `null`.
+  `/profile/password`: a mismatched confirmation marks only that field and
+  sends no request; a wrong current password lands "That is not your current
+  password" on the current-password field and leaves the credential untouched;
+  a real change returns to `/profile` still signed in, drops the account's live
+  sessions from three to one, and the old password then fails sign-in while the
+  new one succeeds. Name, phone and password were restored through the same
+  pages, and the 19 API tests pass afterwards. The success toasts had closed
+  before they could be read, so they are unobserved rather than confirmed
+- [x] Test hazard found on the way: `rules.test.ts` restores only the
+  employee's credential, so changing the seeded admin or manager password by
+  hand (as happened on 2026-09-09) fails eight tests with 401 until the
+  password is set back. Exercise the password pages on the employee account
 - [ ] The remaining Phase 14 items — typography and spacing review, the
   mobile error and overdue reds (`text-red-600`, `bg-red-600`), dark mode
   on the web (the `.dark` block exists, no toggle is wired, and the tone
