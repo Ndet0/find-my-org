@@ -2017,9 +2017,36 @@ planning.
   password" as a `role="alert"` in the danger ink, the overdue task and
   project KPIs and the deadline line read in the same ink, and Tailwind
   generated `bg-tone-danger-strong` from the nested palette key
+- [x] Dark mode on the web. `lib/theme.ts` owns a light / dark / system
+  preference under one `localStorage` key, applied as the `.dark` class on
+  `<html>` that the shadcn variables and the generated tone block already
+  key on, plus `color-scheme` so native controls and scrollbars follow.
+  `system` is the default and stores nothing. A four-line script in
+  `index.html` applies the same rule before the bundle loads, so a dark
+  session never paints a white frame first; from then on the module owns
+  it, re-syncing on the media query's `change` event, on `visibilitychange`
+  (an OS switch made while the tab was in the background) and on `storage`
+  (a preference set in another tab). `ThemeToggle` is one button cycling
+  light → dark → system with an `aria-label` that names the current and
+  the next mode — three states in one control keeps it the size of the
+  profile icon and needs no menu primitive. Mounted twice, like
+  `ProfileLink`: the narrow-screen header and the sidebar footer. The
+  toaster now takes the app's resolved theme rather than `"system"`, so a
+  user who chose dark on a light desktop gets dark toasts
+- [x] Verified: `pnpm lint`, web `typecheck` and `build`; in the browser
+  against the running API as the employee — the boot script honours an
+  emulated light and dark OS with nothing stored; three presses cycle
+  system → light → dark → system with the class, `color-scheme`, the
+  stored value and the label moving together, on both mount points; with
+  `dark` stored and the OS emulated light, a reload comes up dark and the
+  `/tasks` badges render the dark tone pairs; a profile save shows a
+  success toast carrying `data-sonner-theme="dark"`. The emulated OS
+  switch does not dispatch the media query's `change` event in this
+  browser harness, so the live flip was verified through the
+  `visibilitychange` path instead, which re-applied the OS value
 - [ ] The remaining Phase 14 items — typography and spacing review, dark
-  mode toggles (the web `.dark` block and the tone values exist, no toggle
-  is wired on either client), accessibility review
+  mode on mobile (the palette pairs exist; every screen still hard-codes
+  its light surfaces), accessibility review
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the
