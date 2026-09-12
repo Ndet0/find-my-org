@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { z } from 'zod'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
 import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
@@ -93,9 +94,7 @@ export default function EditProfileScreen() {
               />
             </View>
 
-            {save.isError ? (
-              <Text className="text-sm text-red-600">{describeError(save.error)}</Text>
-            ) : null}
+            {save.isError ? <ErrorText>{describeError(save.error)}</ErrorText> : null}
 
             <View className="gap-2">
               <Button

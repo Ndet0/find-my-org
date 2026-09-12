@@ -3,6 +3,7 @@ import { colors } from '@opsflow/ui/colors'
 import { useState } from 'react'
 import { FlatList, Modal, Pressable, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 
 export type PickerOption = { value: string; label: string; hint?: string }
 
@@ -48,7 +49,7 @@ export function Picker({
         accessibilityState={{ disabled: disabled ?? false, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen(true)}
-        className={`flex-row items-center justify-between rounded-lg border bg-white px-3 py-3 ${message ? 'border-red-500' : 'border-neutral-300'} ${disabled ? 'opacity-50' : ''}`}
+        className={`flex-row items-center justify-between rounded-lg border bg-white px-3 py-3 ${message ? 'border-tone-danger-foreground' : 'border-neutral-300'} ${disabled ? 'opacity-50' : ''}`}
       >
         <Text
           className={`flex-1 text-base ${selected ? 'text-neutral-900' : 'text-neutral-400'}`}
@@ -58,7 +59,7 @@ export function Picker({
         </Text>
         <Ionicons name="chevron-down" size={18} color={colors.neutral[500]} />
       </Pressable>
-      {message ? <Text className="text-sm text-red-600">{message}</Text> : null}
+      {message ? <ErrorText>{message}</ErrorText> : null}
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable

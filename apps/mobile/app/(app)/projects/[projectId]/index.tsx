@@ -13,6 +13,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 import { Button } from '@/components/button'
 import { Card } from '@/components/card'
 import { DetailRow } from '@/components/detail-row'
+import { ErrorText } from '@/components/error-text'
 import { InlineConfirm } from '@/components/inline-confirm'
 import { describeError, Message } from '@/components/message'
 import { Picker } from '@/components/picker'
@@ -178,7 +179,7 @@ export default function ProjectDetailScreen() {
         {tasks.isPending ? (
           <ActivityIndicator />
         ) : tasks.isError ? (
-          <Text className="text-sm text-red-600">{describeError(tasks.error)}</Text>
+          <ErrorText>{describeError(tasks.error)}</ErrorText>
         ) : tasks.data.items.length === 0 ? (
           <Text className="text-sm text-neutral-500">
             {employee ? 'Nothing on this project is assigned to you.' : 'No tasks yet.'}
@@ -278,9 +279,7 @@ function PriorityControl({ projectId, current }: { projectId: string; current: P
         disabled={mutation.isPending}
         loading={mutation.isPending}
       />
-      {mutation.isError ? (
-        <Text className="text-sm text-red-600">{describeError(mutation.error)}</Text>
-      ) : null}
+      {mutation.isError ? <ErrorText>{describeError(mutation.error)}</ErrorText> : null}
     </Card>
   )
 }
@@ -370,7 +369,7 @@ function TeamCard({ project, canWrite }: { project: ProjectDetail; canWrite: boo
             onPress={() => add.mutate(selected)}
           />
           {add.isError || remove.isError ? (
-            <Text className="text-sm text-red-600">{describeError(add.error ?? remove.error)}</Text>
+            <ErrorText>{describeError(add.error ?? remove.error)}</ErrorText>
           ) : null}
         </View>
       ) : null}
@@ -394,7 +393,9 @@ function TaskRow({ task }: { task: TaskListItem }) {
           <Text className="text-xs text-neutral-500">{task.assignee?.name ?? 'Unassigned'}</Text>
           <PriorityBadge priority={task.priority} />
           {task.dueDate ? (
-            <Text className={`text-xs ${overdue ? 'text-red-600' : 'text-neutral-500'}`}>
+            <Text
+              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}
+            >
               {overdue ? `Overdue · ${task.dueDate}` : `Due ${task.dueDate}`}
             </Text>
           ) : null}

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 import { FilterChip } from '@/components/filter-chip'
 import { describeError, Message } from '@/components/message'
 import { Screen } from '@/components/screen'
@@ -67,9 +68,7 @@ export default function NotificationsScreen() {
       </View>
 
       {markAll.isError || markOne.isError ? (
-        <Text className="mb-3 text-sm text-red-600">
-          {describeError(markAll.error ?? markOne.error)}
-        </Text>
+        <ErrorText className="mb-3">{describeError(markAll.error ?? markOne.error)}</ErrorText>
       ) : null}
 
       {notifications.isPending ? (

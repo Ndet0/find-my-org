@@ -6,7 +6,7 @@ type Size = 'md' | 'sm'
 const container: Record<Variant, string> = {
   primary: 'bg-neutral-900 active:bg-neutral-700',
   outline: 'border border-neutral-300 bg-white active:bg-neutral-100',
-  destructive: 'bg-red-600 active:bg-red-500',
+  destructive: 'bg-tone-danger-strong active:opacity-90',
   ghost: 'active:bg-neutral-100',
 }
 

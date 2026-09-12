@@ -107,7 +107,9 @@ function ProjectRow({ project }: { project: ProjectListItem }) {
           <ProjectStatusBadge status={project.status} />
           <PriorityBadge priority={project.priority} />
           {project.deadline ? (
-            <Text className={`text-xs ${overdue ? 'text-red-600' : 'text-neutral-500'}`}>
+            <Text
+              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}
+            >
               {overdue ? `Overdue · ${project.deadline}` : `Due ${project.deadline}`}
             </Text>
           ) : null}

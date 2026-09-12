@@ -2000,10 +2000,26 @@ planning.
 - [x] Verified: `pnpm --filter @opsflow/ui generate` is a no-op after the
   commit, `pnpm lint`, `pnpm typecheck`, `pnpm build` — the web bundle now
   contains the `.dark` tone block
-- [ ] The remaining Phase 14 items — typography and spacing review, the
-  mobile error and overdue reds (`text-red-600`, `bg-red-600`), dark mode
-  toggles (the web `.dark` block and the tone values exist, no toggle is
-  wired on either client), accessibility review
+- [x] The mobile reds are gone. Every `red-*` utility in `apps/mobile` was
+  stock Tailwind, not a palette value, so the error line under a field read
+  in a different red from the `blocked` badge beside it. `ErrorText` is the
+  one component for a failed request or field now — thirteen sites, three
+  of them shared components — and it carries `accessibilityRole="alert"`,
+  which none of the bare `<Text>` lines it replaced did. Invalid borders,
+  the overdue date lines, the overdue KPI value and `DetailRow`'s alert
+  tone read `tone-danger-foreground`; the destructive button fills with
+  `tone-danger-strong`. The login and change-password screens now pass
+  their error through `describeError()` like every other screen, instead
+  of reading `.message` directly
+- [x] Verified: `grep -rn "red-" apps/mobile/app apps/mobile/src` is empty;
+  `pnpm lint`, mobile `typecheck`; through the web build at 390×844
+  against the running API — a wrong password renders "Invalid email or
+  password" as a `role="alert"` in the danger ink, the overdue task and
+  project KPIs and the deadline line read in the same ink, and Tailwind
+  generated `bg-tone-danger-strong` from the nested palette key
+- [ ] The remaining Phase 14 items — typography and spacing review, dark
+  mode toggles (the web `.dark` block and the tone values exist, no toggle
+  is wired on either client), accessibility review
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the

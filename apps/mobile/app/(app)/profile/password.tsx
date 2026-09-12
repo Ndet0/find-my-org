@@ -5,7 +5,9 @@ import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { z } from 'zod'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
+import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 
@@ -143,9 +145,7 @@ export default function ChangePasswordScreen() {
                   />
                 </View>
 
-                {change.isError ? (
-                  <Text className="text-sm text-red-600">{change.error.message}</Text>
-                ) : null}
+                {change.isError ? <ErrorText>{describeError(change.error)}</ErrorText> : null}
 
                 <View className="gap-2">
                   <Button

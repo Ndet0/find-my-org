@@ -127,7 +127,9 @@ function TaskRow({ task, showAssignee }: { task: TaskListItem; showAssignee: boo
           <StatusBadge status={task.status} />
           <PriorityBadge priority={task.priority} />
           {task.dueDate ? (
-            <Text className={`text-xs ${overdue ? 'text-red-600' : 'text-neutral-500'}`}>
+            <Text
+              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}
+            >
               {overdue ? `Overdue · ${task.dueDate}` : `Due ${task.dueDate}`}
             </Text>
           ) : null}

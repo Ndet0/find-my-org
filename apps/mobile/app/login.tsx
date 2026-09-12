@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { z } from 'zod'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
+import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, fetchCurrentUser } from '@/lib/current-user'
@@ -99,9 +101,7 @@ export default function LoginScreen() {
               />
             </View>
 
-            {signIn.isError ? (
-              <Text className="text-sm text-red-600">{signIn.error.message}</Text>
-            ) : null}
+            {signIn.isError ? <ErrorText>{describeError(signIn.error)}</ErrorText> : null}
 
             <Button
               title={signIn.isPending ? 'Signing in…' : 'Sign in'}

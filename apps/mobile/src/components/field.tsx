@@ -1,5 +1,6 @@
 import { colors } from '@opsflow/ui/colors'
 import { Text, TextInput, type TextInputProps, View } from 'react-native'
+import { ErrorText } from '@/components/error-text'
 
 /** A labelled input with the first validation message underneath it. */
 export function Field({
@@ -18,10 +19,10 @@ export function Field({
         placeholderTextColor={colors.neutral[400]}
         multiline={multiline}
         textAlignVertical={multiline ? 'top' : undefined}
-        className={`rounded-lg border bg-white px-3 py-3 text-base text-neutral-900 ${multiline ? 'min-h-28' : ''} ${message ? 'border-red-500' : 'border-neutral-300'}`}
+        className={`rounded-lg border bg-white px-3 py-3 text-base text-neutral-900 ${multiline ? 'min-h-28' : ''} ${message ? 'border-tone-danger-foreground' : 'border-neutral-300'}`}
         {...props}
       />
-      {message ? <Text className="text-sm text-red-600">{message}</Text> : null}
+      {message ? <ErrorText>{message}</ErrorText> : null}
     </View>
   )
 }

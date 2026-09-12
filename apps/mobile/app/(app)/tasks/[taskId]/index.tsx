@@ -7,6 +7,7 @@ import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { Card } from '@/components/card'
 import { DetailRow } from '@/components/detail-row'
+import { ErrorText } from '@/components/error-text'
 import { InlineConfirm } from '@/components/inline-confirm'
 import { describeError, Message } from '@/components/message'
 import { Picker } from '@/components/picker'
@@ -188,9 +189,7 @@ function PriorityControl({ taskId, current }: { taskId: string; current: Priorit
         disabled={mutation.isPending}
         loading={mutation.isPending}
       />
-      {mutation.isError ? (
-        <Text className="text-sm text-red-600">{describeError(mutation.error)}</Text>
-      ) : null}
+      {mutation.isError ? <ErrorText>{describeError(mutation.error)}</ErrorText> : null}
     </Card>
   )
 }

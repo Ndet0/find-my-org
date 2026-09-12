@@ -5,6 +5,7 @@ import { type Href, Link, useRouter } from 'expo-router'
 import { Pressable, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { DetailRow } from '@/components/detail-row'
+import { ErrorText } from '@/components/error-text'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, useCan, useCurrentUser } from '@/lib/current-user'
@@ -94,7 +95,7 @@ export default function ProfileScreen() {
           onPress={() => signOut.mutate()}
         />
         {signOut.isError ? (
-          <Text className="mt-2 text-sm text-red-600">Sign-out failed. Try again.</Text>
+          <ErrorText className="mt-2">Sign-out failed. Try again.</ErrorText>
         ) : null}
       </View>
     </Screen>

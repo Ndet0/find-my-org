@@ -17,6 +17,7 @@ import {
 import { z } from 'zod'
 import { Button } from '@/components/button'
 import { Card } from '@/components/card'
+import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
 import { InlineConfirm } from '@/components/inline-confirm'
 import { describeError, Message } from '@/components/message'
@@ -193,7 +194,7 @@ function DepartmentForm({
         multiline
       />
       {save.isError && Object.keys(errors).length === 0 ? (
-        <Text className="text-sm text-red-600">{describeError(save.error)}</Text>
+        <ErrorText>{describeError(save.error)}</ErrorText>
       ) : null}
       <View className="flex-row gap-2">
         <Button

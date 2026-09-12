@@ -1,5 +1,6 @@
 import { Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 import { describeError } from '@/components/message'
 
 /**
@@ -27,7 +28,7 @@ export function InlineConfirm({
   return (
     <View className="gap-3">
       <Text className="text-sm text-neutral-700">{message}</Text>
-      {error ? <Text className="text-sm text-red-600">{describeError(error)}</Text> : null}
+      {error ? <ErrorText>{describeError(error)}</ErrorText> : null}
       <View className="flex-row gap-2">
         <Button
           title="Cancel"

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { ErrorText } from '@/components/error-text'
 import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
 
@@ -44,7 +45,7 @@ export function FormScreen({
 
             <View className="gap-4">{children}</View>
 
-            {error ? <Text className="text-sm text-red-600">{describeError(error)}</Text> : null}
+            {error ? <ErrorText>{describeError(error)}</ErrorText> : null}
 
             <View className="gap-2">
               <Button

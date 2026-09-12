@@ -10,6 +10,7 @@ import { type Href, Link } from 'expo-router'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { Card } from '@/components/card'
+import { ErrorText } from '@/components/error-text'
 import { describeError, Message } from '@/components/message'
 import { ProgressBar } from '@/components/progress-bar'
 import { Screen } from '@/components/screen'
@@ -226,7 +227,7 @@ function KpiCard({ label, value, sub, alert, to }: Kpi) {
         {label}
       </Text>
       <Text
-        className={`text-2xl font-semibold ${alert && value !== undefined && value > 0 ? 'text-red-600' : 'text-neutral-900'}`}
+        className={`text-2xl font-semibold ${alert && value !== undefined && value > 0 ? 'text-tone-danger-foreground' : 'text-neutral-900'}`}
       >
         {value ?? '—'}
       </Text>
@@ -297,7 +298,7 @@ function FeedCard<T>({
       {query.isPending ? (
         <ActivityIndicator />
       ) : query.isError ? (
-        <Text className="text-sm text-red-600">{describeError(query.error)}</Text>
+        <ErrorText>{describeError(query.error)}</ErrorText>
       ) : query.data.items.length === 0 ? (
         <Text className="text-sm text-neutral-500">{empty}</Text>
       ) : (
@@ -325,7 +326,7 @@ function DeadlineRow({ task }: { task: TaskListItem }) {
           </Text>
         </View>
         <PriorityBadge priority={task.priority} />
-        <Text className={`text-xs ${overdue ? 'text-red-600' : 'text-neutral-500'}`}>
+        <Text className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}>
           {task.dueDate ?? '—'}
         </Text>
       </Pressable>
