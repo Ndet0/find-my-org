@@ -757,14 +757,20 @@ What ships:
 src/palette.json   the single source of truth: the neutral scale (50–950) and six
                    semantic tones — muted, neutral, info, success, warning,
                    danger — each a background (DEFAULT) and a text colour
-                   (foreground). Plain JSON so that Node scripts and Tailwind 3
-                   configs can require() it
-src/colors.ts      the typed view of the palette, plus hexToRgb()
+                   (foreground), plus the pair the same tone renders in on a
+                   dark surface (dark.DEFAULT, dark.foreground). danger alone
+                   carries strong, the solid fill for a destructive button.
+                   Plain JSON so that Node scripts and Tailwind 3 configs can
+                   require() it
+src/colors.ts      the typed view of the palette, plus hexToRgb(); a tone
+                   missing its dark pair fails typecheck here
 src/tones.ts       which tone each task, project, client and user status, and
                    each priority, renders in. The one table both badges read
-src/tokens.css     a Tailwind 4 @theme block generated from palette.json by
-                   `pnpm --filter @opsflow/ui generate`; committed, and CI fails
-                   if it drifts from the JSON
+src/tokens.css     generated from palette.json by
+                   `pnpm --filter @opsflow/ui generate`: a Tailwind 4 @theme
+                   block of the light values and a .dark block that overrides
+                   every tone variable with its dark pair; committed, and CI
+                   fails if it drifts from the JSON
 
 ```
 
@@ -772,13 +778,17 @@ How each side consumes it:
 
 - **Web** imports `@opsflow/ui/tokens.css` in `app.css`, which gives Tailwind the
   `bg-tone-info` / `text-tone-info-foreground` utilities alongside the shadcn
-  surface variables. The block is plain `@theme`, not `@theme inline`, so a
-  future `.dark { --color-tone-info: … }` override in `app.css` takes effect
-  without regenerating the file.
+  surface variables. The block is plain `@theme`, not `@theme inline`, so the
+  utilities reference `var(--color-tone-info)` and the generated `.dark { … }`
+  block recolours them under the `.dark` class with no second set of class
+  names.
 - **Mobile** extends `theme.colors` in `tailwind.config.js` from `palette.json`,
-  which produces the same utility names under NativeWind. Components that need
-  a colour outside a class name (`SafeAreaView`, icon tints, placeholder text)
-  read `@opsflow/ui/colors`. `app.config.js` overrides the two colours in
+  which produces the same utility names under NativeWind. Tailwind 3 flattens
+  the nested `dark` pair to `bg-tone-info-dark` / `text-tone-info-dark-foreground`,
+  which the mobile badge uses behind a `dark:` variant: NativeWind has no
+  cascade to override a variable with, so the dark pair is a class there.
+  Components that need a colour outside a class name (`SafeAreaView`, icon
+  tints, placeholder text) read `@opsflow/ui/colors`. `app.config.js` overrides the two colours in
   `app.json` that the launcher and splash screen paint, and
   `scripts/make-assets.mjs` draws the icon set in the same ink.
 - **Tone → class names** live in each app's own badge component, spelled out.

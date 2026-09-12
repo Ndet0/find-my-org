@@ -23,4 +23,20 @@
   --color-tone-warning-foreground: #92400e;
   --color-tone-danger: #fee2e2;
   --color-tone-danger-foreground: #991b1b;
+  --color-tone-danger-strong: #dc2626;
+}
+
+.dark {
+  --color-tone-muted: #262626;
+  --color-tone-muted-foreground: #a3a3a3;
+  --color-tone-neutral: #404040;
+  --color-tone-neutral-foreground: #e5e5e5;
+  --color-tone-info: #1e3a8a;
+  --color-tone-info-foreground: #bfdbfe;
+  --color-tone-success: #14532d;
+  --color-tone-success-foreground: #bbf7d0;
+  --color-tone-warning: #78350f;
+  --color-tone-warning-foreground: #fde68a;
+  --color-tone-danger: #7f1d1d;
+  --color-tone-danger-foreground: #fecaca;
 }

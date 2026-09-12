@@ -1984,10 +1984,26 @@ planning.
 - [x] Verified: `pnpm lint`, `pnpm typecheck`, 21 API tests (two new in
   `rules.test.ts` — the open filter leaves completed tasks out and an
   explicit status wins; the dashboard counts blocked tasks), `pnpm build`
+- [x] Dark tone values and a destructive fill in the palette. Each tone in
+  `palette.json` now carries a `dark` pair — a deep tint and a light ink —
+  beside its light pair, and `danger` alone carries `strong` (`#dc2626`),
+  the solid fill a destructive button needs: `foreground` is ink and turns
+  light in dark mode, so it cannot double as a fill. The generator emits the
+  light values as before and appends a `.dark { … }` block that overrides
+  every tone variable, the override its own header comment anticipated; the
+  web utilities reference `var(--color-tone-*)`, so nothing else changes
+  there. On mobile, Tailwind 3 flattens the nested pair to
+  `bg-tone-info-dark` for a `dark:` variant, since NativeWind has no cascade
+  to override a variable with. `colors.ts` asserts the shape, so a tone
+  missing its dark pair fails typecheck rather than rendering undefined.
+  Technical architecture §18 updated
+- [x] Verified: `pnpm --filter @opsflow/ui generate` is a no-op after the
+  commit, `pnpm lint`, `pnpm typecheck`, `pnpm build` — the web bundle now
+  contains the `.dark` tone block
 - [ ] The remaining Phase 14 items — typography and spacing review, the
   mobile error and overdue reds (`text-red-600`, `bg-red-600`), dark mode
-  (the web `.dark` block exists, no toggle is wired, and the tone tokens
-  have no dark values yet), accessibility review
+  toggles (the web `.dark` block and the tone values exist, no toggle is
+  wired on either client), accessibility review
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the
