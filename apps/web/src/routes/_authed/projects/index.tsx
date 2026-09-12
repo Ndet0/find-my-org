@@ -11,7 +11,9 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { ProgressBar } from '@/components/progress-bar'
+import { ListPending } from '@/components/route-feedback'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
+import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -74,6 +76,7 @@ export const Route = createFileRoute('/_authed/projects/')({
     }
     return context.queryClient.ensureQueryData(projectsQueryOptions(filtersFrom(deps)))
   },
+  pendingComponent: ListPending,
   component: ProjectsPage,
 })
 
@@ -177,6 +180,10 @@ function ProjectsPage() {
           }
         />
       </div>
+
+      {projects.isError ? (
+        <RefreshFailed error={projects.error} onRetry={() => void projects.refetch()} />
+      ) : null}
 
       <div className="rounded-lg border bg-background">
         <Table>
@@ -322,16 +329,6 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </div>
-  )
-}
-
-function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
-        {children}
-      </TableCell>
-    </TableRow>
   )
 }
 

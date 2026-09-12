@@ -8,6 +8,8 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
+import { ListPending } from '@/components/route-feedback'
+import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,6 +54,7 @@ export const Route = createFileRoute('/_authed/activity/')({
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(activityQueryOptions(filtersFrom(deps))),
+  pendingComponent: ListPending,
   component: ActivityPage,
 })
 
@@ -90,6 +93,10 @@ function ActivityPage() {
           }
         />
       </div>
+
+      {activity.isError ? (
+        <RefreshFailed error={activity.error} onRetry={() => void activity.refetch()} />
+      ) : null}
 
       <div className="rounded-lg border bg-background">
         <Table>
@@ -263,16 +270,6 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </div>
-  )
-}
-
-function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
-        {children}
-      </TableCell>
-    </TableRow>
   )
 }
 

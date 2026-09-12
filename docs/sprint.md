@@ -2076,6 +2076,29 @@ planning.
   in the light ink, and System follows the emulated OS in both directions.
   Native devices were not available here; SecureStore persistence and the
   Appearance path are the same calls the session already relies on
+- [x] Web loading, empty and error states, shared. `MessageRow` — the one
+  row a table shows when it has nothing to list — was the same nine lines
+  in six list routes and inlined a seventh time in departments; it now
+  lives in `components/table-message.tsx`. Beside it, `RefreshFailed`
+  closes a real gap: a list page's loader awaits its query, so a failed
+  first load was already the router's error card, but a failed *refresh*
+  kept the rows Query already had and said nothing. Every list route now
+  shows the notice above its table with the shared wording and a retry,
+  the rows still readable underneath. The router's generic skeleton was
+  a `max-w-2xl` block under every page; the list routes register
+  `ListPending` (heading, count, filter row, six rows at the list width)
+  and the four record routes `DetailPending`, so the skeleton has the
+  rhythm of the page that replaces it. No per-page skeletons: one shape
+  per route kind, as decided
+- [x] Verified: `pnpm lint`, web `typecheck` and `build`; in the browser
+  against the running API as the employee — with the API process paused,
+  an in-app link to a filtered tasks list shows the list skeleton at
+  `max-w-6xl` with eleven placeholder blocks; with the API stopped and the
+  tasks query past its stale window, returning to the list keeps its rows
+  and, once Query's retries are spent, shows "Could not refresh this list"
+  as a `role="alert"` with Try again; after the API is back, Try again
+  clears it. The pending threshold means a fast network never shows the
+  skeleton, which is the point
 - [ ] The remaining Phase 14 items — typography and spacing review,
   accessibility review
 

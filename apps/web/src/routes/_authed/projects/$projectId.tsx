@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { ProgressBar } from '@/components/progress-bar'
 import { ProjectStatusDialog } from '@/components/project-status-dialog'
+import { DetailPending } from '@/components/route-feedback'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,6 +48,7 @@ export const Route = createFileRoute('/_authed/projects/$projectId')({
     )
     return context.queryClient.ensureQueryData(projectQueryOptions(params.projectId))
   },
+  pendingComponent: DetailPending,
   component: ProjectDetailPage,
 })
 

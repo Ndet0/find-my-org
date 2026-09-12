@@ -5,6 +5,7 @@ import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-q
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { DetailPending } from '@/components/route-feedback'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { TaskStatusDialog } from '@/components/task-status-dialog'
 import {
@@ -33,6 +34,7 @@ import { deleteTask, taskKeys, taskQueryOptions, updateTaskPriority } from '@/li
 export const Route = createFileRoute('/_authed/tasks/$taskId')({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(taskQueryOptions(params.taskId)),
+  pendingComponent: DetailPending,
   component: TaskDetailPage,
 })
 

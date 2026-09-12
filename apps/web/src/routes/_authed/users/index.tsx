@@ -4,7 +4,9 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
+import { ListPending } from '@/components/route-feedback'
 import { StatusBadge } from '@/components/status-badge'
+import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,6 +60,7 @@ export const Route = createFileRoute('/_authed/users/')({
     void context.queryClient.prefetchQuery(departmentsQueryOptions)
     return context.queryClient.ensureQueryData(usersQueryOptions(filtersFrom(deps)))
   },
+  pendingComponent: ListPending,
   component: UsersPage,
 })
 
@@ -123,6 +126,10 @@ function UsersPage() {
           onChange={(value) => setFilter({ departmentId: value === ANY ? undefined : value })}
         />
       </div>
+
+      {users.isError ? (
+        <RefreshFailed error={users.error} onRetry={() => void users.refetch()} />
+      ) : null}
 
       <div className="rounded-lg border bg-background">
         <Table>
@@ -254,16 +261,6 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </div>
-  )
-}
-
-function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
-        {children}
-      </TableCell>
-    </TableRow>
   )
 }
 

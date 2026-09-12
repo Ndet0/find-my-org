@@ -17,13 +17,53 @@ import { currentUserQueryOptions } from '@/lib/current-user'
  * that matches nothing.
  */
 
-/** Shown in the outlet once a loader has been pending long enough to notice. */
+/**
+ * Shown in the outlet once a loader has been pending long enough to notice.
+ * The router default; the list and detail routes register the two shapes
+ * below instead, so the skeleton has the width and rhythm of the page that
+ * replaces it rather than a generic block.
+ */
 export function RoutePending() {
   return (
     <output className="mx-auto flex max-w-2xl flex-col gap-4" aria-busy="true">
       <Skeleton className="h-6 w-48" />
       <Skeleton className="h-4 w-64" />
       <Skeleton className="h-40 w-full" />
+    </output>
+  )
+}
+
+const LIST_ROWS = ['a', 'b', 'c', 'd', 'e', 'f'] as const
+
+/** A list page: heading, count, a filter row and a table of six rows. */
+export function ListPending() {
+  return (
+    <output className="mx-auto flex max-w-6xl flex-col gap-6" aria-busy="true">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </div>
+      <div className="flex flex-col gap-3 rounded-lg border bg-background p-4">
+        {LIST_ROWS.map((row) => (
+          <Skeleton key={row} className="h-8 w-full" />
+        ))}
+      </div>
+    </output>
+  )
+}
+
+/** A record page: the back link, then the record card and one section below it. */
+export function DetailPending() {
+  return (
+    <output className="mx-auto flex max-w-2xl flex-col gap-4" aria-busy="true">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-56 w-full" />
+      <Skeleton className="h-32 w-full" />
     </output>
   )
 }
@@ -91,7 +131,8 @@ export function RouteError({ error }: ErrorComponentProps) {
   )
 }
 
-function describe(error: Error, status: number | undefined) {
+/** The wording for a failed request, shared with the in-page refresh notice. */
+export function describe(error: Error, status: number | undefined) {
   if (status === 404) {
     // Row scoping answers 404 for records outside the caller's view, so this
     // is deliberately not "deleted".

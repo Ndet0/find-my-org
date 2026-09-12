@@ -3,6 +3,7 @@ import { USER_STATUSES, type UserStatus } from '@opsflow/types/user'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
+import { DetailPending } from '@/components/route-feedback'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/_authed/users/$userId')({
   },
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(userQueryOptions(params.userId)),
+  pendingComponent: DetailPending,
   component: UserDetailPage,
 })
 

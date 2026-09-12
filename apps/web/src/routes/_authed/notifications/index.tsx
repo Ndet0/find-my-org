@@ -4,6 +4,8 @@ import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-q
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
+import { ListPending } from '@/components/route-feedback'
+import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +59,7 @@ export const Route = createFileRoute('/_authed/notifications/')({
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(notificationsQueryOptions(filtersFrom(deps))),
+  pendingComponent: ListPending,
   component: NotificationsPage,
 })
 
@@ -112,6 +115,10 @@ function NotificationsPage() {
           onChange={(value) => setFilter({ unread: value === ANY ? undefined : (value as 'true') })}
         />
       </div>
+
+      {notifications.isError ? (
+        <RefreshFailed error={notifications.error} onRetry={() => void notifications.refetch()} />
+      ) : null}
 
       <div className="rounded-lg border bg-background">
         <Table>
@@ -241,16 +248,6 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </div>
-  )
-}
-
-function MessageRow({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
-        {children}
-      </TableCell>
-    </TableRow>
   )
 }
 

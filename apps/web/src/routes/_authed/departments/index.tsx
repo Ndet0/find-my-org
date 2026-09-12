@@ -6,6 +6,8 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { FieldMessage } from '@/components/field-message'
+import { ListPending } from '@/components/route-feedback'
+import { MessageRow, RefreshFailed } from '@/components/table-message'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +55,7 @@ export const Route = createFileRoute('/_authed/departments/')({
     }
   },
   loader: ({ context }) => context.queryClient.ensureQueryData(departmentsQueryOptions),
+  pendingComponent: ListPending,
   component: DepartmentsPage,
 })
 
@@ -75,6 +78,10 @@ function DepartmentsPage() {
         {canWrite ? <Button onClick={() => setEditing('new')}>Add department</Button> : null}
       </header>
 
+      {departments.isError ? (
+        <RefreshFailed error={departments.error} onRetry={() => void departments.refetch()} />
+      ) : null}
+
       <div className="rounded-lg border bg-background">
         <Table>
           <TableHeader>
@@ -91,14 +98,7 @@ function DepartmentsPage() {
           </TableHeader>
           <TableBody>
             {departments.data.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={canWrite ? 4 : 3}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  No departments yet.
-                </TableCell>
-              </TableRow>
+              <MessageRow colSpan={canWrite ? 4 : 3}>No departments yet.</MessageRow>
             ) : null}
 
             {departments.data.map((department) => (

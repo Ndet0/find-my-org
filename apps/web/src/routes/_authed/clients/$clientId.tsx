@@ -4,6 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ClientStatusDialog } from '@/components/client-status-dialog'
+import { DetailPending } from '@/components/route-feedback'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +13,7 @@ import { clientQueryOptions } from '@/lib/clients'
 export const Route = createFileRoute('/_authed/clients/$clientId')({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(clientQueryOptions(params.clientId)),
+  pendingComponent: DetailPending,
   component: ClientDetailPage,
 })
 
