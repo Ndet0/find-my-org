@@ -1969,10 +1969,25 @@ planning.
   employee's credential, so changing the seeded admin or manager password by
   hand (as happened on 2026-09-09) fails eight tests with 401 until the
   password is set back. Exercise the password pages on the employee account
+- [x] Dashboard information hierarchy (2026-09-12). The web dashboard now
+  follows product §42's order — what needs attention, then the current
+  state, then upcoming work, then activity. A "needs attention" card leads
+  the page with overdue and blocked tasks and delayed and overdue projects,
+  each count linking to the list already filtered; the header carries the
+  role's quick actions. `DashboardTaskStats` gained `blocked`, so the count
+  is one more row in the same transaction. The tasks list gained an `open`
+  filter (`taskListQuerySchema`, `task.service.ts`): the list orders by due
+  date, so without it completed tasks with past due dates filled the
+  deadlines card ahead of the work still to do. Both dashboard feeds — web
+  and mobile — now ask for `open: true`; an explicit `status` is narrower
+  and wins
+- [x] Verified: `pnpm lint`, `pnpm typecheck`, 21 API tests (two new in
+  `rules.test.ts` — the open filter leaves completed tasks out and an
+  explicit status wins; the dashboard counts blocked tasks), `pnpm build`
 - [ ] The remaining Phase 14 items — typography and spacing review, the
   mobile error and overdue reds (`text-red-600`, `bg-red-600`), dark mode
-  on the web (the `.dark` block exists, no toggle is wired, and the tone
-  tokens have no dark values yet), dashboard hierarchy, accessibility review
+  (the web `.dark` block exists, no toggle is wired, and the tone tokens
+  have no dark values yet), accessibility review
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the
@@ -2068,11 +2083,11 @@ from the same JSON (§24 "Phase 14"). CI runs lint, typecheck, the API tests
 and the build on every push and pull request, so each polish commit from
 here is verified.
 
-The next slice should be the web dashboard's information hierarchy
-(`apps/web/src/routes/_authed/index.tsx` is the largest single route) and
-the remaining mobile reds, then typography and spacing across both clients.
-Dark mode on the web needs tone values for the `.dark` block before a
-toggle is worth wiring.
+The dashboard slice is done: the web dashboard leads with what needs
+attention and both feeds show open work only (§24 "Phase 14"). The next
+slice is the remaining mobile reds, then dark mode on both clients, then
+typography and spacing across both. Dark mode needs tone values for the
+`.dark` block before a toggle is worth wiring.
 
 Two `expo-doctor` notes are carried, not fixed: `typescript` 7 against the
 SDK's expected 6 (accepted in Phase 13, the typecheck passes) and
