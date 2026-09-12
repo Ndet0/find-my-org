@@ -2124,7 +2124,36 @@ planning.
   gap; a field's frame keeps its 6px label gap and the input its 8px
   radius and dark border. On the web, the activity page header now carries
   the shared header classes
-- [ ] The remaining Phase 14 item — accessibility review
+- [x] Accessibility and keyboard navigation. Web: a "Skip to content"
+  link is the first thing in the tab order and lands focus on `<main>`,
+  which is now focusable; every column header carries `scope="col"`; the
+  row actions — the Edit links on four lists and the Edit and Delete
+  buttons on departments — were a bare `<a>` or `<button>` with no focus
+  ring, and are now the button primitive's `link` variant at the same
+  size and colour, so they inherit its `focus-visible` ring; the page
+  summary under a table is a polite live region, so a page change is
+  announced. The one real defect found: every dialog in the app is opened
+  by an ordinary button and controlled with `open`, so it has no Radix
+  trigger, and on close Radix let focus fall to the body — a keyboard
+  user lost their place after every confirmation. `useReturnFocus`
+  records the opener in `onOpenAutoFocus`, which fires with focus still
+  on it, and both content wrappers hand focus back in `onCloseAutoFocus`.
+  Mobile: `ErrorText` announces as an alert and `PressableCard` carries
+  the button role (earlier slices); `Segmented` reads as a radio group
+  with checked state rather than three buttons; the dashboard's deadline
+  line, which said only the date and relied on colour for "overdue", now
+  carries an accessibility label that says so. Status badges already read
+  their label as text and needed nothing
+- [x] Verified: `pnpm lint`, web and mobile `typecheck`, web `build`; in
+  the browser as the employee — Tab from the top lands on the skip link,
+  and following it puts `<main>` in `document.activeElement`; all six
+  headers on the tasks table are `th[scope=col]`; on a task, opening the
+  status dialog from its focused button moves focus into the dialog,
+  Escape closes it, and once the exit animation ends focus is back on the
+  button (before the fix it was the body). The browser harness embeds the
+  page without document focus, so `:focus-visible` rings could not be
+  observed; they are the button primitive's own classes. No axe run was
+  available here
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the

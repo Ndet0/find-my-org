@@ -246,13 +246,16 @@ function ProjectsPage() {
                 <TableCell>{project.deadline ?? '—'}</TableCell>
                 {canWrite ? (
                   <TableCell>
-                    <Link
-                      to="/projects/$projectId/edit"
-                      params={{ projectId: project.id }}
-                      className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                    <Button
+                      asChild
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
                     >
-                      Edit
-                    </Link>
+                      <Link to="/projects/$projectId/edit" params={{ projectId: project.id }}>
+                        Edit
+                      </Link>
+                    </Button>
                   </TableCell>
                 ) : null}
               </TableRow>
@@ -343,7 +346,7 @@ function Pagination({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground" aria-live="polite">
         Page {page} of {totalPages}
       </p>
 

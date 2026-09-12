@@ -153,13 +153,16 @@ function ClientsPage() {
                 </TableCell>
                 {canWrite ? (
                   <TableCell>
-                    <Link
-                      to="/clients/$clientId/edit"
-                      params={{ clientId: client.id }}
-                      className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                    <Button
+                      asChild
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
                     >
-                      Edit
-                    </Link>
+                      <Link to="/clients/$clientId/edit" params={{ clientId: client.id }}>
+                        Edit
+                      </Link>
+                    </Button>
                   </TableCell>
                 ) : null}
               </TableRow>
@@ -255,7 +258,7 @@ function Pagination({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground" aria-live="polite">
         Page {page} of {totalPages}
       </p>
 

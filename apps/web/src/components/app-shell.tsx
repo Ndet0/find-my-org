@@ -66,6 +66,12 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
 
   return (
     <div className="flex min-h-svh flex-col bg-muted/40 md:flex-row">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+      >
+        Skip to content
+      </a>
       <aside className="flex shrink-0 flex-col border-b bg-sidebar md:w-60 md:border-r md:border-b-0">
         <div className="flex items-center justify-between gap-2 px-5 py-4 md:justify-start">
           <span className="font-semibold tracking-tight">OPSflow</span>
@@ -102,7 +108,9 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 p-6">{children}</main>
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 p-6 outline-none">
+        {children}
+      </main>
     </div>
   )
 }

@@ -346,6 +346,13 @@ function DeadlineRow({ task }: { task: TaskListItem }) {
         </View>
         <PriorityBadge priority={task.priority} />
         <Text
+          accessibilityLabel={
+            overdue
+              ? `Overdue, was due ${task.dueDate}`
+              : task.dueDate
+                ? `Due ${task.dueDate}`
+                : undefined
+          }
           className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500 dark:text-neutral-400'}`}
         >
           {task.dueDate ?? '—'}

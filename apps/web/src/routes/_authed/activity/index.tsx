@@ -286,7 +286,7 @@ function Pagination({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground" aria-live="polite">
         Page {page} of {totalPages}
       </p>
 

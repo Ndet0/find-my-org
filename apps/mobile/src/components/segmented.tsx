@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native'
 
-/** Two or three mutually exclusive views of the same list. */
+/** Two or three mutually exclusive choices: views of a list, or a setting. Read as a radio group. */
 export function Segmented<T extends string>({
   value,
   options,
@@ -11,15 +11,18 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <View className="flex-row rounded-lg bg-neutral-200 dark:bg-neutral-800 p-1">
+    <View
+      accessibilityRole="radiogroup"
+      className="flex-row rounded-lg bg-neutral-200 dark:bg-neutral-800 p-1"
+    >
       {options.map((option) => {
         const active = option.value === value
 
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: active, selected: active }}
             onPress={() => onChange(option.value)}
             className={`flex-1 items-center rounded-md py-1.5 ${active ? 'bg-white dark:bg-neutral-700' : ''}`}
           >

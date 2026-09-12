@@ -119,20 +119,22 @@ function DepartmentsPage() {
                 {canWrite ? (
                   <TableCell>
                     <div className="flex gap-3">
-                      <button
-                        type="button"
-                        className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-muted-foreground hover:text-foreground"
                         onClick={() => setEditing(department)}
                       >
                         Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="text-sm text-destructive hover:underline"
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-destructive"
                         onClick={() => setDeleting(department)}
                       >
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   </TableCell>
                 ) : null}
