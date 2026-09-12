@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { z } from 'zod'
 import { Button } from '@/components/button'
+import { Card } from '@/components/card'
 import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
 import { describeError } from '@/components/message'
@@ -69,7 +70,7 @@ export default function LoginScreen() {
           contentContainerClassName="flex-grow justify-center py-8"
           keyboardShouldPersistTaps="handled"
         >
-          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+          <Card padding="lg">
             <View className="gap-1">
               <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
                 Sign in to OPSflow
@@ -110,7 +111,7 @@ export default function LoginScreen() {
               disabled={signIn.isPending}
               onPress={submit}
             />
-          </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

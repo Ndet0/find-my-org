@@ -74,11 +74,13 @@ function ActivityPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
-        <p className="text-sm text-muted-foreground">
-          {`${activity.data.total} ${activity.data.total === 1 ? 'event' : 'events'}`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
+          <p className="text-sm text-muted-foreground">
+            {`${activity.data.total} ${activity.data.total === 1 ? 'event' : 'events'}`}
+          </p>
+        </div>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2">

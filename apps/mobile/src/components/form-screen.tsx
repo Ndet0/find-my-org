@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { Card } from '@/components/card'
 import { ErrorText } from '@/components/error-text'
 import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
@@ -37,7 +38,7 @@ export function FormScreen({
         className="flex-1"
       >
         <ScrollView contentContainerClassName="py-4 pb-10" keyboardShouldPersistTaps="handled">
-          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+          <Card padding="lg">
             <View className="gap-1">
               <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
                 {title}
@@ -61,7 +62,7 @@ export function FormScreen({
               />
               <Button title="Cancel" variant="ghost" disabled={pending} onPress={onCancel} />
             </View>
-          </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

@@ -4,7 +4,7 @@ import { useColorScheme } from 'nativewind'
 import { useState } from 'react'
 import { FlatList, Modal, Pressable, Text, View } from 'react-native'
 import { Button } from '@/components/button'
-import { ErrorText } from '@/components/error-text'
+import { controlBorder, FieldFrame } from '@/components/field'
 
 export type PickerOption = { value: string; label: string; hint?: string }
 
@@ -45,15 +45,14 @@ export function Picker({
   const rows: PickerOption[] = emptyLabel ? [{ value: '', label: emptyLabel }, ...options] : options
 
   return (
-    <View className="gap-1.5">
-      <Text className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{label}</Text>
+    <FieldFrame label={label} message={message}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ disabled: disabled ?? false, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen(true)}
-        className={`flex-row items-center justify-between rounded-lg border bg-white dark:bg-neutral-900 px-3 py-3 ${message ? 'border-tone-danger-foreground' : 'border-neutral-300 dark:border-neutral-700'} ${disabled ? 'opacity-50' : ''}`}
+        className={`flex-row items-center justify-between rounded-lg border bg-white dark:bg-neutral-900 px-3 py-3 ${controlBorder(Boolean(message))} ${disabled ? 'opacity-50' : ''}`}
       >
         <Text
           className={`flex-1 text-base ${selected ? 'text-neutral-900 dark:text-neutral-50' : 'text-neutral-400 dark:text-neutral-500'}`}
@@ -63,7 +62,6 @@ export function Picker({
         </Text>
         <Ionicons name="chevron-down" size={18} color={inkMuted} />
       </Pressable>
-      {message ? <ErrorText>{message}</ErrorText> : null}
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable
@@ -122,6 +120,6 @@ export function Picker({
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </FieldFrame>
   )
 }

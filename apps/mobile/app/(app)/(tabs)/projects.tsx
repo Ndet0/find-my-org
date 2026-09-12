@@ -1,8 +1,9 @@
 import type { ProjectListItem } from '@opsflow/types/project'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { PressableCard } from '@/components/card'
 import { describeError, Message } from '@/components/message'
 import { ProgressBar } from '@/components/progress-bar'
 import { Screen } from '@/components/screen'
@@ -94,10 +95,7 @@ function ProjectRow({ project }: { project: ProjectListItem }) {
 
   return (
     <Link href={{ pathname: '/projects/[projectId]', params: { projectId: project.id } }} asChild>
-      <Pressable
-        accessibilityRole="button"
-        className="gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
-      >
+      <PressableCard className="gap-2">
         <Text
           className="text-base font-medium text-neutral-900 dark:text-neutral-50"
           numberOfLines={2}
@@ -120,7 +118,7 @@ function ProjectRow({ project }: { project: ProjectListItem }) {
           ) : null}
         </View>
         <ProgressBar value={project.progress} />
-      </Pressable>
+      </PressableCard>
     </Link>
   )
 }

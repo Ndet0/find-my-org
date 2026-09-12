@@ -2099,8 +2099,32 @@ planning.
   as a `role="alert"` with Try again; after the API is back, Try again
   clears it. The pending threshold means a fast network never shows the
   skeleton, which is the point
-- [ ] The remaining Phase 14 items — typography and spacing review,
-  accessibility review
+- [x] Typography and spacing. The web's type scale was already one scale —
+  the page `h1` at `text-2xl`, the record card's title at `text-xl`,
+  sub-cards and feedback at `text-lg`, dashboard tiles at `text-base` — so
+  the review changed only the two pages that broke the pattern: departments
+  sat in `max-w-4xl` where every other list is `max-w-6xl`, and the
+  activity header was a bare `div` where every other page has the
+  `header` with an action slot. On mobile the card was the thing being
+  re-spelled: the form frame, the login and the two profile screens each
+  hand-rolled a `rounded-2xl p-6` panel beside `Card`'s `rounded-xl p-4`,
+  and five list rows re-spelled the card's classes to add a press state.
+  `Card` now takes `padding="lg"` for the form case at the same radius, and
+  `PressableCard` is the row that opens a record, with the press state and
+  the button role built in. `Field` and `Picker` shared a label-above,
+  message-below frame by copy; `FieldFrame` and `controlBorder` in
+  `field.tsx` are now the one copy. The unread dot on the notifications
+  list was stock `blue-600`, the last colour outside the palette on
+  mobile; it reads the info tone now. `rounded-2xl` no longer appears in
+  the app
+- [x] Verified: `pnpm lint`, web and mobile `typecheck`, web `build`;
+  through the mobile web build at 390×844 — a task row is the shared card
+  (12px radius, 16px padding, 8px gap, dark surface) and still links to
+  its record; the profile edit form is the same card at 24px padding and
+  gap; a field's frame keeps its 6px label gap and the input its 8px
+  radius and dark border. On the web, the activity page header now carries
+  the shared header classes
+- [ ] The remaining Phase 14 item — accessibility review
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the

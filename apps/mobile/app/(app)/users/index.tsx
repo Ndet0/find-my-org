@@ -4,8 +4,9 @@ import { toneLabel } from '@opsflow/ui/tones'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { PressableCard } from '@/components/card'
 import { ChipRow } from '@/components/filter-chip'
 import { describeError, Message } from '@/components/message'
 import { UserStatusBadge } from '@/components/status-badge'
@@ -109,10 +110,7 @@ export default function UsersScreen() {
 function UserRow({ user }: { user: UserListItem }) {
   return (
     <Link href={{ pathname: '/users/[userId]', params: { userId: user.id } }} asChild>
-      <Pressable
-        accessibilityRole="button"
-        className="gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
-      >
+      <PressableCard className="gap-2">
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-0.5">
             <Text
@@ -130,7 +128,7 @@ function UserRow({ user }: { user: UserListItem }) {
         <Text className="text-xs text-neutral-500 dark:text-neutral-400">
           {toneLabel(user.role.name)} · {user.department?.name ?? 'Unassigned'}
         </Text>
-      </Pressable>
+      </PressableCard>
     </Link>
   )
 }

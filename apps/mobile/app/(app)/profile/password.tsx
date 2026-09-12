@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { z } from 'zod'
 import { Button } from '@/components/button'
+import { Card } from '@/components/card'
 import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
 import { describeError } from '@/components/message'
@@ -93,7 +94,7 @@ export default function ChangePasswordScreen() {
         className="flex-1"
       >
         <ScrollView contentContainerClassName="py-4 pb-10" keyboardShouldPersistTaps="handled">
-          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+          <Card padding="lg">
             {change.isSuccess ? (
               <>
                 <View className="gap-1">
@@ -166,7 +167,7 @@ export default function ChangePasswordScreen() {
                 </View>
               </>
             )}
-          </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

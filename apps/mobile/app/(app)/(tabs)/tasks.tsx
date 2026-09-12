@@ -2,8 +2,9 @@ import type { TaskListItem } from '@opsflow/types/task'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
+import { PressableCard } from '@/components/card'
 import { describeError, Message } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { Segmented } from '@/components/segmented'
@@ -112,10 +113,7 @@ function TaskRow({ task, showAssignee }: { task: TaskListItem; showAssignee: boo
 
   return (
     <Link href={{ pathname: '/tasks/[taskId]', params: { taskId: task.id } }} asChild>
-      <Pressable
-        accessibilityRole="button"
-        className="gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
-      >
+      <PressableCard className="gap-2">
         <Text
           className="text-base font-medium text-neutral-900 dark:text-neutral-50"
           numberOfLines={2}
@@ -137,7 +135,7 @@ function TaskRow({ task, showAssignee }: { task: TaskListItem; showAssignee: boo
             </Text>
           ) : null}
         </View>
-      </Pressable>
+      </PressableCard>
     </Link>
   )
 }

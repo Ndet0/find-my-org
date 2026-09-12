@@ -9,7 +9,8 @@ import { toneLabel } from '@opsflow/ui/tones'
 import { useQuery } from '@tanstack/react-query'
 import { type Href, Link } from 'expo-router'
 import { useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native'
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
+import { PressableCard } from '@/components/card'
 import { ChipRow } from '@/components/filter-chip'
 import { describeError, Message } from '@/components/message'
 import { Badge } from '@/components/status-badge'
@@ -177,12 +178,7 @@ function ActivityRow({ item, to }: { item: ActivityListItem; to: Href | null }) 
 
   return (
     <Link href={to} asChild>
-      <Pressable
-        accessibilityRole="button"
-        className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
-      >
-        {card}
-      </Pressable>
+      <PressableCard>{card}</PressableCard>
     </Link>
   )
 }

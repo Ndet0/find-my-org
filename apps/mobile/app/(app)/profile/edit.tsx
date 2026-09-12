@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
 import { z } from 'zod'
 import { Button } from '@/components/button'
+import { Card } from '@/components/card'
 import { ErrorText } from '@/components/error-text'
 import { Field } from '@/components/field'
 import { describeError } from '@/components/message'
@@ -64,7 +65,7 @@ export default function EditProfileScreen() {
         className="flex-1"
       >
         <ScrollView contentContainerClassName="py-4" keyboardShouldPersistTaps="handled">
-          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+          <Card padding="lg">
             <View className="gap-1">
               <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
                 Your details
@@ -111,7 +112,7 @@ export default function EditProfileScreen() {
                 onPress={() => router.back()}
               />
             </View>
-          </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

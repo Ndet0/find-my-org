@@ -136,7 +136,9 @@ function NotificationRow({
       className={`gap-1 rounded-xl border p-4 ${item.isRead ? 'border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950' : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 active:bg-neutral-50 dark:active:bg-neutral-800'}`}
     >
       <View className="flex-row items-start gap-2">
-        {item.isRead ? null : <View className="mt-1.5 h-2 w-2 rounded-full bg-blue-600" />}
+        {item.isRead ? null : (
+          <View className="mt-1.5 h-2 w-2 rounded-full bg-tone-info-foreground dark:bg-tone-info-dark-foreground" />
+        )}
         <Text
           className={`flex-1 text-base ${item.isRead ? 'text-neutral-700 dark:text-neutral-300' : 'font-semibold text-neutral-900 dark:text-neutral-50'}`}
         >
