@@ -64,10 +64,12 @@ export default function EditProfileScreen() {
         className="flex-1"
       >
         <ScrollView contentContainerClassName="py-4" keyboardShouldPersistTaps="handled">
-          <View className="gap-6 rounded-2xl border border-neutral-200 bg-white p-6">
+          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
             <View className="gap-1">
-              <Text className="text-xl font-semibold text-neutral-900">Your details</Text>
-              <Text className="text-sm text-neutral-500">
+              <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+                Your details
+              </Text>
+              <Text className="text-sm text-neutral-500 dark:text-neutral-400">
                 Email, role, department and position are managed by an administrator.
               </Text>
             </View>

@@ -26,7 +26,7 @@ export default function ClientDetailScreen() {
 
   if (client.isPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-neutral-100">
+      <View className="flex-1 items-center justify-center bg-neutral-100 dark:bg-neutral-950">
         <ActivityIndicator size="large" />
       </View>
     )
@@ -34,7 +34,7 @@ export default function ClientDetailScreen() {
 
   if (client.isError) {
     return (
-      <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
         <Message
           title="Client unavailable"
           body={describeError(client.error)}
@@ -47,12 +47,19 @@ export default function ClientDetailScreen() {
   const { data } = client
 
   return (
-    <ScrollView className="flex-1 bg-neutral-100" contentContainerClassName="gap-4 p-4 pb-10">
+    <ScrollView
+      className="flex-1 bg-neutral-100 dark:bg-neutral-950"
+      contentContainerClassName="gap-4 p-4 pb-10"
+    >
       <Card>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-1">
-            <Text className="text-xl font-semibold text-neutral-900">{data.name}</Text>
-            <Text className="text-sm text-neutral-500">{data.company ?? 'No company'}</Text>
+            <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              {data.name}
+            </Text>
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              {data.company ?? 'No company'}
+            </Text>
           </View>
           {canWrite ? (
             <Button
@@ -79,12 +86,16 @@ export default function ClientDetailScreen() {
         <DetailRow label="Projects" value={String(data.projectCount)} />
         <DetailRow label="Added" value={data.createdAt.slice(0, 10)} />
         <View className="gap-1">
-          <Text className="text-sm text-neutral-500">Address</Text>
-          <Text className="text-sm text-neutral-900">{data.address ?? 'Not provided'}</Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">Address</Text>
+          <Text className="text-sm text-neutral-900 dark:text-neutral-50">
+            {data.address ?? 'Not provided'}
+          </Text>
         </View>
         <View className="gap-1">
-          <Text className="text-sm text-neutral-500">Notes</Text>
-          <Text className="text-sm text-neutral-900">{data.notes ?? 'None'}</Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">Notes</Text>
+          <Text className="text-sm text-neutral-900 dark:text-neutral-50">
+            {data.notes ?? 'None'}
+          </Text>
         </View>
       </Card>
 
@@ -137,7 +148,9 @@ function StatusControl({
 
   return (
     <Card>
-      <Text className="text-sm font-medium text-neutral-800">Change status</Text>
+      <Text className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+        Change status
+      </Text>
       {next ? (
         <InlineConfirm
           message={

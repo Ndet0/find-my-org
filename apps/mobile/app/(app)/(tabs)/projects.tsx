@@ -32,8 +32,10 @@ export default function ProjectsScreen() {
     <Screen>
       <View className="flex-row items-start justify-between gap-3 py-4">
         <View className="flex-1 gap-1">
-          <Text className="text-2xl font-semibold text-neutral-900">Projects</Text>
-          <Text className="text-sm text-neutral-500">
+          <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+            Projects
+          </Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             {projects.data
               ? projects.data.total > projects.data.items.length
                 ? `Showing ${projects.data.items.length} of ${projects.data.total} projects`
@@ -94,12 +96,15 @@ function ProjectRow({ project }: { project: ProjectListItem }) {
     <Link href={{ pathname: '/projects/[projectId]', params: { projectId: project.id } }} asChild>
       <Pressable
         accessibilityRole="button"
-        className="gap-2 rounded-xl border border-neutral-200 bg-white p-4 active:bg-neutral-50"
+        className="gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
       >
-        <Text className="text-base font-medium text-neutral-900" numberOfLines={2}>
+        <Text
+          className="text-base font-medium text-neutral-900 dark:text-neutral-50"
+          numberOfLines={2}
+        >
           {project.name}
         </Text>
-        <Text className="text-sm text-neutral-500" numberOfLines={1}>
+        <Text className="text-sm text-neutral-500 dark:text-neutral-400" numberOfLines={1}>
           {project.client?.name ?? 'No client'}
           {project.manager ? ` · ${project.manager.name}` : ''}
         </Text>
@@ -108,7 +113,7 @@ function ProjectRow({ project }: { project: ProjectListItem }) {
           <PriorityBadge priority={project.priority} />
           {project.deadline ? (
             <Text
-              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}
+              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500 dark:text-neutral-400'}`}
             >
               {overdue ? `Overdue · ${project.deadline}` : `Due ${project.deadline}`}
             </Text>

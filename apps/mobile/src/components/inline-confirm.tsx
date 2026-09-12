@@ -27,7 +27,7 @@ export function InlineConfirm({
 }) {
   return (
     <View className="gap-3">
-      <Text className="text-sm text-neutral-700">{message}</Text>
+      <Text className="text-sm text-neutral-700 dark:text-neutral-300">{message}</Text>
       {error ? <ErrorText>{describeError(error)}</ErrorText> : null}
       <View className="flex-row gap-2">
         <Button

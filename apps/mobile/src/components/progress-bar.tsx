@@ -9,10 +9,15 @@ export function ProgressBar({ value }: { value: number }) {
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: clamped }}
     >
-      <View className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-200">
-        <View className="h-full rounded-full bg-neutral-900" style={{ width: `${clamped}%` }} />
+      <View className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+        <View
+          className="h-full rounded-full bg-neutral-900 dark:bg-neutral-50"
+          style={{ width: `${clamped}%` }}
+        />
       </View>
-      <Text className="w-10 text-right text-xs text-neutral-500">{clamped}%</Text>
+      <Text className="w-10 text-right text-xs text-neutral-500 dark:text-neutral-400">
+        {clamped}%
+      </Text>
     </View>
   )
 }

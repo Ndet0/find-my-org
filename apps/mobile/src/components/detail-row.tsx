@@ -14,9 +14,9 @@ export function DetailRow({
 }) {
   return (
     <View className="flex-row justify-between gap-4">
-      <Text className="text-sm text-neutral-500">{label}</Text>
+      <Text className="text-sm text-neutral-500 dark:text-neutral-400">{label}</Text>
       <Text
-        className={`flex-1 text-right text-sm ${tone === 'alert' ? 'text-tone-danger-foreground' : 'text-neutral-900'} ${capitalize ? 'capitalize' : ''}`}
+        className={`flex-1 text-right text-sm ${tone === 'alert' ? 'text-tone-danger-foreground' : 'text-neutral-900 dark:text-neutral-50'} ${capitalize ? 'capitalize' : ''}`}
       >
         {value}
       </Text>

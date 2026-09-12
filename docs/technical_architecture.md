@@ -788,7 +788,16 @@ How each side consumes it:
   which the mobile badge uses behind a `dark:` variant: NativeWind has no
   cascade to override a variable with, so the dark pair is a class there.
   Components that need a colour outside a class name (`SafeAreaView`, icon
-  tints, placeholder text) read `@opsflow/ui/colors`. `app.config.js` overrides the two colours in
+  tints, placeholder text) read `@opsflow/ui/colors` against NativeWind's
+  `useColorScheme()`. Every light surface and ink class carries its `dark:`
+  pairing in place — `bg-white dark:bg-neutral-900`, `text-neutral-500
+  dark:text-neutral-400` and so on — because NativeWind has no cascade to
+  override a variable with; the pairing table is fixed and small (canvas 100 ↔
+  950, surface white ↔ 900, borders 200 ↔ 800 and 300 ↔ 700, ink 900 ↔ 50 and
+  the muted steps one shade lighter). The navigators' own chrome — stack
+  headers, the tab bar, the scene behind a transition — is themed through
+  Expo Router's `ThemeProvider` from `src/lib/navigation-theme.ts`, which puts
+  the same palette steps behind it. `app.config.js` overrides the two colours in
   `app.json` that the launcher and splash screen paint, and
   `scripts/make-assets.mjs` draws the icon set in the same ink.
 - **Tone → class names** live in each app's own badge component, spelled out.
@@ -1764,6 +1773,8 @@ than only the outcome.
 | Mobile styling is NativeWind 4 on Tailwind CSS 3, while the web stays on Tailwind 4 | NativeWind 5, the Tailwind 4 line, is still a preview. The two apps do not share a stylesheet, so the versions can differ; `apps/mobile` declares its own `tailwindcss@3` |
 | `react-native-css-interop` is a direct dependency of `apps/mobile` | NativeWind's Babel plugin rewrites JSX to that package's runtime, which pnpm's isolated layout only exposes to NativeWind itself |
 | Tailwind `darkMode: 'class'` in the mobile config | NativeWind on web throws at startup if anything sets the colour scheme while dark mode is the `media` strategy; Expo Router does |
+| Dark tone values live in `palette.json`, emitted as a `.dark` block by the token generator | One source of truth for both schemes. The web recolours its tone variables under the class; mobile reads the same pair as `bg-tone-*-dark` behind a `dark:` variant, since NativeWind cannot override a variable through a cascade |
+| The theme preference (light / dark / system) is stored per client — `localStorage` on the web, SecureStore on the phone — under one key, `opsflow.theme` | Each client already has exactly one storage; the shared key and union mean the same three words on both. `system` stores nothing, so a user who never touches the control follows their device. On the web build of the mobile app, `system` is resolved by the app itself from `prefers-color-scheme`, because NativeWind's class strategy on web does not consult the OS |
 | Better Auth Expo plugin; the app is trusted by its URL scheme | A native app has no HTTP origin. The plugin keeps the session cookie in SecureStore and presents `opsflow://` as the origin; the API lists it as trusted. Expo Go's `exp://` and the web dev server are trusted outside production only |
 | Mobile attaches the session cookie by hand with `credentials: 'omit'` | There is no cookie jar on a device. `authClient.getCookie()` returns what SecureStore holds; on the web build the browser's jar is used, as in `apps/web` |
 | `/api/me` resolves to `null` on 401 in the mobile client | The root layout switches between the login and app stacks on that value, so signed-out is a state rather than an error. Any other query's 401 sets it to null, which drops an expired session to login from any screen |

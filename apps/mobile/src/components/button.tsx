@@ -4,17 +4,18 @@ type Variant = 'primary' | 'outline' | 'destructive' | 'ghost'
 type Size = 'md' | 'sm'
 
 const container: Record<Variant, string> = {
-  primary: 'bg-neutral-900 active:bg-neutral-700',
-  outline: 'border border-neutral-300 bg-white active:bg-neutral-100',
+  primary: 'bg-neutral-900 dark:bg-neutral-50 active:bg-neutral-700 dark:active:bg-neutral-300',
+  outline:
+    'border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 active:bg-neutral-100 dark:active:bg-neutral-800',
   destructive: 'bg-tone-danger-strong active:opacity-90',
-  ghost: 'active:bg-neutral-100',
+  ghost: 'active:bg-neutral-100 dark:active:bg-neutral-800',
 }
 
 const label: Record<Variant, string> = {
-  primary: 'text-white',
-  outline: 'text-neutral-900',
+  primary: 'text-white dark:text-neutral-900',
+  outline: 'text-neutral-900 dark:text-neutral-50',
   destructive: 'text-white',
-  ghost: 'text-neutral-700',
+  ghost: 'text-neutral-700 dark:text-neutral-300',
 }
 
 const padding: Record<Size, string> = {

@@ -58,7 +58,7 @@ export default function ProjectDetailScreen() {
 
   if (project.isPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-neutral-100">
+      <View className="flex-1 items-center justify-center bg-neutral-100 dark:bg-neutral-950">
         <ActivityIndicator size="large" />
       </View>
     )
@@ -66,7 +66,7 @@ export default function ProjectDetailScreen() {
 
   if (project.isError) {
     return (
-      <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
         <Message
           title="Project unavailable"
           body={describeError(project.error)}
@@ -82,7 +82,7 @@ export default function ProjectDetailScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-neutral-100"
+      className="flex-1 bg-neutral-100 dark:bg-neutral-950"
       contentContainerClassName="gap-4 p-4 pb-10"
       refreshControl={
         <RefreshControl
@@ -97,8 +97,12 @@ export default function ProjectDetailScreen() {
       <Card>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-1">
-            <Text className="text-xl font-semibold text-neutral-900">{data.name}</Text>
-            <Text className="text-sm text-neutral-500">{data.client?.name ?? 'No client'}</Text>
+            <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              {data.name}
+            </Text>
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              {data.client?.name ?? 'No client'}
+            </Text>
           </View>
           {canWrite ? (
             <Button
@@ -138,8 +142,10 @@ export default function ProjectDetailScreen() {
         <DetailRow label="Tasks" value={String(data.taskCount)} />
         <DetailRow label="Created" value={data.createdAt.slice(0, 10)} />
         <View className="gap-1">
-          <Text className="text-sm text-neutral-500">Description</Text>
-          <Text className="text-sm text-neutral-900">{data.description ?? 'None'}</Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">Description</Text>
+          <Text className="text-sm text-neutral-900 dark:text-neutral-50">
+            {data.description ?? 'None'}
+          </Text>
         </View>
       </Card>
 
@@ -155,11 +161,11 @@ export default function ProjectDetailScreen() {
       <Card>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-0.5">
-            <Text className="text-base font-semibold text-neutral-900">
+            <Text className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
               {employee ? 'Your tasks on this project' : 'Tasks'}
             </Text>
             {tasks.data ? (
-              <Text className="text-xs text-neutral-500">
+              <Text className="text-xs text-neutral-500 dark:text-neutral-400">
                 {tasks.data.total} {tasks.data.total === 1 ? 'task' : 'tasks'}
                 {employee ? ' assigned to you' : ''}
               </Text>
@@ -181,7 +187,7 @@ export default function ProjectDetailScreen() {
         ) : tasks.isError ? (
           <ErrorText>{describeError(tasks.error)}</ErrorText>
         ) : tasks.data.items.length === 0 ? (
-          <Text className="text-sm text-neutral-500">
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             {employee ? 'Nothing on this project is assigned to you.' : 'No tasks yet.'}
           </Text>
         ) : (
@@ -219,7 +225,9 @@ function StatusControl({
 
   return (
     <Card>
-      <Text className="text-sm font-medium text-neutral-800">Change status</Text>
+      <Text className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+        Change status
+      </Text>
       {next ? (
         <InlineConfirm
           message={`Mark ${name} as ${projectStatusLabel(next).toLowerCase()}?`}
@@ -248,7 +256,7 @@ function StatusControl({
           ) : (
             // `cancelled` is the one terminal status. Say so, rather than
             // leaving the row where the controls were silently empty.
-            <Text className="text-sm text-neutral-500">
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
               A cancelled project cannot be reopened. Its team and history stay in place.
             </Text>
           )}
@@ -324,20 +332,28 @@ function TeamCard({ project, canWrite }: { project: ProjectDetail; canWrite: boo
 
   return (
     <Card>
-      <Text className="text-base font-semibold text-neutral-900">Team</Text>
+      <Text className="text-base font-semibold text-neutral-900 dark:text-neutral-50">Team</Text>
       {!project.manager && members.length === 0 ? (
-        <Text className="text-sm text-neutral-500">Nobody has been assigned yet.</Text>
+        <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+          Nobody has been assigned yet.
+        </Text>
       ) : (
         <View className="gap-2">
           {project.manager ? (
             <View className="flex-row items-center justify-between gap-3">
-              <Text className="flex-1 text-sm text-neutral-900">{project.manager.name}</Text>
-              <Text className="text-xs font-medium text-neutral-500">Manager</Text>
+              <Text className="flex-1 text-sm text-neutral-900 dark:text-neutral-50">
+                {project.manager.name}
+              </Text>
+              <Text className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                Manager
+              </Text>
             </View>
           ) : null}
           {members.map((member) => (
             <View key={member.id} className="flex-row items-center justify-between gap-3">
-              <Text className="flex-1 text-sm text-neutral-900">{member.user.name}</Text>
+              <Text className="flex-1 text-sm text-neutral-900 dark:text-neutral-50">
+                {member.user.name}
+              </Text>
               {canWrite ? (
                 <Button
                   title="Remove"
@@ -353,7 +369,7 @@ function TeamCard({ project, canWrite }: { project: ProjectDetail; canWrite: boo
       )}
 
       {canWrite ? (
-        <View className="gap-2 border-t border-neutral-200 pt-3">
+        <View className="gap-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
           <Picker
             label="Add a member"
             value={selected}
@@ -384,17 +400,22 @@ function TaskRow({ task }: { task: TaskListItem }) {
     <Link href={{ pathname: '/tasks/[taskId]', params: { taskId: task.id } }} asChild>
       <Pressable accessibilityRole="button" className="gap-1.5 active:opacity-70">
         <View className="flex-row items-center justify-between gap-3">
-          <Text className="flex-1 text-sm font-medium text-neutral-900" numberOfLines={1}>
+          <Text
+            className="flex-1 text-sm font-medium text-neutral-900 dark:text-neutral-50"
+            numberOfLines={1}
+          >
             {task.title}
           </Text>
           <StatusBadge status={task.status} />
         </View>
         <View className="flex-row flex-wrap items-center gap-2">
-          <Text className="text-xs text-neutral-500">{task.assignee?.name ?? 'Unassigned'}</Text>
+          <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+            {task.assignee?.name ?? 'Unassigned'}
+          </Text>
           <PriorityBadge priority={task.priority} />
           {task.dueDate ? (
             <Text
-              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}
+              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500 dark:text-neutral-400'}`}
             >
               {overdue ? `Overdue · ${task.dueDate}` : `Due ${task.dueDate}`}
             </Text>

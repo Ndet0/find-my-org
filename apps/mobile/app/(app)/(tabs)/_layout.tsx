@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons'
-import { colors } from '@opsflow/ui/colors'
 import { useQuery } from '@tanstack/react-query'
 import { Tabs } from 'expo-router'
 import { unreadCountQueryOptions } from '@/lib/notifications'
@@ -8,13 +7,14 @@ import { unreadCountQueryOptions } from '@/lib/notifications'
  * The five mobile priorities from product §30 — dashboard, tasks, projects,
  * notifications, profile — as tabs. The inbox badge is the same polled
  * count the web nav shows; it disappears at zero rather than showing "0".
+ * The tab bar's colours come from the navigation theme (`lib/navigation-theme.ts`).
  */
 export default function TabsLayout() {
   const unread = useQuery(unreadCountQueryOptions())
   const badge = unread.data && unread.data.count > 0 ? unread.data.count : undefined
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.neutral[900] }}>
+    <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen
         name="index"
         options={{

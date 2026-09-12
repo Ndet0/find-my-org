@@ -45,7 +45,7 @@ export default function DepartmentsScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-neutral-100"
+      className="flex-1 bg-neutral-100 dark:bg-neutral-950"
     >
       <ScrollView
         contentContainerClassName="gap-3 px-4 py-4 pb-10"
@@ -59,8 +59,10 @@ export default function DepartmentsScreen() {
       >
         <View className="flex-row items-start justify-between gap-3 pb-1">
           <View className="flex-1 gap-1">
-            <Text className="text-2xl font-semibold text-neutral-900">Departments</Text>
-            <Text className="text-sm text-neutral-500">
+            <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+              Departments
+            </Text>
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
               {departments.data
                 ? `${departments.data.length} ${departments.data.length === 1 ? 'department' : 'departments'}`
                 : 'A label on people, not a permission boundary'}
@@ -115,10 +117,14 @@ function DepartmentRow({
     <Card>
       <View className="flex-row items-start justify-between gap-3">
         <View className="flex-1 gap-0.5">
-          <Text className="text-base font-medium text-neutral-900">{department.name}</Text>
-          <Text className="text-sm text-neutral-500">{department.description ?? '—'}</Text>
+          <Text className="text-base font-medium text-neutral-900 dark:text-neutral-50">
+            {department.name}
+          </Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+            {department.description ?? '—'}
+          </Text>
         </View>
-        <Text className="text-xs text-neutral-500">
+        <Text className="text-xs text-neutral-500 dark:text-neutral-400">
           {department.memberCount} {department.memberCount === 1 ? 'member' : 'members'}
         </Text>
       </View>
@@ -181,7 +187,7 @@ function DepartmentForm({
 
   return (
     <Card>
-      <Text className="text-base font-semibold text-neutral-900">
+      <Text className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
         {isEdit ? `Edit ${department.name}` : 'Add a department'}
       </Text>
       <Field label="Name" value={name} onChangeText={setName} errors={errors.name} />
@@ -238,7 +244,7 @@ function DeleteControl({
   if (department.memberCount > 0) {
     return (
       <View className="gap-2">
-        <Text className="text-sm text-neutral-700">
+        <Text className="text-sm text-neutral-700 dark:text-neutral-300">
           {`This department still has ${department.memberCount} ${department.memberCount === 1 ? 'member' : 'members'}. Reassign them on the web before deleting it.`}
         </Text>
         <Button title="Close" variant="outline" size="sm" onPress={onDone} />

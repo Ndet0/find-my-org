@@ -11,7 +11,7 @@ export default function EditTaskScreen() {
 
   if (task.isPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-neutral-100">
+      <View className="flex-1 items-center justify-center bg-neutral-100 dark:bg-neutral-950">
         <ActivityIndicator size="large" />
       </View>
     )
@@ -19,7 +19,7 @@ export default function EditTaskScreen() {
 
   if (task.isError) {
     return (
-      <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
         <Message
           title="Task unavailable"
           body={describeError(task.error)}

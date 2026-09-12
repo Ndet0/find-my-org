@@ -11,7 +11,7 @@ export default function EditUserScreen() {
 
   if (user.isPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-neutral-100">
+      <View className="flex-1 items-center justify-center bg-neutral-100 dark:bg-neutral-950">
         <ActivityIndicator size="large" />
       </View>
     )
@@ -19,7 +19,7 @@ export default function EditUserScreen() {
 
   if (user.isError) {
     return (
-      <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
         <Message
           title="Person unavailable"
           body={describeError(user.error)}

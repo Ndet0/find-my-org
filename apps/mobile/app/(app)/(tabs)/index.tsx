@@ -7,6 +7,7 @@ import type { TaskListItem } from '@opsflow/types/task'
 import { colors } from '@opsflow/ui/colors'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { type Href, Link } from 'expo-router'
+import { useColorScheme } from 'nativewind'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { Card } from '@/components/card'
@@ -62,8 +63,10 @@ export default function DashboardScreen() {
         }
       >
         <View className="gap-1">
-          <Text className="text-2xl font-semibold text-neutral-900">Welcome back, {user.name}</Text>
-          <Text className="text-sm text-neutral-500">
+          <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+            Welcome back, {user.name}
+          </Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             {role === 'admin'
               ? 'Organization overview'
               : role === 'manager'
@@ -223,15 +226,18 @@ function KpiGrid({ kpis }: { kpis: Kpi[] }) {
 function KpiCard({ label, value, sub, alert, to }: Kpi) {
   const body = (
     <Card className="flex-1 gap-1">
-      <Text className="text-xs font-medium text-neutral-500" numberOfLines={1}>
+      <Text
+        className="text-xs font-medium text-neutral-500 dark:text-neutral-400"
+        numberOfLines={1}
+      >
         {label}
       </Text>
       <Text
-        className={`text-2xl font-semibold ${alert && value !== undefined && value > 0 ? 'text-tone-danger-foreground' : 'text-neutral-900'}`}
+        className={`text-2xl font-semibold ${alert && value !== undefined && value > 0 ? 'text-tone-danger-foreground' : 'text-neutral-900 dark:text-neutral-50'}`}
       >
         {value ?? '—'}
       </Text>
-      {sub ? <Text className="text-xs text-neutral-500">{sub}</Text> : null}
+      {sub ? <Text className="text-xs text-neutral-500 dark:text-neutral-400">{sub}</Text> : null}
     </Card>
   )
 
@@ -249,13 +255,17 @@ function KpiCard({ label, value, sub, alert, to }: Kpi) {
 }
 
 function InboxCard({ count }: { count: number | undefined }) {
+  const { colorScheme } = useColorScheme()
+
   return (
     <Link href="/notifications" asChild>
       <Pressable accessibilityRole="button" className="active:opacity-70">
         <Card className="flex-row items-center justify-between">
           <View className="gap-0.5">
-            <Text className="text-base font-semibold text-neutral-900">Inbox</Text>
-            <Text className="text-sm text-neutral-500">
+            <Text className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
+              Inbox
+            </Text>
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
               {count === undefined
                 ? 'Loading…'
                 : count === 0
@@ -263,7 +273,11 @@ function InboxCard({ count }: { count: number | undefined }) {
                   : `${count} unread ${count === 1 ? 'notification' : 'notifications'}`}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.neutral[500]} />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colorScheme === 'dark' ? colors.neutral[400] : colors.neutral[500]}
+          />
         </Card>
       </Pressable>
     </Link>
@@ -288,10 +302,12 @@ function FeedCard<T>({
   return (
     <Card>
       <View className="flex-row items-center justify-between">
-        <Text className="text-base font-semibold text-neutral-900">{title}</Text>
+        <Text className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
+          {title}
+        </Text>
         <Link href={to} asChild>
           <Pressable accessibilityRole="link" hitSlop={8}>
-            <Text className="text-sm text-neutral-600">{linkLabel}</Text>
+            <Text className="text-sm text-neutral-600 dark:text-neutral-400">{linkLabel}</Text>
           </Pressable>
         </Link>
       </View>
@@ -300,7 +316,7 @@ function FeedCard<T>({
       ) : query.isError ? (
         <ErrorText>{describeError(query.error)}</ErrorText>
       ) : query.data.items.length === 0 ? (
-        <Text className="text-sm text-neutral-500">{empty}</Text>
+        <Text className="text-sm text-neutral-500 dark:text-neutral-400">{empty}</Text>
       ) : (
         <View className="gap-3">{children(query.data.items)}</View>
       )}
@@ -318,15 +334,20 @@ function DeadlineRow({ task }: { task: TaskListItem }) {
         className="flex-row items-center gap-3 active:opacity-70"
       >
         <View className="flex-1 gap-0.5">
-          <Text className="text-sm font-medium text-neutral-900" numberOfLines={1}>
+          <Text
+            className="text-sm font-medium text-neutral-900 dark:text-neutral-50"
+            numberOfLines={1}
+          >
             {task.title}
           </Text>
-          <Text className="text-xs text-neutral-500" numberOfLines={1}>
+          <Text className="text-xs text-neutral-500 dark:text-neutral-400" numberOfLines={1}>
             {task.project.name}
           </Text>
         </View>
         <PriorityBadge priority={task.priority} />
-        <Text className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}>
+        <Text
+          className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500 dark:text-neutral-400'}`}
+        >
           {task.dueDate ?? '—'}
         </Text>
       </Pressable>
@@ -339,7 +360,10 @@ function ProjectRow({ project }: { project: ProjectListItem }) {
     <Link href={{ pathname: '/projects/[projectId]', params: { projectId: project.id } }} asChild>
       <Pressable accessibilityRole="button" className="gap-1.5 active:opacity-70">
         <View className="flex-row items-center justify-between gap-3">
-          <Text className="flex-1 text-sm font-medium text-neutral-900" numberOfLines={1}>
+          <Text
+            className="flex-1 text-sm font-medium text-neutral-900 dark:text-neutral-50"
+            numberOfLines={1}
+          >
             {project.name}
           </Text>
           <ProjectStatusBadge status={project.status} />

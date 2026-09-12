@@ -37,10 +37,16 @@ export function FormScreen({
         className="flex-1"
       >
         <ScrollView contentContainerClassName="py-4 pb-10" keyboardShouldPersistTaps="handled">
-          <View className="gap-6 rounded-2xl border border-neutral-200 bg-white p-6">
+          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
             <View className="gap-1">
-              <Text className="text-xl font-semibold text-neutral-900">{title}</Text>
-              {description ? <Text className="text-sm text-neutral-500">{description}</Text> : null}
+              <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+                {title}
+              </Text>
+              {description ? (
+                <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+                  {description}
+                </Text>
+              ) : null}
             </View>
 
             <View className="gap-4">{children}</View>

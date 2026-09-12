@@ -17,14 +17,34 @@ import { Text, View } from 'react-native'
  * Tone → classes stays here, spelled out, because Tailwind only scans this
  * app's sources: a class assembled from a string in `@opsflow/ui` would
  * never be generated. The tone tables themselves are shared with the web.
+ * The web recolours its tone variables under `.dark`; NativeWind has no
+ * cascade to override a variable with, so here the dark pair is a class.
  */
 const TONE_CLASSES: Record<Tone, { background: string; text: string }> = {
-  muted: { background: 'bg-tone-muted', text: 'text-tone-muted-foreground' },
-  neutral: { background: 'bg-tone-neutral', text: 'text-tone-neutral-foreground' },
-  info: { background: 'bg-tone-info', text: 'text-tone-info-foreground' },
-  success: { background: 'bg-tone-success', text: 'text-tone-success-foreground' },
-  warning: { background: 'bg-tone-warning', text: 'text-tone-warning-foreground' },
-  danger: { background: 'bg-tone-danger', text: 'text-tone-danger-foreground' },
+  muted: {
+    background: 'bg-tone-muted dark:bg-tone-muted-dark',
+    text: 'text-tone-muted-foreground dark:text-tone-muted-dark-foreground',
+  },
+  neutral: {
+    background: 'bg-tone-neutral dark:bg-tone-neutral-dark',
+    text: 'text-tone-neutral-foreground dark:text-tone-neutral-dark-foreground',
+  },
+  info: {
+    background: 'bg-tone-info dark:bg-tone-info-dark',
+    text: 'text-tone-info-foreground dark:text-tone-info-dark-foreground',
+  },
+  success: {
+    background: 'bg-tone-success dark:bg-tone-success-dark',
+    text: 'text-tone-success-foreground dark:text-tone-success-dark-foreground',
+  },
+  warning: {
+    background: 'bg-tone-warning dark:bg-tone-warning-dark',
+    text: 'text-tone-warning-foreground dark:text-tone-warning-dark-foreground',
+  },
+  danger: {
+    background: 'bg-tone-danger dark:bg-tone-danger-dark',
+    text: 'text-tone-danger-foreground dark:text-tone-danger-dark-foreground',
+  },
 }
 
 /** The shared pill. Exported for labels that are not a status, like an activity action. */

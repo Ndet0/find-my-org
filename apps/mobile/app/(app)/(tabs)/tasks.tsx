@@ -43,10 +43,10 @@ export default function TasksScreen() {
     <Screen>
       <View className="flex-row items-start justify-between gap-3 py-4">
         <View className="flex-1 gap-1">
-          <Text className="text-2xl font-semibold text-neutral-900">
+          <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
             {mine ? 'My tasks' : 'All tasks'}
           </Text>
-          <Text className="text-sm text-neutral-500">
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             {total === undefined
               ? mine
                 ? 'Work assigned to you, soonest due first'
@@ -114,12 +114,15 @@ function TaskRow({ task, showAssignee }: { task: TaskListItem; showAssignee: boo
     <Link href={{ pathname: '/tasks/[taskId]', params: { taskId: task.id } }} asChild>
       <Pressable
         accessibilityRole="button"
-        className="gap-2 rounded-xl border border-neutral-200 bg-white p-4 active:bg-neutral-50"
+        className="gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
       >
-        <Text className="text-base font-medium text-neutral-900" numberOfLines={2}>
+        <Text
+          className="text-base font-medium text-neutral-900 dark:text-neutral-50"
+          numberOfLines={2}
+        >
           {task.title}
         </Text>
-        <Text className="text-sm text-neutral-500" numberOfLines={1}>
+        <Text className="text-sm text-neutral-500 dark:text-neutral-400" numberOfLines={1}>
           {task.project.name}
           {showAssignee ? ` · ${task.assignee?.name ?? 'Unassigned'}` : ''}
         </Text>
@@ -128,7 +131,7 @@ function TaskRow({ task, showAssignee }: { task: TaskListItem; showAssignee: boo
           <PriorityBadge priority={task.priority} />
           {task.dueDate ? (
             <Text
-              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500'}`}
+              className={`text-xs ${overdue ? 'text-tone-danger-foreground' : 'text-neutral-500 dark:text-neutral-400'}`}
             >
               {overdue ? `Overdue · ${task.dueDate}` : `Due ${task.dueDate}`}
             </Text>

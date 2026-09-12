@@ -69,10 +69,12 @@ export default function LoginScreen() {
           contentContainerClassName="flex-grow justify-center py-8"
           keyboardShouldPersistTaps="handled"
         >
-          <View className="gap-6 rounded-2xl border border-neutral-200 bg-white p-6">
+          <View className="gap-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
             <View className="gap-1">
-              <Text className="text-2xl font-semibold text-neutral-900">Sign in to OPSflow</Text>
-              <Text className="text-sm text-neutral-500">
+              <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+                Sign in to OPSflow
+              </Text>
+              <Text className="text-sm text-neutral-500 dark:text-neutral-400">
                 Use your work email to access your workspace.
               </Text>
             </View>

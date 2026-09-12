@@ -2,13 +2,16 @@ import { Ionicons } from '@expo/vector-icons'
 import { colors } from '@opsflow/ui/colors'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type Href, Link, useRouter } from 'expo-router'
+import { useColorScheme } from 'nativewind'
 import { Pressable, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { DetailRow } from '@/components/detail-row'
 import { ErrorText } from '@/components/error-text'
 import { Screen } from '@/components/screen'
+import { Segmented } from '@/components/segmented'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, useCan, useCurrentUser } from '@/lib/current-user'
+import { type Theme, useTheme } from '@/lib/theme'
 
 export default function ProfileScreen() {
   const user = useCurrentUser()
@@ -18,6 +21,7 @@ export default function ProfileScreen() {
   const canReadClients = useCan('clients:read')
   const canReadDepartments = useCan('departments:read')
   const canReadActivity = useCan('activity:read')
+  const { theme, setTheme } = useTheme()
 
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
@@ -55,11 +59,13 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <View className="gap-1 py-4">
-        <Text className="text-2xl font-semibold text-neutral-900">{user.name}</Text>
-        <Text className="text-sm text-neutral-500">{user.email}</Text>
+        <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          {user.name}
+        </Text>
+        <Text className="text-sm text-neutral-500 dark:text-neutral-400">{user.email}</Text>
       </View>
 
-      <View className="gap-3 rounded-xl border border-neutral-200 bg-white p-4">
+      <View className="gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
         <DetailRow label="Role" value={user.role.name} capitalize />
         <DetailRow label="Department" value={user.department?.name ?? 'Unassigned'} />
         <DetailRow label="Position" value={user.position ?? 'Unassigned'} />
@@ -69,17 +75,34 @@ export default function ProfileScreen() {
 
       {directory.length > 0 ? (
         <View className="mt-4 gap-2">
-          <Text className="text-sm font-medium text-neutral-500">Directory</Text>
-          <View className="rounded-xl border border-neutral-200 bg-white">
+          <Text className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+            Directory
+          </Text>
+          <View className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
             {directory.map((entry, index) => (
               <View key={entry.title}>
-                {index > 0 ? <View className="h-px bg-neutral-200" /> : null}
+                {index > 0 ? <View className="h-px bg-neutral-200 dark:bg-neutral-800" /> : null}
                 <DirectoryLink title={entry.title} body={entry.body} to={entry.to} />
               </View>
             ))}
           </View>
         </View>
       ) : null}
+
+      <View className="mt-4 gap-2">
+        <Text className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+          Appearance
+        </Text>
+        <Segmented<Theme>
+          value={theme}
+          options={[
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'system', label: 'System' },
+          ]}
+          onChange={setTheme}
+        />
+      </View>
 
       <View className="mt-6 gap-3">
         <Button title="Edit profile" onPress={() => router.push('/profile/edit')} />
@@ -104,17 +127,25 @@ export default function ProfileScreen() {
 
 /** One row of the directory card: the modules that have no tab of their own. */
 function DirectoryLink({ title, body, to }: { title: string; body: string; to: Href }) {
+  const { colorScheme } = useColorScheme()
+
   return (
     <Link href={to} asChild>
       <Pressable
         accessibilityRole="button"
-        className="flex-row items-center justify-between gap-3 px-4 py-3 active:bg-neutral-50"
+        className="flex-row items-center justify-between gap-3 px-4 py-3 active:bg-neutral-50 dark:active:bg-neutral-800"
       >
         <View className="gap-0.5">
-          <Text className="text-base font-medium text-neutral-900">{title}</Text>
-          <Text className="text-sm text-neutral-500">{body}</Text>
+          <Text className="text-base font-medium text-neutral-900 dark:text-neutral-50">
+            {title}
+          </Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">{body}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.neutral[500]} />
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={colorScheme === 'dark' ? colors.neutral[400] : colors.neutral[500]}
+        />
       </Pressable>
     </Link>
   )

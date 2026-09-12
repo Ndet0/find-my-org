@@ -33,7 +33,7 @@ export default function TaskDetailScreen() {
 
   if (task.isPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-neutral-100">
+      <View className="flex-1 items-center justify-center bg-neutral-100 dark:bg-neutral-950">
         <ActivityIndicator size="large" />
       </View>
     )
@@ -41,7 +41,7 @@ export default function TaskDetailScreen() {
 
   if (task.isError) {
     return (
-      <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
         <Message
           title="Task unavailable"
           body={describeError(task.error)}
@@ -55,12 +55,19 @@ export default function TaskDetailScreen() {
   const overdue = isOverdue(data.dueDate, data.status === 'completed')
 
   return (
-    <ScrollView className="flex-1 bg-neutral-100" contentContainerClassName="gap-4 p-4 pb-10">
+    <ScrollView
+      className="flex-1 bg-neutral-100 dark:bg-neutral-950"
+      contentContainerClassName="gap-4 p-4 pb-10"
+    >
       <Card>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-1">
-            <Text className="text-xl font-semibold text-neutral-900">{data.title}</Text>
-            <Text className="text-sm text-neutral-500">{data.project.name}</Text>
+            <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              {data.title}
+            </Text>
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">
+              {data.project.name}
+            </Text>
           </View>
           {canWrite ? (
             <Button
@@ -92,8 +99,10 @@ export default function TaskDetailScreen() {
           value={data.completedAt ? data.completedAt.slice(0, 10) : '—'}
         />
         <View className="gap-1">
-          <Text className="text-sm text-neutral-500">Description</Text>
-          <Text className="text-sm text-neutral-900">{data.description ?? 'None'}</Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">Description</Text>
+          <Text className="text-sm text-neutral-900 dark:text-neutral-50">
+            {data.description ?? 'None'}
+          </Text>
         </View>
       </Card>
 
@@ -136,7 +145,9 @@ function StatusControl({
 
   return (
     <Card>
-      <Text className="text-sm font-medium text-neutral-800">Change status</Text>
+      <Text className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+        Change status
+      </Text>
 
       {next ? (
         <InlineConfirm

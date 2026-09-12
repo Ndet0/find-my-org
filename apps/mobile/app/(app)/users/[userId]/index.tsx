@@ -28,7 +28,7 @@ export default function UserDetailScreen() {
 
   if (user.isPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-neutral-100">
+      <View className="flex-1 items-center justify-center bg-neutral-100 dark:bg-neutral-950">
         <ActivityIndicator size="large" />
       </View>
     )
@@ -36,7 +36,7 @@ export default function UserDetailScreen() {
 
   if (user.isError) {
     return (
-      <View className="flex-1 bg-neutral-100 px-4">
+      <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
         <Message
           title="Person unavailable"
           body={describeError(user.error)}
@@ -49,12 +49,17 @@ export default function UserDetailScreen() {
   const { data } = user
 
   return (
-    <ScrollView className="flex-1 bg-neutral-100" contentContainerClassName="gap-4 p-4 pb-10">
+    <ScrollView
+      className="flex-1 bg-neutral-100 dark:bg-neutral-950"
+      contentContainerClassName="gap-4 p-4 pb-10"
+    >
       <Card>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-1">
-            <Text className="text-xl font-semibold text-neutral-900">{data.name}</Text>
-            <Text className="text-sm text-neutral-500">{data.email}</Text>
+            <Text className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              {data.name}
+            </Text>
+            <Text className="text-sm text-neutral-500 dark:text-neutral-400">{data.email}</Text>
           </View>
           {canWrite ? (
             <Button
@@ -118,7 +123,9 @@ function StatusControl({
 
   return (
     <Card>
-      <Text className="text-sm font-medium text-neutral-800">Change status</Text>
+      <Text className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+        Change status
+      </Text>
       {next ? (
         <InlineConfirm
           message={
@@ -149,7 +156,7 @@ function StatusControl({
           ))}
         </View>
       )}
-      <Text className="text-xs text-neutral-500">
+      <Text className="text-xs text-neutral-500 dark:text-neutral-400">
         Currently {toneLabel(current).toLowerCase()}.
       </Text>
     </Card>

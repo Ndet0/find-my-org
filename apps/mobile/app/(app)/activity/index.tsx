@@ -39,10 +39,12 @@ export default function ActivityScreen() {
   }
 
   return (
-    <View className="flex-1 bg-neutral-100 px-4">
+    <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
       <View className="gap-1 py-4">
-        <Text className="text-2xl font-semibold text-neutral-900">Activity</Text>
-        <Text className="text-sm text-neutral-500">
+        <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          Activity
+        </Text>
+        <Text className="text-sm text-neutral-500 dark:text-neutral-400">
           {activity.data
             ? `${activity.data.total} ${activity.data.total === 1 ? 'event' : 'events'}`
             : 'What changed'}
@@ -143,30 +145,41 @@ function ActivityRow({ item, to }: { item: ActivityListItem; to: Href | null }) 
   const card = (
     <View className="gap-2">
       <View className="flex-row items-start justify-between gap-3">
-        <Text className="flex-1 text-base font-medium text-neutral-900" numberOfLines={1}>
+        <Text
+          className="flex-1 text-base font-medium text-neutral-900 dark:text-neutral-50"
+          numberOfLines={1}
+        >
           {item.actor?.name ?? 'System'}
         </Text>
         <Badge tone="neutral" label={toneLabel(item.action)} />
       </View>
-      <Text className="text-sm text-neutral-700" numberOfLines={2}>
+      <Text className="text-sm text-neutral-700 dark:text-neutral-300" numberOfLines={2}>
         {item.description ?? toneLabel(item.action)}
       </Text>
       <View className="flex-row items-center justify-between gap-3">
-        <Text className="text-xs text-neutral-500">{formatDateTime(item.createdAt)}</Text>
-        <Text className="text-xs text-neutral-500">{toneLabel(item.entityType)}</Text>
+        <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+          {formatDateTime(item.createdAt)}
+        </Text>
+        <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+          {toneLabel(item.entityType)}
+        </Text>
       </View>
     </View>
   )
 
   if (!to) {
-    return <View className="rounded-xl border border-neutral-200 bg-white p-4">{card}</View>
+    return (
+      <View className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+        {card}
+      </View>
+    )
   }
 
   return (
     <Link href={to} asChild>
       <Pressable
         accessibilityRole="button"
-        className="rounded-xl border border-neutral-200 bg-white p-4 active:bg-neutral-50"
+        className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 active:bg-neutral-50 dark:active:bg-neutral-800"
       >
         {card}
       </Pressable>

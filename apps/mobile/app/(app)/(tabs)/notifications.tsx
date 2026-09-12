@@ -44,8 +44,10 @@ export default function NotificationsScreen() {
     <Screen>
       <View className="flex-row items-start justify-between gap-3 py-4">
         <View className="flex-1 gap-1">
-          <Text className="text-2xl font-semibold text-neutral-900">Inbox</Text>
-          <Text className="text-sm text-neutral-500">
+          <Text className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+            Inbox
+          </Text>
+          <Text className="text-sm text-neutral-500 dark:text-neutral-400">
             {unread.data
               ? unreadCount === 0
                 ? 'You are all caught up'
@@ -131,25 +133,25 @@ function NotificationRow({
       accessibilityHint={item.isRead ? undefined : 'Marks this notification as read'}
       disabled={marking}
       onPress={item.isRead ? undefined : onPress}
-      className={`gap-1 rounded-xl border p-4 ${item.isRead ? 'border-neutral-200 bg-neutral-50' : 'border-neutral-300 bg-white active:bg-neutral-50'}`}
+      className={`gap-1 rounded-xl border p-4 ${item.isRead ? 'border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950' : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 active:bg-neutral-50 dark:active:bg-neutral-800'}`}
     >
       <View className="flex-row items-start gap-2">
         {item.isRead ? null : <View className="mt-1.5 h-2 w-2 rounded-full bg-blue-600" />}
         <Text
-          className={`flex-1 text-base ${item.isRead ? 'text-neutral-700' : 'font-semibold text-neutral-900'}`}
+          className={`flex-1 text-base ${item.isRead ? 'text-neutral-700 dark:text-neutral-300' : 'font-semibold text-neutral-900 dark:text-neutral-50'}`}
         >
           {item.title}
         </Text>
       </View>
-      <Text className="text-sm text-neutral-600">{item.message}</Text>
+      <Text className="text-sm text-neutral-600 dark:text-neutral-400">{item.message}</Text>
       <View className="flex-row items-center justify-between gap-2">
-        <Text className="text-xs capitalize text-neutral-500">
+        <Text className="text-xs capitalize text-neutral-500 dark:text-neutral-400">
           {item.type} · {formatDateTime(item.createdAt)}
         </Text>
         {marking ? (
-          <Text className="text-xs text-neutral-400">Marking…</Text>
+          <Text className="text-xs text-neutral-400 dark:text-neutral-500">Marking…</Text>
         ) : item.isRead ? null : (
-          <Text className="text-xs text-neutral-400">Tap to mark read</Text>
+          <Text className="text-xs text-neutral-400 dark:text-neutral-500">Tap to mark read</Text>
         )}
       </View>
     </Pressable>

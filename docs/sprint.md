@@ -2044,9 +2044,40 @@ planning.
   switch does not dispatch the media query's `change` event in this
   browser harness, so the live flip was verified through the
   `visibilitychange` path instead, which re-applied the OS value
-- [ ] The remaining Phase 14 items — typography and spacing review, dark
-  mode on mobile (the palette pairs exist; every screen still hard-codes
-  its light surfaces), accessibility review
+- [x] Dark mode on mobile. Every light surface and ink class now carries
+  its `dark:` pairing in place — `bg-white dark:bg-neutral-900`,
+  `text-neutral-500 dark:text-neutral-400` and so on, 216 pairings across
+  32 files from a fixed table: canvas 100 ↔ 950, surface white ↔ 900,
+  borders 200 ↔ 800 and 300 ↔ 700, ink 900 ↔ 50, the muted steps one shade
+  lighter, the primary button and active chip inverted. NativeWind has no
+  cascade to override a variable with, so the pairing is a class rather
+  than the web's `.dark` variable block; the badges read the tone's dark
+  pair the same way. The seven colours that are props rather than classes
+  (the screen background, placeholder text, icon tints) read
+  `useColorScheme()`. The navigators' own chrome — stack headers, the tab
+  bar, the scene behind a transition — is native and themed through Expo
+  Router's `ThemeProvider` from `lib/navigation-theme.ts`, so a push in
+  dark mode never shows a light frame. `lib/theme.ts` mirrors the web's:
+  the same union and key, SecureStore on the phone and `localStorage` on
+  the web build, `system` stored as nothing, read once before the
+  navigator mounts. NativeWind's web build treats `system` as "remove the
+  class" without consulting the OS, so there the module resolves it from
+  `prefers-color-scheme` itself; on a phone NativeWind's Appearance
+  handling does it. The control is an Appearance row on the profile tab
+  using the existing `Segmented`: Light / Dark / System. The status bar
+  follows the resolved scheme rather than the OS
+- [x] Verified: `pnpm lint`, mobile `typecheck`; a grep for any surface
+  class without its `dark:` pairing is empty; through the web build at
+  390×844 against the running API as the employee — Dark turns the profile
+  card to neutral-900 on neutral-950 with neutral-50 ink and the `dark`
+  class on the root, Light turns it back, the choice persists across a
+  reload, the tasks tab in dark shows the tone pairs on the badges and no
+  light navigator container behind the scene, the task detail header reads
+  in the light ink, and System follows the emulated OS in both directions.
+  Native devices were not available here; SecureStore persistence and the
+  Appearance path are the same calls the session already relies on
+- [ ] The remaining Phase 14 items — typography and spacing review,
+  accessibility review
 
 Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
 variables, not this neutral scale. §25 previously said the two were the
