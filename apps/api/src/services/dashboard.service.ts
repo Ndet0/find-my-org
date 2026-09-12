@@ -50,6 +50,7 @@ export async function getDashboardStats(actor: DashboardActor): Promise<Dashboar
     prisma.task.count({ where: taskScope }),
     prisma.task.count({ where: { AND: [taskScope, { status: 'pending' }] } }),
     prisma.task.count({ where: { AND: [taskScope, { status: 'in_progress' }] } }),
+    prisma.task.count({ where: { AND: [taskScope, { status: 'blocked' }] } }),
     prisma.task.count({ where: { AND: [taskScope, { status: 'completed' }] } }),
     prisma.task.count({
       where: {
@@ -78,17 +79,18 @@ export async function getDashboardStats(actor: DashboardActor): Promise<Dashboar
   ])
 
   const org: DashboardOrgStats = {
-    users: { total: counts[10], active: counts[11] },
-    employees: { total: counts[12] },
-    departments: { total: counts[13] },
-    clients: { total: counts[14], active: counts[15] },
+    users: { total: counts[11], active: counts[12] },
+    employees: { total: counts[13] },
+    departments: { total: counts[14] },
+    clients: { total: counts[15], active: counts[16] },
   }
 
   return { projects: projectStats(counts), tasks: taskStats(counts), org }
 }
 
-/** The first ten counts of either transaction, in declaration order. */
+/** The first eleven counts of either transaction, in declaration order. */
 type ScopedCounts = readonly [
+  number,
   number,
   number,
   number,
@@ -117,7 +119,8 @@ function taskStats(counts: ScopedCounts): DashboardTaskStats {
     total: counts[5],
     pending: counts[6],
     inProgress: counts[7],
-    completed: counts[8],
-    overdue: counts[9],
+    blocked: counts[8],
+    completed: counts[9],
+    overdue: counts[10],
   }
 }

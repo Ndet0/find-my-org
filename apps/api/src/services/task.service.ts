@@ -116,6 +116,10 @@ function buildWhere(query: TaskListQuery, actor: TaskActor): Prisma.TaskWhereInp
     filters.assignedTo = query.assignedTo
   }
 
+  if (query.open && !query.status) {
+    filters.status = { not: 'completed' satisfies TaskStatus }
+  }
+
   if (query.overdue) {
     const today = utcToday()
     filters.dueDate = { lt: today }

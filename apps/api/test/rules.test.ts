@@ -66,7 +66,7 @@ async function call(method: string, path: string, cookie: string, body?: unknown
   return { status: response.status, ...json }
 }
 
-const created = { projectId: '', departmentId: '', lifecycleProjectId: '' }
+const created = { projectId: '', departmentId: '', lifecycleProjectId: '', openWorkProjectId: '' }
 
 /**
  * The seeded employee is a shared fixture, so the profile test records the
@@ -98,6 +98,10 @@ afterAll(async () => {
     await prisma.project
       .delete({ where: { id: created.lifecycleProjectId } })
       .catch(() => undefined)
+  }
+  if (created.openWorkProjectId) {
+    await prisma.task.deleteMany({ where: { projectId: created.openWorkProjectId } })
+    await prisma.project.delete({ where: { id: created.openWorkProjectId } }).catch(() => undefined)
   }
   if (created.departmentId) {
     await prisma.department.delete({ where: { id: created.departmentId } }).catch(() => undefined)
@@ -409,5 +413,75 @@ describe('self-service profile', () => {
     expect(edited.status).toBe(200)
     expect(edited.data?.name).toBe('Seeded Employee')
     expect(edited.data?.position).toBe(before.data?.position ?? null)
+  })
+})
+
+describe('dashboard and open work', () => {
+  /** The ids on one page of a list response, in the order the API returned them. */
+  function ids(data: Record<string, unknown> | undefined) {
+    return ((data?.items ?? []) as { id: string }[]).map((item) => item.id)
+  }
+
+  async function moveTask(cookie: string, taskId: unknown, statuses: string[]) {
+    for (const status of statuses) {
+      const moved = await call('PATCH', `/api/tasks/${taskId}/status`, cookie, { status })
+      expect(moved.status).toBe(200)
+    }
+  }
+
+  test('the open filter leaves completed tasks out, and an explicit status wins', async () => {
+    const manager = await signIn('manager@opsflow.local')
+
+    const project = await call('POST', '/api/projects', manager, {
+      name: 'Open work fixture',
+      priority: 'low',
+    })
+    expect(project.status).toBe(201)
+    created.openWorkProjectId = project.data?.id as string
+
+    const open = await call('POST', '/api/tasks', manager, {
+      title: 'Open fixture task',
+      projectId: created.openWorkProjectId,
+    })
+    const done = await call('POST', '/api/tasks', manager, {
+      title: 'Completed fixture task',
+      projectId: created.openWorkProjectId,
+    })
+    expect(open.status).toBe(201)
+    expect(done.status).toBe(201)
+
+    // Through `in_progress`: the lifecycle has no pending-to-completed edge.
+    await moveTask(manager, done.data?.id, ['in_progress', 'completed'])
+
+    const base = `/api/tasks?projectId=${created.openWorkProjectId}`
+
+    const openOnly = await call('GET', `${base}&open=true`, manager)
+    expect(openOnly.status).toBe(200)
+    expect(ids(openOnly.data)).toEqual([open.data?.id as string])
+
+    const narrowed = await call('GET', `${base}&open=true&status=completed`, manager)
+    expect(narrowed.status).toBe(200)
+    expect(ids(narrowed.data)).toEqual([done.data?.id as string])
+  })
+
+  test('the dashboard counts blocked tasks', async () => {
+    const manager = await signIn('manager@opsflow.local')
+
+    async function blockedCount() {
+      const dashboard = await call('GET', '/api/dashboard', manager)
+      expect(dashboard.status).toBe(200)
+      return (dashboard.data as { tasks: { blocked: number } }).tasks.blocked
+    }
+
+    const task = await call('POST', '/api/tasks', manager, {
+      title: 'Blocked fixture task',
+      projectId: created.openWorkProjectId,
+    })
+    expect(task.status).toBe(201)
+
+    const before = await blockedCount()
+    // A task blocks from `in_progress`, never straight from `pending`.
+    await moveTask(manager, task.data?.id, ['in_progress', 'blocked'])
+    expect(await blockedCount()).toBe(before + 1)
   })
 })

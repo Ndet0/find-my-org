@@ -39,17 +39,29 @@ const searchSchema = z.object({
   projectId: z.string().optional(),
   assignedTo: z.string().optional(),
   overdue: z.enum(['true']).optional(),
+  // Offered by the status control as `OPEN`, and linked to by the
+  // dashboard's Open tasks card.
+  open: z.enum(['true']).optional(),
   page: z.coerce.number().int().min(1).optional(),
 })
 
 /** Radix Select cannot hold an empty value, so "no filter" needs a sentinel. */
 const ANY = 'any'
 
+/**
+ * "Not completed" rides in the status control as a pseudo-status: it is what
+ * a status filter is usually reached for, and keeping it here means the
+ * filter is visible and clearable however the page was arrived at. It sets
+ * `open` rather than `status`, which the API treats as the wider filter.
+ */
+const OPEN = 'open'
+
 /** One place turns URL search into list filters, for the loader and the page alike. */
 function filtersFrom(search: z.infer<typeof searchSchema>): TaskListFilters {
   return {
     ...search,
     overdue: search.overdue === 'true' ? true : undefined,
+    open: search.open === 'true' ? true : undefined,
     page: search.page ?? 1,
   }
 }
@@ -113,13 +125,23 @@ function TasksPage() {
 
         <FilterSelect
           label="Status"
-          value={search.status ?? ANY}
-          options={TASK_STATUSES.map((status) => ({
-            value: status,
-            label: status.replaceAll('_', ' '),
-          }))}
+          value={search.open ? OPEN : (search.status ?? ANY)}
+          options={[
+            { value: OPEN, label: OPEN },
+            ...TASK_STATUSES.map((status) => ({
+              value: status,
+              label: status.replaceAll('_', ' '),
+            })),
+          ]}
           onChange={(value) =>
-            setFilter({ status: value === ANY ? undefined : (value as TaskStatus) })
+            setFilter(
+              value === OPEN
+                ? { open: 'true', status: undefined }
+                : {
+                    open: undefined,
+                    status: value === ANY ? undefined : (value as TaskStatus),
+                  },
+            )
           }
         />
 
@@ -190,7 +212,8 @@ function TasksPage() {
                 search.priority ||
                 search.projectId ||
                 search.assignedTo ||
-                search.overdue
+                search.overdue ||
+                search.open
                   ? 'No tasks match these filters.'
                   : 'No tasks yet.'}
               </MessageRow>

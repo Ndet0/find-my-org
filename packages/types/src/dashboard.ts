@@ -21,6 +21,7 @@ export type DashboardTaskStats = {
   total: number
   pending: number
   inProgress: number
+  blocked: number
   completed: number
   /** dueDate < today AND status != completed */
   overdue: number

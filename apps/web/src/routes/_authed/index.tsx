@@ -1,9 +1,11 @@
 import type { ActivityListItem } from '@opsflow/types/activity'
+import type { DashboardStats } from '@opsflow/types/dashboard'
 import { can, type RoleName } from '@opsflow/types/permissions'
 import type { ProjectListItem } from '@opsflow/types/project'
 import type { TaskListItem } from '@opsflow/types/task'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, type LinkOptions, linkOptions } from '@tanstack/react-router'
+import { CircleCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ProgressBar } from '@/components/progress-bar'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
@@ -20,11 +22,19 @@ import { tasksQueryOptions } from '@/lib/tasks'
 
 const FEED_PAGE = { pageSize: 5 } as const
 
+/**
+ * Open work only. The tasks list orders by due date, so without the filter
+ * completed tasks with past due dates would fill the card ahead of the work
+ * that is still to do.
+ */
+const DEADLINES_FEED = { open: true, ...FEED_PAGE } as const
+
 export const Route = createFileRoute('/_authed/')({
   loader: ({ context }) => {
     // The feed cards carry their own loading state, so they only need a
-    // head start. The KPI row is the page, so it is awaited.
-    void context.queryClient.prefetchQuery(tasksQueryOptions(FEED_PAGE))
+    // head start. The stats drive the attention card and the KPI row, which
+    // are the page, so they are awaited.
+    void context.queryClient.prefetchQuery(tasksQueryOptions(DEADLINES_FEED))
     void context.queryClient.prefetchQuery(activityQueryOptions(FEED_PAGE))
     void context.queryClient.prefetchQuery(projectsQueryOptions({ status: 'active', ...FEED_PAGE }))
     void context.queryClient.prefetchQuery(notificationsQueryOptions(FEED_PAGE))
@@ -34,11 +44,12 @@ export const Route = createFileRoute('/_authed/')({
 })
 
 /**
- * The role-based dashboard (sprint Phase 11). Counts come from
- * `GET /api/dashboard`, computed server-side in one snapshot; the feed cards
- * reuse the module list endpoints, which are already row-scoped, so an
- * employee's "recent activity" is personal activity without any extra
- * filtering here.
+ * The role-based dashboard (sprint Phase 11), ordered by product §42: what
+ * needs attention, then the current state, then upcoming work, then
+ * activity. Counts come from `GET /api/dashboard`, computed server-side in
+ * one snapshot; the feed cards reuse the module list endpoints, which are
+ * already row-scoped, so an employee's "recent activity" is personal
+ * activity without any extra filtering here.
  */
 function HomePage() {
   const { user } = Route.useRouteContext()
@@ -46,7 +57,7 @@ function HomePage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {user.name}</h1>
           <p className="text-sm text-muted-foreground">
@@ -57,9 +68,12 @@ function HomePage() {
                 : 'Your work at a glance'}
           </p>
         </div>
-        <Badge variant="secondary" className="capitalize">
-          {role}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <QuickActions role={role} />
+          <Badge variant="secondary" className="capitalize">
+            {role}
+          </Badge>
+        </div>
       </header>
 
       {role === 'employee' ? <EmployeeDashboard /> : <OrgDashboard role={role} />}
@@ -69,84 +83,99 @@ function HomePage() {
 
 /**
  * Admin and manager share one layout: both see the whole table, so their
- * counts are identical — the difference is emphasis. Admin leads with the
- * directory (users, departments), manager with delivery (projects, tasks).
+ * counts are identical — the difference is emphasis. Admin's current state
+ * leads with the directory (users, departments), manager's with delivery.
  */
 function OrgDashboard({ role }: { role: RoleName }) {
-  const stats = useSuspenseQuery(dashboardStatsQueryOptions())
-  const org = stats.data.org ?? null
+  const { data: stats } = useSuspenseQuery(dashboardStatsQueryOptions())
+  const org = stats.org
+
+  const attention: AttentionItem[] = [
+    ...taskAttention(stats),
+    {
+      count: stats.projects.delayed,
+      noun: ['delayed project', 'delayed projects'],
+      link: linkOptions({ to: '/projects', search: { status: 'delayed' } }),
+    },
+    {
+      count: stats.projects.overdue,
+      noun: ['overdue project', 'overdue projects'],
+      link: linkOptions({ to: '/projects', search: { overdue: 'true' } }),
+    },
+  ]
+
+  const activeProjects: KpiProps = {
+    label: 'Active projects',
+    value: stats.projects.active,
+    sub: subCount(stats.projects.total, 'total'),
+    link: linkOptions({ to: '/projects', search: { status: 'active' } }),
+  }
+
+  const activeClients: KpiProps = {
+    label: 'Active clients',
+    value: org?.clients.active,
+    sub: subCount(org?.clients.total, 'total'),
+    link: linkOptions({ to: '/clients' }),
+  }
 
   const kpis: KpiProps[] =
     role === 'admin'
       ? [
+          activeProjects,
+          {
+            label: 'Open tasks',
+            value: openTasks(stats),
+            sub: subCount(stats.tasks.inProgress, 'in progress'),
+            link: linkOptions({ to: '/tasks', search: { open: 'true' } }),
+          },
           {
             label: 'Users',
             value: org?.users.total,
             sub: subCount(org?.users.active, 'active'),
-            to: '/users',
-          },
-          { label: 'Employees', value: org?.employees.total, to: '/users' },
-          { label: 'Departments', value: org?.departments.total, to: '/departments' },
-          {
-            label: 'Active clients',
-            value: org?.clients.active,
-            sub: subCount(org?.clients.total, 'total'),
-            to: '/clients',
+            link: linkOptions({ to: '/users' }),
           },
           {
-            label: 'Active projects',
-            value: stats.data.projects.active,
-            sub: subCount(stats.data.projects.total, 'total'),
-            to: '/projects',
+            label: 'Departments',
+            value: org?.departments.total,
+            link: linkOptions({ to: '/departments' }),
           },
-          {
-            label: 'Overdue projects',
-            value: stats.data.projects.overdue,
-            alert: true,
-            to: '/projects',
-          },
-          { label: 'Overdue tasks', value: stats.data.tasks.overdue, alert: true, to: '/tasks' },
+          activeClients,
         ]
       : [
+          activeProjects,
           {
-            label: 'Active projects',
-            value: stats.data.projects.active,
-            sub: subCount(stats.data.projects.total, 'total'),
-            to: '/projects',
+            label: 'Open tasks',
+            value: openTasks(stats),
+            sub: subCount(stats.tasks.pending, 'pending'),
+            link: linkOptions({ to: '/tasks', search: { open: 'true' } }),
           },
           {
-            label: 'Delayed projects',
-            value: stats.data.projects.delayed,
-            alert: true,
-            to: '/projects',
+            label: 'In progress',
+            value: stats.tasks.inProgress,
+            link: linkOptions({ to: '/tasks', search: { status: 'in_progress' } }),
           },
           {
-            label: 'Overdue projects',
-            value: stats.data.projects.overdue,
-            alert: true,
-            to: '/projects',
+            label: 'Team',
+            value: org?.employees.total,
+            sub: 'employees',
+            link: linkOptions({ to: '/users' }),
           },
-          { label: 'Pending tasks', value: stats.data.tasks.pending, to: '/tasks' },
-          { label: 'Overdue tasks', value: stats.data.tasks.overdue, alert: true, to: '/tasks' },
-          { label: 'Team', value: org?.employees.total, sub: 'employees', to: '/users' },
-          { label: 'Active clients', value: org?.clients.active, to: '/clients' },
+          activeClients,
         ]
 
   return (
     <>
+      <AttentionCard items={attention} />
       <KpiGrid kpis={kpis} />
 
-      <QuickActions role={role} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <DeadlinesCard />
+        <ProjectProgressCard />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ProjectProgressCard />
-        {role === 'admin' ? (
-          <ActivityCard title="System activity" />
-        ) : (
-          <DeadlinesCard title="Upcoming deadlines" />
-        )}
-        {role === 'admin' ? <NotificationsCard /> : <ActivityCard title="Recent activity" />}
-        {role === 'admin' ? null : <NotificationsCard />}
+        <ActivityCard title={role === 'admin' ? 'System activity' : 'Recent activity'} />
+        <NotificationsCard />
       </div>
     </>
   )
@@ -154,33 +183,44 @@ function OrgDashboard({ role }: { role: RoleName }) {
 
 function EmployeeDashboard() {
   // `stats.org` is null for employees by contract; nothing below reads it.
-  const stats = useSuspenseQuery(dashboardStatsQueryOptions())
+  const { data: stats } = useSuspenseQuery(dashboardStatsQueryOptions())
 
   const kpis: KpiProps[] = [
     {
-      label: 'My tasks',
-      value: stats.data.tasks.total,
-      sub: subCount(stats.data.tasks.pending, 'pending'),
-      to: '/tasks',
+      label: 'Open tasks',
+      value: openTasks(stats),
+      sub: subCount(stats.tasks.pending, 'pending'),
+      link: linkOptions({ to: '/tasks', search: { open: 'true' } }),
     },
-    { label: 'In progress', value: stats.data.tasks.inProgress, to: '/tasks' },
-    { label: 'Overdue tasks', value: stats.data.tasks.overdue, alert: true, to: '/tasks' },
+    {
+      label: 'In progress',
+      value: stats.tasks.inProgress,
+      link: linkOptions({ to: '/tasks', search: { status: 'in_progress' } }),
+    },
+    {
+      label: 'Completed',
+      value: stats.tasks.completed,
+      link: linkOptions({ to: '/tasks', search: { status: 'completed' } }),
+    },
     {
       label: 'My projects',
-      value: stats.data.projects.active,
-      sub: subCount(stats.data.projects.total, 'total'),
-      to: '/projects',
+      value: stats.projects.active,
+      sub: subCount(stats.projects.total, 'total'),
+      link: linkOptions({ to: '/projects', search: { status: 'active' } }),
     },
-    { label: 'Completed tasks', value: stats.data.tasks.completed, to: '/tasks' },
   ]
 
   return (
     <>
+      <AttentionCard items={taskAttention(stats)} />
       <KpiGrid kpis={kpis} />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <DeadlinesCard title="Upcoming deadlines" />
+        <DeadlinesCard />
         <ProjectProgressCard title="My projects" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
         <ActivityCard title="Personal activity" />
         <NotificationsCard />
       </div>
@@ -188,18 +228,89 @@ function EmployeeDashboard() {
   )
 }
 
+/** Everything not completed: pending, in progress and blocked. */
+function openTasks(stats: DashboardStats): number {
+  return stats.tasks.total - stats.tasks.completed
+}
+
+type AttentionItem = {
+  count: number
+  /** Singular and plural, so one item reads "1 blocked task". */
+  noun: readonly [string, string]
+  link: LinkOptions
+}
+
+/** The task half of the attention card, shared by every role. */
+function taskAttention(stats: DashboardStats): AttentionItem[] {
+  return [
+    {
+      count: stats.tasks.overdue,
+      noun: ['overdue task', 'overdue tasks'],
+      link: linkOptions({ to: '/tasks', search: { overdue: 'true' } }),
+    },
+    {
+      count: stats.tasks.blocked,
+      noun: ['blocked task', 'blocked tasks'],
+      link: linkOptions({ to: '/tasks', search: { status: 'blocked' } }),
+    },
+  ]
+}
+
+/**
+ * Critical information first (product §42): the work that is already late or
+ * stuck. Only non-zero items render, so a healthy organisation sees one calm
+ * line rather than a row of red zeros, and each item opens the list filtered
+ * to exactly those rows.
+ */
+function AttentionCard({ items }: { items: AttentionItem[] }) {
+  const pressing = items.filter((item) => item.count > 0)
+
+  return (
+    <Card className="gap-3 py-4">
+      <CardHeader className="px-4">
+        <CardTitle className="text-base">Needs attention</CardTitle>
+      </CardHeader>
+      <CardContent className="px-4">
+        {pressing.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CircleCheck className="size-4 text-tone-success-foreground" aria-hidden />
+            Nothing overdue or blocked.
+          </p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {pressing.map((item) => (
+              <li key={item.noun[1]}>
+                <Link
+                  {...item.link}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent/50"
+                >
+                  <span className="rounded-md bg-tone-danger px-1.5 font-semibold tabular-nums text-tone-danger-foreground">
+                    {item.count}
+                  </span>
+                  {item.count === 1 ? item.noun[0] : item.noun[1]}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 type KpiProps = {
   label: string
   value: number | undefined
   sub?: string
-  /** Render the value in the destructive colour when it is above zero. */
-  alert?: boolean
-  to: string
+  link: LinkOptions
 }
 
 function KpiGrid({ kpis }: { kpis: KpiProps[] }) {
+  // Both column counts are spelled out so Tailwind generates them.
+  const columns = kpis.length >= 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'
+
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+    <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${columns}`}>
       {kpis.map((kpi) => (
         <KpiCard key={kpi.label} {...kpi} />
       ))}
@@ -207,9 +318,9 @@ function KpiGrid({ kpis }: { kpis: KpiProps[] }) {
   )
 }
 
-function KpiCard({ label, value, sub, alert, to }: KpiProps) {
+function KpiCard({ label, value, sub, link }: KpiProps) {
   return (
-    <Link to={to} className="min-w-0">
+    <Link {...link} className="min-w-0">
       <Card className="h-full gap-1 py-4 transition-colors hover:bg-accent/50">
         <CardHeader className="px-4">
           <CardTitle className="truncate text-sm font-medium text-muted-foreground">
@@ -220,11 +331,7 @@ function KpiCard({ label, value, sub, alert, to }: KpiProps) {
           {value === undefined ? (
             <Skeleton className="h-8 w-12" />
           ) : (
-            <div
-              className={`text-2xl font-semibold tabular-nums ${alert && value > 0 ? 'text-destructive' : ''}`}
-            >
-              {value}
-            </div>
+            <div className="text-2xl font-semibold tabular-nums">{value}</div>
           )}
           {sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
         </CardContent>
@@ -246,31 +353,34 @@ function QuickActions({ role }: { role: RoleName }) {
     { to: '/users/new', label: 'New user', permission: 'users:write' as const },
   ].filter((action) => can(role, action.permission))
 
-  if (actions.length === 0) {
-    return null
-  }
-
+  // Rendered into the header's own flex row, so no wrapper of its own.
   return (
-    <div className="flex flex-wrap gap-2">
+    <>
       {actions.map((action) => (
         <Button key={action.to} asChild variant="outline" size="sm">
           <Link to={action.to}>{action.label}</Link>
         </Button>
       ))}
-    </div>
+    </>
   )
 }
 
 /**
- * The tasks list already orders by due date ascending with nulls last, so
- * the first page is exactly "what needs attention next" — overdue items
+ * The tasks list orders by due date ascending with nulls last, so the first
+ * page of open work is exactly "what needs attention next" — overdue items
  * surface first by construction.
  */
-function DeadlinesCard({ title }: { title: string }) {
-  const tasks = useQuery(tasksQueryOptions(FEED_PAGE))
+function DeadlinesCard() {
+  const tasks = useQuery(tasksQueryOptions(DEADLINES_FEED))
 
   return (
-    <FeedCard title={title} to="/tasks" linkLabel="All tasks" query={tasks} empty="No tasks yet.">
+    <FeedCard
+      title="Upcoming deadlines"
+      to="/tasks"
+      linkLabel="All tasks"
+      query={tasks}
+      empty="No open tasks."
+    >
       {(items: TaskListItem[]) => (
         <ul className="flex flex-col gap-3">
           {items.map((task) => (

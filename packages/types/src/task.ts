@@ -55,6 +55,11 @@ export const taskListQuerySchema = z.object({
     .enum(['true'])
     .optional()
     .transform((value) => value === 'true'),
+  /** Open means not completed. An explicit `status` is narrower and wins. */
+  open: z
+    .enum(['true'])
+    .optional()
+    .transform((value) => value === 'true'),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 })
@@ -62,10 +67,13 @@ export const taskListQuerySchema = z.object({
 export type TaskListQuery = z.infer<typeof taskListQuerySchema>
 
 /** The caller-facing form of the query, before defaults are applied. */
-export type TaskListFilters = Partial<Omit<TaskListQuery, 'page' | 'pageSize' | 'overdue'>> & {
+export type TaskListFilters = Partial<
+  Omit<TaskListQuery, 'page' | 'pageSize' | 'overdue' | 'open'>
+> & {
   page?: number
   pageSize?: number
   overdue?: boolean | 'true'
+  open?: boolean | 'true'
 }
 
 /**

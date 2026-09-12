@@ -32,7 +32,9 @@ const FEED = { pageSize: 5 } as const
 export default function DashboardScreen() {
   const user = useCurrentUser()
   const stats = useQuery(dashboardStatsQueryOptions())
-  const deadlines = useQuery(tasksQueryOptions(FEED))
+  // Open work only: the list sorts by due date, so completed tasks with past
+  // due dates would otherwise fill the feed.
+  const deadlines = useQuery(tasksQueryOptions({ ...FEED, open: true }))
   const projects = useQuery(projectsQueryOptions({ status: 'active', ...FEED }))
   const unread = useQuery(unreadCountQueryOptions())
 
