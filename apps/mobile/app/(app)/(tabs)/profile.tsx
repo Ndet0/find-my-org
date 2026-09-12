@@ -8,10 +8,8 @@ import { Button } from '@/components/button'
 import { DetailRow } from '@/components/detail-row'
 import { ErrorText } from '@/components/error-text'
 import { Screen } from '@/components/screen'
-import { Segmented } from '@/components/segmented'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, useCan, useCurrentUser } from '@/lib/current-user'
-import { type Theme, useTheme } from '@/lib/theme'
 
 export default function ProfileScreen() {
   const user = useCurrentUser()
@@ -21,7 +19,6 @@ export default function ProfileScreen() {
   const canReadClients = useCan('clients:read')
   const canReadDepartments = useCan('departments:read')
   const canReadActivity = useCan('activity:read')
-  const { theme, setTheme } = useTheme()
 
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
@@ -88,21 +85,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       ) : null}
-
-      <View className="mt-4 gap-2">
-        <Text className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
-          Appearance
-        </Text>
-        <Segmented<Theme>
-          value={theme}
-          options={[
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
-            { value: 'system', label: 'System' },
-          ]}
-          onChange={setTheme}
-        />
-      </View>
 
       <View className="mt-6 gap-3">
         <Button title="Edit profile" onPress={() => router.push('/profile/edit')} />

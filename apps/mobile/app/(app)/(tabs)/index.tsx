@@ -16,6 +16,7 @@ import { describeError, Message } from '@/components/message'
 import { ProgressBar } from '@/components/progress-bar'
 import { Screen } from '@/components/screen'
 import { PriorityBadge, ProjectStatusBadge } from '@/components/status-badge'
+import { ThemeFab } from '@/components/theme-fab'
 import { useCurrentUser } from '@/lib/current-user'
 import { dashboardStatsQueryOptions } from '@/lib/dashboard'
 import { isOverdue } from '@/lib/dates'
@@ -50,7 +51,7 @@ export default function DashboardScreen() {
   return (
     <Screen>
       <ScrollView
-        contentContainerClassName="gap-4 py-4 pb-8"
+        contentContainerClassName="gap-4 py-4 pb-24"
         refreshControl={
           <RefreshControl
             refreshing={queries.some((query) => query.isRefetching)}
@@ -111,6 +112,8 @@ export default function DashboardScreen() {
           {(items) => items.map((project) => <ProjectRow key={project.id} project={project} />)}
         </FeedCard>
       </ScrollView>
+
+      <ThemeFab />
     </Screen>
   )
 }

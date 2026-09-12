@@ -52,7 +52,8 @@ const NAV_ITEMS: readonly NavItem[] = [
 
 /**
  * The frame around every authenticated page: navigation filtered to what the
- * caller's role can reach, the theme control, and the sign-out control.
+ * caller's role can reach, the sign-out control, and the floating theme
+ * control, which is on every signed-in page and none of the others.
  *
  * Filtering the navigation is a courtesy, not a security control. The API
  * rejects the request regardless, so a user who types a forbidden path gets
@@ -76,7 +77,6 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
         <div className="flex items-center justify-between gap-2 px-5 py-4 md:justify-start">
           <span className="font-semibold tracking-tight">OPSflow</span>
           <div className="flex items-center gap-2 md:hidden">
-            <ThemeToggle />
             <ProfileLink />
             <SignOutButton />
           </div>
@@ -101,16 +101,15 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
             <p className="truncate text-sm font-medium">{user.name}</p>
             <p className="truncate text-xs text-muted-foreground capitalize">{user.role.name}</p>
           </Link>
-          <div className="mt-3 flex items-center gap-2">
-            <ThemeToggle />
-            <SignOutButton className="flex-1" />
-          </div>
+          <SignOutButton className="mt-3 w-full" />
         </div>
       </aside>
 
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 p-6 outline-none">
         {children}
       </main>
+
+      <ThemeToggle />
     </div>
   )
 }

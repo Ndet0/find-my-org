@@ -6,12 +6,14 @@ const ICONS: Record<Theme, LucideIcon> = { light: Sun, dark: Moon, system: Monit
 const LABELS: Record<Theme, string> = { light: 'light', dark: 'dark', system: 'system' }
 
 /**
- * One button that cycles light → dark → system. Three states in one control
- * keeps it the size of the profile icon beside it and needs no menu
- * primitive; the label says where you are and where the next press goes,
- * so a screen reader user is not left counting presses.
+ * One floating button, bottom-right of every signed-in page, that cycles
+ * light → dark → system. It floats rather than sitting in the sidebar
+ * because an icon beside Sign out was not found; one round control in one
+ * place is what the mobile dashboard shows too. The label says where you
+ * are and where the next press goes, so a screen reader user is not left
+ * counting presses.
  */
-export function ThemeToggle({ className }: { className?: string }) {
+export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? 'system'
   const Icon = ICONS[theme]
@@ -20,12 +22,12 @@ export function ThemeToggle({ className }: { className?: string }) {
     <Button
       variant="outline"
       size="icon"
-      className={className}
+      className="fixed right-4 bottom-4 z-40 size-11 rounded-full shadow-lg md:right-6 md:bottom-6"
       onClick={() => setTheme(next)}
       aria-label={`Theme: ${LABELS[theme]}. Switch to ${LABELS[next]}`}
       title={`Theme: ${LABELS[theme]}`}
     >
-      <Icon className="size-4" aria-hidden />
+      <Icon className="size-5" aria-hidden />
     </Button>
   )
 }

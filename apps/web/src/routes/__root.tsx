@@ -25,7 +25,7 @@ function RootLayout() {
       <Toaster richColors closeButton />
       {import.meta.env.DEV ? (
         <>
-          <TanStackRouterDevtools position="bottom-right" />
+          <TanStackRouterDevtools position="top-right" />
           <ReactQueryDevtools buttonPosition="bottom-left" />
         </>
       ) : null}

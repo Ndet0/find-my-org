@@ -2029,10 +2029,10 @@ planning.
   (a preference set in another tab). `ThemeToggle` is one button cycling
   light → dark → system with an `aria-label` that names the current and
   the next mode — three states in one control keeps it the size of the
-  profile icon and needs no menu primitive. Mounted twice, like
-  `ProfileLink`: the narrow-screen header and the sidebar footer. The
-  toaster now takes the app's resolved theme rather than `"system"`, so a
-  user who chose dark on a light desktop gets dark toasts
+  profile icon and needs no menu primitive. It was first mounted twice
+  beside sign-out, like `ProfileLink`; it is now the floating button
+  described below. The toaster takes the app's resolved theme rather than
+  `"system"`, so a user who chose dark on a light desktop gets dark toasts
 - [x] Verified: `pnpm lint`, web `typecheck` and `build`; in the browser
   against the running API as the employee — the boot script honours an
   emulated light and dark OS with nothing stored; three presses cycle
@@ -2063,9 +2063,9 @@ planning.
   navigator mounts. NativeWind's web build treats `system` as "remove the
   class" without consulting the OS, so there the module resolves it from
   `prefers-color-scheme` itself; on a phone NativeWind's Appearance
-  handling does it. The control is an Appearance row on the profile tab
-  using the existing `Segmented`: Light / Dark / System. The status bar
-  follows the resolved scheme rather than the OS
+  handling does it. The control was first an Appearance row on the
+  profile tab; it is now the floating button described below. The status
+  bar follows the resolved scheme rather than the OS
 - [x] Verified: `pnpm lint`, mobile `typecheck`; a grep for any surface
   class without its `dark:` pairing is empty; through the web build at
   390×844 against the running API as the employee — Dark turns the profile
@@ -2155,6 +2155,33 @@ planning.
   observed; they are the button primitive's own classes. No axe run was
   available here
 
+- [x] The theme control is a floating button (2026-09-12). The icon
+  beside sign-out in the sidebar was not found in use, and a row on the
+  profile tab is not where anyone looks for a theme. Both clients now show
+  one round button, bottom-right, that cycles light → dark → system and
+  shows the current mode's icon, with the same label naming the current
+  and the next mode. On the web it floats on every signed-in page —
+  rendered once by `AppShell`, so the login page has none — and the two
+  sidebar mounts are gone; the router devtools button moved to the
+  top-right corner in development so it does not cover it. On mobile
+  `ThemeFab` floats over the dashboard tab only, above the tab bar, inside
+  `Screen`'s gutter so it lines up with the cards; the dashboard's scroll
+  content gained bottom padding so the last card clears it, and the
+  profile tab's Appearance row is removed. No storage or resolution logic
+  changed
+- [x] Verified: `pnpm lint`, web and mobile `typecheck`, web `build`; in
+  the browser as the employee — the login page has no theme button; the
+  dashboard, tasks list, a task and the profile page each have exactly one,
+  `position: fixed`, round, none inside the sidebar; three presses cycle
+  system → light → dark → system with the class, stored value and label
+  moving together. Through the mobile web build at 390×844 — the dashboard
+  shows one round button 16px from the right edge, in line with the cards
+  and clear of the tab bar; three presses cycle the same way, flipping the
+  root class, the stored value and the button's own fill; the tasks tab
+  and the profile tab have no button, and the profile tab no Appearance
+  row. The mobile web build was reached through the user's own Expo
+  server, whose API address is a LAN IP this browser cannot reach, so the
+  request was redirected to localhost from the page for the check
 - [x] Phase 14 closed on 2026-09-12. Left out deliberately, so the next
   reader does not look for them here: the web's grey surfaces are still
   shadcn's zinc-toned `oklch` variables, not the palette's neutral scale —
