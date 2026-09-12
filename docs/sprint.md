@@ -1886,7 +1886,7 @@ is also reachable from every open status, not only from `planning` as
 product §14 draws it — work is abandoned mid-flight more often than during
 planning.
 
-## Phase 14 — UI/UX Polish (started 2026-09-08)
+## Phase 14 — UI/UX Polish (2026-09-08 → 2026-09-12, complete)
 
 - [x] `@opsflow/ui` design tokens. `src/palette.json` is the single source of
   truth — the neutral scale the mobile components are built on, and six
@@ -2155,10 +2155,17 @@ planning.
   observed; they are the button primitive's own classes. No axe run was
   available here
 
-Not a token: the web's grey surfaces are shadcn's zinc-toned `oklch`
-variables, not this neutral scale. §25 previously said the two were the
-same; they are close, not identical, and unifying them is a later polish
-item rather than a prerequisite
+- [x] Phase 14 closed on 2026-09-12. Left out deliberately, so the next
+  reader does not look for them here: the web's grey surfaces are still
+  shadcn's zinc-toned `oklch` variables, not the palette's neutral scale —
+  they are close, not identical, and unifying them touches every surface
+  variable for no functional gain; dashboard charts (product §42's
+  "detailed analytics") belong with demo preparation, since the attention
+  card and the counts already answer "what needs attention"; tooltips on
+  the icon-only buttons, whose `aria-label` and `title` say what they do;
+  and a dropdown for the theme control, which the three-state cycle makes
+  unnecessary. Mobile list paging, the one thing mobile still does
+  differently from the web, is a Phase 15 item (§25)
 
 ## Known gaps in this plan
 
@@ -2204,8 +2211,7 @@ item rather than a prerequisite
 
 ## Not started
 
-- [ ] Phases 15-20 — Performance, testing (started), security, deployment, demo.
-  Phase 14 is in progress (above)
+- [ ] Phases 15-20 — Performance, testing (started), security, deployment, demo
 
 ## Stack amendments
 
@@ -2218,42 +2224,38 @@ is at v2.5 to reflect them.
 
 # 25. Immediate Next Steps
 
-The application is complete through Phase 13c: every web module is a full
+The application is complete through Phase 14: every web module is a full
 vertical slice — authentication, RBAC, service layer, Prisma, reads and writes
-(§24) — navigation is loader-driven, the dashboard gives each role its
-operational overview from real rows, and the mobile app now reaches every
-module the web does. It covers the employee workflows and, for managers and
-administrators, the management of tasks, projects, clients, departments and
-people, plus the activity trail, with its own icon set.
+(§24) — navigation is loader-driven, the dashboard leads with what needs
+attention, the mobile app reaches every module the web does, and both
+clients read one palette, in light and dark, with the same status colours,
+one card, one error line, and a keyboard path through every dialog.
 
-Mobile is no longer missing a module. What it still does differently is
-paging: every mobile list is one page at the API's ceiling, filtered with
-chips, where the web has search, filters and jump-to-page. That is a
-deliberate trade, but it is also the next thing that will hurt — an
-organisation with more than a hundred people or a busy activity trail sees
-only the first page on a phone, and the header count is what tells them so.
+What mobile still does differently is paging: every mobile list is one page
+at the API's ceiling, filtered with chips, where the web has search, filters
+and jump-to-page. That is a deliberate trade, but it is also the next thing
+that will hurt — an organisation with more than a hundred people or a busy
+activity trail sees only the first page on a phone, and the header count is
+what tells them so. It is the first candidate for Phase 15, whose brief is
+"remains responsive as data grows".
 
 Next:
 
 ```text
-1. Phase 14 — UI/UX Polish
+1. Phase 15 — Performance
 ```
 
-The lifecycle question that gated Phase 14 is settled: the state machines
-are enforced in the API and mirrored by both clients (§24 "Lifecycle
-enforcement").
+Phase 15's other items are largely settled by construction — pages cap at
+100 rows, the dashboard is one transaction of counts, virtualization was
+evaluated and dropped in Phase 12 — so the phase is a review with a
+measurement, not a rebuild: the bundle size of the web app, the query plans
+behind the list endpoints and the dashboard, and the indexes the schema
+document promises. Phase 17's checklist already has a start in "Known gaps"
+above: the login page's missing deep-link restoration, the six-character
+password minimum, and `SameSite` for a cross-site deployment.
 
-The first polish slice is done: `packages/ui` holds the palette and the
-status → tone table, both badges read it, and the mobile icon set is drawn
-from the same JSON (§24 "Phase 14"). CI runs lint, typecheck, the API tests
-and the build on every push and pull request, so each polish commit from
-here is verified.
-
-The dashboard slice is done: the web dashboard leads with what needs
-attention and both feeds show open work only (§24 "Phase 14"). The next
-slice is the remaining mobile reds, then dark mode on both clients, then
-typography and spacing across both. Dark mode needs tone values for the
-`.dark` block before a toggle is worth wiring.
+CI runs lint, typecheck, the API tests and the build on every push and pull
+request, so each commit from here is verified.
 
 Two `expo-doctor` notes are carried, not fixed: `typescript` 7 against the
 SDK's expected 6 (accepted in Phase 13, the typecheck passes) and
