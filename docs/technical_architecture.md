@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.9  
+**Version:** 3.0  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1380,9 +1380,13 @@ apps/api          in-process against the seeded database (app.request());
                   fails early, with a fix, if a seeded account cannot sign in
 packages/types    the permission matrix, both state machines, every list-query
                   and form schema — tables restated as literals in the tests
-apps/web          the API client and the theme store; a test that needs the
-                  DOM imports test/setup.ts, which registers happy-dom once
-apps/mobile       the paging helpers and the query-string builder
+apps/web          the API client and the theme store as units; the forms,
+                  the session guard and login flow, the status dialog and the
+                  route feedback rendered with Testing Library on happy-dom
+                  (test/render.tsx, test/api-mock.ts)
+apps/mobile       the paging helpers, the query-string builder, the error
+                  shapes, the dev-server host swap and the date rules — every
+                  module that react-native never reaches
 ```
 
 `pnpm test` is the entrypoint: Turborepo runs each package's script in its
@@ -1390,9 +1394,25 @@ own directory, where its `bunfig.toml` applies. A bare `bun test` at the root
 also works — it reads no per-package bunfig, which is why the DOM setup is an
 explicit import rather than only a preload.
 
-Two rules keep the client tests cheap. On the web, a test that mocks `fetch`
-builds its responses with the registered `Response`, because the registrator
-replaces Bun's for the process. On mobile, a module under test must not
+The web's component tests follow five rules, written into `test/render.tsx`:
+the network is mocked at `fetch` (`mockApi`), keyed by method and pathname,
+so the real envelope path runs and an unmocked request fails loudly; no test
+mounts the Toaster, `AppShell` or `ThemeToggle`, so `lib/theme.ts` — a
+module with import-time side effects — has one importer, and a toast is
+asserted by spying on sonner's `toast`; no test uses `mock.module`, which
+Bun keeps for the rest of the process; every file that renders registers its
+own `cleanup`; and every assertion after an event goes through `findBy*` or
+`waitFor`. The harness loads Testing Library, Router and Query with a
+top-level `await import` after `setup.ts` has run, because Bun evaluates a
+CommonJS dependency while linking — before any ES module body — and the
+`use-sync-external-store` shim behind Router and Form picks its server
+variant when no `window` exists at that moment. Tests import their component
+the same way. That is what makes a bare `bun test` at the repository root,
+which preloads nothing, agree with `pnpm test`.
+
+Two more rules keep the client tests cheap. On the web, a test that mocks
+`fetch` builds its responses with the registered `Response`, because the
+registrator replaces Bun's for the process. On mobile, a module under test must not
 import `react-native` — Bun cannot load it outside Metro — which is why the
 pure paging helpers live in `paging.ts` and the TanStack wiring that imports
 the API client lives in `paged.ts`. Component and flow tests are the next
@@ -1934,6 +1954,8 @@ than only the outcome.
 | Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
 | `@opsflow/ui` ships a JSON palette, a status → tone table and a generated `tokens.css` | The web badge collapsed every status into three shadcn variants while the mobile badge coloured each one; the two clients disagreed on what `completed` or `cancelled` looks like. One tone table, read by both, settles it. JSON rather than TypeScript because the mobile Tailwind 3 config and the icon script `require()` it; the CSS is generated so the web's Tailwind 4 build reads the same values |
 | Mobile directory lists page with `useInfiniteQuery`; every paged list query ends its `orderBy` in `id` | Each mobile list fetched one page at the 100-row ceiling while its header showed the server's total, so anything past the first 100 rows silently did not exist on a phone. Concatenating offset pages needs a total order on the server and dedupe by id on the client; neither alone is enough. See §21.1 |
+| Component tests use Testing Library on happy-dom, with the network mocked at `fetch` and no user-event or jest-dom | Nothing under test needs pointer capture, so `fireEvent` and `findBy*` suffice; jest-dom's matchers are typed for other runners. Mocking at `fetch` runs the real envelope path the forms depend on, and `mock.module` is process-global under Bun. See §30 |
+| Mobile screens are not rendered in tests; their logic is extracted into modules react-native never reaches | Bun cannot parse react-native's Flow-typed entry, and every screen imports it. `errors.ts` and `api-url.ts` hold what `api.ts`, `message.tsx` and `env.ts` carried, re-exported so no caller changed. A rendered test would need jest-expo, a second runner — deferred until a screen has logic that cannot be pulled out |
 | Unit tests run on `bun test` in every package, with happy-dom for the web | One runner and one assertion API across the repo. happy-dom is what the theme module needs — `matchMedia`, `localStorage`, `documentElement` — and nothing more; a second runner would have been a dependency added for the stack rather than for a problem. See §30 |
 | The mobile paging helpers live in `paging.ts`, apart from the TanStack wiring in `paged.ts` | The helpers are pure; the wiring imports react-native through the API client, which Bun cannot load. The split makes the helpers testable and the boundary explicit, and `paged.ts` re-exports them so the screens did not change |
 | Query plans are measured on a bench volume, and the measurement is a script | Reading a plan against the seven-row development database says nothing: the planner prefers a sequential scan at that size whatever the indexes. `pnpm db:bench` and `pnpm db:explain` make the evidence reproducible after any query change, and the first run found no index worth adding. See §21.2 |

@@ -1823,7 +1823,8 @@ create, edit and the status actions all shipped there.
   works locally after `rm -rf packages/db/src/generated`
 - [x] Unit tests for `@opsflow/types` and the clients' pure modules (2026-09-13,
   below)
-- [ ] Component, integration and mobile flow tests
+- [x] Web component and flow tests (2026-09-14, below)
+- [ ] Rendered mobile screens — needs jest-expo; see known gaps
 
 ## Audit fixes (2026-09-05)
 
@@ -2439,6 +2440,93 @@ unit layer under the same runner — `bun test` in every package, one `pnpm test
   the test that needs it rather than only a preload — found when the root
   run failed with `window is not defined`
 
+## Phase 16 — Component and flow tests (2026-09-14)
+
+The layer above the unit tests: a component rendered with its providers,
+driven through the DOM, answered at `fetch`. Web only — Bun cannot load
+react-native (below), so the mobile side of this slice extracted its logic
+instead of rendering. 344 tests across the four packages now, under one
+`pnpm test` and equally under a bare `bun test` at the root.
+
+- [x] `apps/web/test/render.tsx` and `test/api-mock.ts`, on the happy-dom
+  setup from the unit slice, with `@testing-library/react` 16 and `dom` and
+  nothing else: no `user-event` (nothing under test needs pointer capture;
+  `fireEvent` and `findBy*` cover controlled inputs, submission and Radix
+  buttons) and no `jest-dom` (its matchers are typed for other runners; plain
+  DOM assertions read better). `renderWithProviders` builds a Query client
+  and a memory router with a splat route, so any `navigate` target resolves
+  and the pathname moves, without the app's root route — which imports the
+  stylesheet, the devtools and the toaster. `mockApi` answers at `fetch`,
+  keyed by method and pathname, records every call and throws on one it did
+  not expect, so the real `apiFetch` → `ApiRequestError` → `fieldErrorsFrom`
+  path runs. A toast is asserted by spying on sonner's `toast`; no test
+  mounts the Toaster, `AppShell` or `ThemeToggle`, so `theme.test.ts` stays
+  the module's only importer; no test uses `mock.module`, which Bun keeps
+  for the rest of the process
+- [x] `client-form.test.tsx` — the simplest form, six text fields. The local
+  path: an empty name submits nothing, lands `'Check the highlighted fields'`
+  as the alert and `aria-invalid` with the schema's message on the field.
+  The server path: a 422 envelope lands the same way with the envelope's
+  message as the banner. Success announces, invalidates `['clients']` and
+  moves to the record; edit starts from the record and patches the whole
+  payload (the code does not diff); cancel goes back with no request. The
+  first run found that every form awaited `mutateAsync` inside `onSubmit`,
+  so a failed save was handled by `onError` *and* left as an unhandled
+  rejection — an "Uncaught (in promise)" in the browser on every failed
+  save. The seven sites now swallow the rejection `onError` already owns
+- [x] The session guard, extracted: `requireUser(queryClient)` and
+  `isSignedIn(queryClient)` in `lib/current-user.ts` are what the
+  `_authed` and `login` routes' `beforeLoad` did inline. `current-user.test.ts`
+  asks `/api/me` once for two calls and turns a 401 into a redirect to
+  `/login` (`isRedirect`). `login.test.tsx` drives `LoginPage` (now exported)
+  end to end: empty submit refused on both fields with no request; a refused
+  credential announced with Better Auth's message; an accepted one confirmed
+  by `/api/me` landing on `/`; and a session `/api/me` rejects — the page
+  signs out again and drops the cached profile. Better Auth's client bound
+  the global `fetch` when created; `auth-client.ts` now looks it up per call
+  (`customFetchImpl`), a behaviour-identical indirection that lets it be
+  replaced after the module loads
+- [x] `task-status-dialog.test.tsx` — closed with no move or a move to the
+  current status; each of the four moves in its own words; confirming sends
+  `PATCH …/status`, announces the response's title and status, and closes;
+  a 409 is announced and the dialog stays; cancel closes with no request.
+  `route-feedback.test.tsx` — `describe()`'s three answers, the three pending
+  regions as `output[aria-busy]`, `RefreshFailed`'s alert and retry,
+  `MessageRow` spanning its table, `RouteError` for 403 (no retry), 500
+  (retry) and 401 (cache dropped, redirected), and `RouteNotFound`
+- [x] `nav-items.ts` — `visibleNavItems(role)` is what `AppShell` filtered
+  inline; tested against a literal per role (admin and manager see all eight;
+  an employee sees Dashboard, Projects, Tasks, Activity, Notifications)
+  without rendering the shell. `useTheme` tested through `renderHook` in
+  `theme.test.ts`
+- [x] Mobile: `lib/errors.ts` (`ApiRequestError`, `fieldErrorsFrom`,
+  `describeError`) and `lib/api-url.ts` (`devServerHostname`,
+  `resolveApiUrl`) hold what `api.ts`, `components/message.tsx` and `env.ts`
+  did in files that import react-native; those three re-export or call them,
+  so no caller changed. Tested with `dates.ts`, which needed no change:
+  overdue is past the date, not on it; a project counts as overdue in every
+  open status and never in `completed` or `cancelled`
+- [x] What running from the repository root taught. `pnpm test` runs each
+  package in its own directory, where `apps/web/bunfig.toml` preloads the
+  DOM setup before anything is linked. A bare `bun test` at the root has no
+  preload, and Bun evaluates a CommonJS dependency *while linking*, before
+  any ES module body runs: Testing Library's `screen` bound `document.body`
+  to nothing, and the `use-sync-external-store` shim behind TanStack Router
+  and Form chose its server variant, which never subscribes — a typed value
+  never re-rendered, and only the tests that type failed. The harness now
+  imports its libraries after `setup.ts` has run (top-level `await import`),
+  exports a `screen` bound at call time and the Testing Library helpers,
+  awaits the router's first load inside `act`, and each test imports its
+  component dynamically. Cleanup is registered per file, because a hook in
+  a shared helper attaches only to the first file to import it
+- [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` — 215 + 60
+  + 47 + 22 = 344 pass — and `bun test` at the root, 344 pass;
+  `pnpm --filter @opsflow/web build` contains no test code. Four
+  "not wrapped in act" lines remain from TanStack Router's `Matches` on
+  navigations that follow a mutation; they are noise from the router's own
+  scheduling, not a missed assertion, and every assertion after an event
+  goes through `findBy*` or `waitFor`
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -2481,6 +2569,18 @@ unit layer under the same runner — `bun test` in every package, one `pnpm test
   the client dedupe and appears on refresh; a row removed above it shifts the
   next page by one and skips a row until refresh. A cursor would avoid both, at
   the cost of the web's jump-to-page tables sharing the contract.
+- Rendered mobile screens have no tests. Bun cannot parse react-native's
+  Flow-typed entry, and every mobile screen and component imports it, directly
+  or through `expo-constants`; the logic those files carried was moved into
+  `lib/errors.ts` and `lib/api-url.ts` and tested there instead. A rendered
+  test needs Expo's own stack — `jest`, `jest-expo`,
+  `@testing-library/react-native` — a second runner with Babel transforms and
+  mocks for `expo-router`, `expo-secure-store` and `expo-constants`. Add it
+  when a mobile screen has logic that cannot be pulled out of the render.
+- Radix Select is not under test. A select-based form (task, project, user)
+  needs `hasPointerCapture` and `ResizeObserver` on happy-dom before its
+  control can be opened; the client form was chosen for the form tests
+  because it has none.
 - There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
@@ -2497,8 +2597,8 @@ unit layer under the same runner — `bun test` in every package, one `pnpm test
 ## Not started
 
 - [x] Phase 15 — Performance (closed 2026-09-13; see above)
-- [-] Phase 16 — Testing (API, CI and the unit layer done; component and flow tests
-  remain)
+- [x] Phase 16 — Testing (closed 2026-09-14; rendered mobile screens deferred, see
+  known gaps)
 - [ ] Phases 17-20 — Security, deployment, demo
 
 ## Stack amendments
@@ -2528,28 +2628,28 @@ deep offset pages and the `ILIKE` search counts — are recorded with their
 numbers and their trigger under "Known gaps". `pnpm db:bench` and
 `pnpm db:explain` regenerate the evidence after any query or schema change.
 
+Phase 16 is closed (§24): 344 tests across four packages under one
+`pnpm test` — the API in-process on the seeded database, the types package's
+matrices and schemas, the web's forms, guard, login flow, dialog and feedback
+components rendered with Testing Library on happy-dom, and the mobile logic
+in modules react-native never reaches. The one thing left out is a rendered
+mobile screen, which needs a second runner; it is recorded under "Known gaps"
+with the route to it.
+
 Next:
 
 ```text
-1. Phase 16 — Testing
-2. Phase 17 — Security review
+1. Phase 17 — Security review
+2. Phase 18 — Deployment
 ```
 
-Phase 16 has the API tests, CI, and now the unit layer (§24): the
-permission matrix, both state machines and the list-query schemas in
-`@opsflow/types`, the web API client and theme store, and the mobile paging
-helpers — 286 tests across four packages under one `pnpm test`. The
-seeded-credential hazard is closed. What remains is the component and flow
-layer: the web forms' local validation path (a ZodError landing on its field
-without a request) and the `_authed` guard's redirect, rendered with
-`@testing-library/react` under the happy-dom setup already in place — which
-is also when `useTheme` gets its test — then one critical flow on each
-client. That layer needs providers (Query, Router, the toaster) per test
-and is a slice of its own.
-
-Phase 17's checklist already has a start in "Known gaps" above: the login
-page's missing deep-link restoration, the six-character password minimum, and
-`SameSite` for a cross-site deployment.
+Phase 17's checklist has three starts recorded under "Known gaps": the login
+page's missing deep-link restoration (add it with an internal-path check),
+the six-character password minimum, and `SameSite` for a cross-site
+deployment. Add the `pg` deprecation warning the API tests print ("Calling
+client.query() when the client is already executing a query") to the
+dependency review: it comes from Prisma's adapter, not the app, and `pg@9`
+will remove the behaviour.
 
 CI runs lint, typecheck, the API tests and the build on every push and pull
 request, so each commit from here is verified.
