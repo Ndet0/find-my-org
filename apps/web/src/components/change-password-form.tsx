@@ -103,7 +103,8 @@ export function ChangePasswordForm() {
     onSubmit: async ({ value }) => {
       setServerErrors({})
       setFormError(null)
-      await mutation.mutateAsync(value)
+      // `onError` owns the failure; without the catch it is also an unhandled rejection.
+      await mutation.mutateAsync(value).catch(() => undefined)
     },
   })
 
