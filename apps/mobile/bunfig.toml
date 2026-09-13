@@ -1,0 +1,5 @@
+# `bun test` for the mobile app. Only src/ is scanned: the tests cover the pure
+# modules there, and a module under test must not import react-native, which
+# Bun cannot load outside Metro (see src/lib/paging.ts).
+[test]
+root = "src"

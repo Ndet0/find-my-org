@@ -10,7 +10,8 @@
     "web": "bun --env-file=../../.env run expo start --web",
     "export:web": "bun --env-file=../../.env run expo export --platform web",
     "assets": "node scripts/make-assets.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@better-auth/expo": "1.7.2",
@@ -44,6 +45,7 @@
   },
   "devDependencies": {
     "@opsflow/config": "workspace:*",
+    "@types/bun": "latest",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "~57.0.10",
     "tailwindcss": "^3.4.17",
