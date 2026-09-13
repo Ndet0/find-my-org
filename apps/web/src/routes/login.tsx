@@ -8,16 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
-import { currentUserQueryOptions } from '@/lib/current-user'
+import { currentUserQueryOptions, isSignedIn } from '@/lib/current-user'
 
 export const Route = createFileRoute('/login')({
   beforeLoad: async ({ context }) => {
-    const signedIn = await context.queryClient
-      .ensureQueryData(currentUserQueryOptions)
-      .then(() => true)
-      .catch(() => false)
-
-    if (signedIn) {
+    if (await isSignedIn(context.queryClient)) {
       throw redirect({ to: '/' })
     }
   },
@@ -26,7 +21,7 @@ export const Route = createFileRoute('/login')({
 
 type FieldErrors = { email?: string[]; password?: string[] }
 
-function LoginPage() {
+export function LoginPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
 
