@@ -1,5 +1,4 @@
 import './setup'
-import { afterEach } from 'bun:test'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
@@ -9,7 +8,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
-import { cleanup, render } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 /**
@@ -29,9 +28,11 @@ import type { ReactNode } from 'react'
  *   path runs.
  * - Every spy is restored in `afterEach`; a fresh Query client per test.
  * - Every assertion after an event goes through `findBy*` or `waitFor`.
+ * - Every file that renders registers `afterEach(cleanup)` itself. A hook
+ *   registered here would attach only to the first file to import this
+ *   module — Bun evaluates it once — and every later file would render on
+ *   top of the last test's DOM.
  */
-
-afterEach(cleanup)
 
 export function testQueryClient(): QueryClient {
   return new QueryClient({

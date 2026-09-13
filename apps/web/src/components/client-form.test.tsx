@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import type { ClientDetail } from '@opsflow/types/client'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { fail, mockApi, ok } from '../../test/api-mock'
 import { renderWithProviders, testQueryClient } from '../../test/render'
@@ -33,6 +33,7 @@ afterEach(() => {
   api?.restore()
   success?.mockRestore()
 })
+afterEach(cleanup)
 
 function input(label: string): HTMLInputElement {
   return screen.getByLabelText(label) as HTMLInputElement
