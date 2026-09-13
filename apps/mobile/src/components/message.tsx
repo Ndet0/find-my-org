@@ -1,6 +1,5 @@
 import { Text, View } from 'react-native'
 import { Button } from '@/components/button'
-import { ApiRequestError } from '@/lib/api'
 
 /** Centred feedback for an empty or failed screen. */
 export function Message({
@@ -23,18 +22,5 @@ export function Message({
   )
 }
 
-export function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) {
-    if (error.status === 404) {
-      return 'This record does not exist or is not part of your work.'
-    }
-
-    if (error.status === 403) {
-      return 'Your role does not have permission to view this.'
-    }
-
-    return error.message
-  }
-
-  return error instanceof Error ? error.message : 'Something went wrong.'
-}
+// Lives in `lib/errors.ts`, where it can be tested; re-exported for its callers.
+export { describeError } from '@/lib/errors'

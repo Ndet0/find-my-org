@@ -3,21 +3,11 @@ import { Platform } from 'react-native'
 import { authClient } from '@/lib/auth-client'
 import { API_URL } from '@/lib/env'
 
-/** Flattened field errors from a `VALIDATION_ERROR` envelope. */
-export type FieldErrorMap = Record<string, string[] | undefined>
+import { ApiRequestError } from '@/lib/errors'
 
-/** A failure the API reported through the standard error envelope. */
-export class ApiRequestError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly status: number,
-    readonly details?: unknown,
-  ) {
-    super(message)
-    this.name = 'ApiRequestError'
-  }
-}
+// The error shapes live in a module react-native never reaches, so they can
+// be tested; every existing import of them from here still works.
+export { ApiRequestError, type FieldErrorMap, fieldErrorsFrom } from '@/lib/errors'
 
 function isApiResponse<T>(body: unknown): body is ApiResponse<T> {
   return typeof body === 'object' && body !== null && 'success' in body
@@ -72,29 +62,4 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   return body.data
-}
-
-/** Maps a 422 envelope back onto form fields. Anything else is empty. */
-export function fieldErrorsFrom(error: unknown): FieldErrorMap {
-  if (
-    !(error instanceof ApiRequestError) ||
-    error.details === undefined ||
-    error.details === null
-  ) {
-    return {}
-  }
-
-  if (typeof error.details !== 'object' || Array.isArray(error.details)) {
-    return {}
-  }
-
-  const mapped: FieldErrorMap = {}
-
-  for (const [key, value] of Object.entries(error.details)) {
-    if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
-      mapped[key] = value
-    }
-  }
-
-  return mapped
 }
