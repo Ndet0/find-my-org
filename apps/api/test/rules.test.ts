@@ -1,6 +1,7 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { prisma } from '@opsflow/db'
 import { app } from '../src/app'
+import { assertSeededAccounts, cookieFrom, PASSWORD, signInRequest, WEB_ORIGIN } from './helpers'
 
 /**
  * Business rules that span two records, exercised end to end through the
@@ -8,32 +9,18 @@ import { app } from '../src/app'
  * removed again in `afterAll`, so the fixture does not accumulate.
  */
 
-const PASSWORD = process.env.SEED_USER_PASSWORD ?? 'opsflow-dev-password'
-const WEB_ORIGIN = process.env.WEB_URL ?? 'http://localhost:5173'
+beforeAll(assertSeededAccounts)
 
 async function signIn(email: string, password = PASSWORD) {
-  const response = await app.request('/api/auth/sign-in/email', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: WEB_ORIGIN },
-    body: JSON.stringify({ email, password }),
-  })
+  const response = await signInRequest(email, password)
   expect(response.status).toBe(200)
 
-  return response.headers
-    .getSetCookie()
-    .map((header) => header.split(';')[0])
-    .join('; ')
+  return cookieFrom(response)
 }
 
 /** Sign-in reduced to its status, for asserting that a password is refused. */
 async function signInStatus(email: string, password: string) {
-  const response = await app.request('/api/auth/sign-in/email', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: WEB_ORIGIN },
-    body: JSON.stringify({ email, password }),
-  })
-
-  return response.status
+  return (await signInRequest(email, password)).status
 }
 
 /**

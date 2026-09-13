@@ -1,5 +1,14 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { app } from '../src/app'
+import {
+  ACCOUNTS,
+  assertSeededAccounts,
+  cookieFrom,
+  PASSWORD,
+  type Role,
+  signInRequest,
+  WEB_ORIGIN,
+} from './helpers'
 
 /**
  * Runs against the assembled Hono app in-process, on the development
@@ -10,33 +19,13 @@ import { app } from '../src/app'
  * trip, the trusted-origin check, and one authorization decision per role.
  */
 
-const PASSWORD = process.env.SEED_USER_PASSWORD ?? 'opsflow-dev-password'
-const WEB_ORIGIN = process.env.WEB_URL ?? 'http://localhost:5173'
 const MOBILE_ORIGIN = 'opsflow://'
 
-const ACCOUNTS = {
-  admin: 'admin@opsflow.local',
-  manager: 'manager@opsflow.local',
-  employee: 'employee@opsflow.local',
-} as const
-
-type Role = keyof typeof ACCOUNTS
+beforeAll(assertSeededAccounts)
 
 async function signIn(role: Role, origin = WEB_ORIGIN) {
-  const response = await app.request('/api/auth/sign-in/email', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin },
-    body: JSON.stringify({ email: ACCOUNTS[role], password: PASSWORD }),
-  })
-
-  // Better Auth may set more than one cookie; a client sends back the
-  // name=value pairs and nothing else, which is what the mobile app does.
-  const cookie = response.headers
-    .getSetCookie()
-    .map((header) => header.split(';')[0])
-    .join('; ')
-
-  return { response, cookie }
+  const response = await signInRequest(ACCOUNTS[role], PASSWORD, origin)
+  return { response, cookie: cookieFrom(response) }
 }
 
 async function get(path: string, cookie?: string) {
