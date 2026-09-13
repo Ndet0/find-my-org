@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
+// The DOM must exist before anything renders; see test/setup.ts.
+import '../../test/setup'
 import type { CurrentUser } from '@opsflow/types/user'
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { currentUserQueryOptions } from '@/lib/current-user'
 import { fail, mockApi, ok } from '../../test/api-mock'
-import { renderWithProviders } from '../../test/render'
-import { LoginPage } from './login'
+import { cleanup, fireEvent, renderWithProviders, screen, waitFor } from '../../test/render'
+
+// The component is imported after the static imports have run, so the DOM
+// from test/setup.ts exists before its dependencies are linked: libraries
+// decide at load time whether a document exists (layout effects, portals),
+// and `bun test` from the repository root has no preload to settle that.
+const { LoginPage } = await import('./login')
 
 /**
  * The sign-in flow end to end from the page: local validation, Better Auth
@@ -50,7 +56,7 @@ function submit() {
 describe('LoginPage', () => {
   test('an empty form is refused on both fields and sends nothing', async () => {
     api = mockApi({})
-    renderWithProviders(<LoginPage />)
+    await renderWithProviders(<LoginPage />)
 
     await screen.findByLabelText('Email')
     submit()
@@ -70,7 +76,7 @@ describe('LoginPage', () => {
         body: { code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' },
       },
     })
-    renderWithProviders(<LoginPage />)
+    await renderWithProviders(<LoginPage />)
 
     await screen.findByLabelText('Email')
     fill('employee@opsflow.local', 'wrong-password')
@@ -86,7 +92,7 @@ describe('LoginPage', () => {
       [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },
       'GET /api/me': ok(user),
     })
-    const { router } = renderWithProviders(<LoginPage />)
+    const { router } = await renderWithProviders(<LoginPage />)
 
     await screen.findByLabelText('Email')
     fill('employee@opsflow.local', 'opsflow-dev-password')
@@ -103,7 +109,7 @@ describe('LoginPage', () => {
       'GET /api/me': fail('FORBIDDEN', 'This account is suspended', 403),
       [SIGN_OUT]: { status: 200, body: { success: true } },
     })
-    const { router, queryClient } = renderWithProviders(<LoginPage />)
+    const { router, queryClient } = await renderWithProviders(<LoginPage />)
     const removeQueries = spyOn(queryClient, 'removeQueries')
 
     await screen.findByLabelText('Email')

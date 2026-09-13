@@ -1,17 +1,30 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+// The DOM must exist before anything renders; see test/setup.ts.
+import '../../test/setup'
 import { ApiRequestError } from '@/lib/api'
 import { mockApi } from '../../test/api-mock'
-import { renderWithProviders } from '../../test/render'
 import {
+  cleanup,
+  fireEvent,
+  render,
+  renderWithProviders,
+  screen,
+  testQueryClient,
+} from '../../test/render'
+
+// The component is imported after the static imports have run, so the DOM
+// from test/setup.ts exists before its dependencies are linked: libraries
+// decide at load time whether a document exists (layout effects, portals),
+// and `bun test` from the repository root has no preload to settle that.
+const {
   DetailPending,
-  describe as describeError,
+  describe: describeError,
   ListPending,
   RouteError,
   RouteNotFound,
   RoutePending,
-} from './route-feedback'
-import { MessageRow, RefreshFailed } from './table-message'
+} = await import('./route-feedback')
+const { MessageRow, RefreshFailed } = await import('./table-message')
 
 /**
  * The feedback states the router and the list pages show instead of a page:
@@ -96,7 +109,7 @@ describe('MessageRow', () => {
 describe('RouteError', () => {
   test('a 403 explains the refusal without a retry', async () => {
     api = mockApi({})
-    renderWithProviders(
+    await renderWithProviders(
       <RouteError error={new ApiRequestError('FORBIDDEN', 'No', 403)} reset={() => undefined} />,
     )
 
@@ -107,7 +120,7 @@ describe('RouteError', () => {
 
   test('a 500 carries the message and offers a retry', async () => {
     api = mockApi({})
-    renderWithProviders(
+    await renderWithProviders(
       <RouteError
         error={new ApiRequestError('INTERNAL', 'Database is away', 500)}
         reset={() => undefined}
@@ -121,12 +134,15 @@ describe('RouteError', () => {
 
   test('a 401 drops the cached profile and heads for the login page', async () => {
     api = mockApi({})
-    const { router, queryClient } = renderWithProviders(
-      <RouteError error={new ApiRequestError('UNAUTHORIZED', 'No', 401)} reset={() => undefined} />,
-    )
+    const queryClient = testQueryClient()
     queryClient.setQueryData(['current-user'], { id: 'u1' })
+    const { router } = await renderWithProviders(
+      <RouteError error={new ApiRequestError('UNAUTHORIZED', 'No', 401)} reset={() => undefined} />,
+      { queryClient },
+    )
 
-    await screen.findByText('Signed out')
+    // "Signed out" shows only until the redirect lands, which is within the
+    // settled render; what remains is the destination and the emptied cache.
     await screen.findByText('stub route')
     expect(router.state.location.pathname).toBe('/login')
     expect(queryClient.getQueryData(['current-user'])).toBeUndefined()
@@ -136,7 +152,7 @@ describe('RouteError', () => {
 describe('RouteNotFound', () => {
   test('names the problem and offers the dashboard', async () => {
     api = mockApi({})
-    renderWithProviders(<RouteNotFound />)
+    await renderWithProviders(<RouteNotFound />)
 
     await screen.findByText('Page not found')
     expect(screen.getByRole('link', { name: 'Go to dashboard' })).toBeTruthy()

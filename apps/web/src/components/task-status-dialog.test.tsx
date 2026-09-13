@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
+// The DOM must exist before anything renders; see test/setup.ts.
+import '../../test/setup'
 import { TASK_STATUSES, type TaskDetail, type TaskStatus } from '@opsflow/types/task'
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { fail, mockApi, ok } from '../../test/api-mock'
-import { renderWithProviders } from '../../test/render'
-import { TaskStatusDialog } from './task-status-dialog'
+import { cleanup, fireEvent, renderWithProviders, screen, waitFor } from '../../test/render'
+
+// The component is imported after the static imports have run, so the DOM
+// from test/setup.ts exists before its dependencies are linked: libraries
+// decide at load time whether a document exists (layout effects, portals),
+// and `bun test` from the repository root has no preload to settle that.
+const { TaskStatusDialog } = await import('./task-status-dialog')
 
 /**
  * The confirmation behind every status change on a task. The status
@@ -45,9 +51,9 @@ afterEach(() => {
 })
 afterEach(cleanup)
 
-function renderDialog(nextStatus: TaskStatus | null, currentStatus: TaskStatus = 'pending') {
+async function renderDialog(nextStatus: TaskStatus | null, currentStatus: TaskStatus = 'pending') {
   const onClose = mock(() => undefined)
-  const rendered = renderWithProviders(
+  const rendered = await renderWithProviders(
     <TaskStatusDialog
       taskId={task.id}
       title={task.title}
@@ -62,17 +68,17 @@ function renderDialog(nextStatus: TaskStatus | null, currentStatus: TaskStatus =
 describe('TaskStatusDialog', () => {
   test('is closed with no move chosen, or a move to the current status', async () => {
     api = mockApi({})
-    renderDialog(null)
+    await renderDialog(null)
     await screen.findByText('stub route', { exact: false }).catch(() => undefined)
     expect(screen.queryByRole('alertdialog')).toBeNull()
 
-    renderDialog('pending', 'pending')
+    await renderDialog('pending', 'pending')
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
   test.each([...TASK_STATUSES])('offers the move to %s in its own words', async (status) => {
     api = mockApi({})
-    renderDialog(status, status === 'pending' ? 'in_progress' : 'pending')
+    await renderDialog(status, status === 'pending' ? 'in_progress' : 'pending')
 
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog.textContent).toContain(`${LABELS[status]} ${task.title}?`)
@@ -84,7 +90,7 @@ describe('TaskStatusDialog', () => {
       'PATCH /api/tasks/t1/status': ok({ ...task, status: 'in_progress' }),
     })
     success = spyOn(toast, 'success')
-    const { onClose } = renderDialog('in_progress')
+    const { onClose } = await renderDialog('in_progress')
 
     await screen.findByRole('alertdialog')
     fireEvent.click(screen.getByRole('button', { name: 'Start work' }))
@@ -105,7 +111,7 @@ describe('TaskStatusDialog', () => {
       ),
     })
     failure = spyOn(toast, 'error')
-    const { onClose } = renderDialog('completed')
+    const { onClose } = await renderDialog('completed')
 
     await screen.findByRole('alertdialog')
     fireEvent.click(screen.getByRole('button', { name: 'Mark completed' }))
@@ -117,7 +123,7 @@ describe('TaskStatusDialog', () => {
 
   test('cancelling closes without a request', async () => {
     api = mockApi({})
-    const { onClose } = renderDialog('blocked')
+    const { onClose } = await renderDialog('blocked')
 
     await screen.findByRole('alertdialog')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))

@@ -1,10 +1,23 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
+// The DOM must exist before anything renders; see test/setup.ts.
+import '../../test/setup'
 import type { ClientDetail } from '@opsflow/types/client'
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { fail, mockApi, ok } from '../../test/api-mock'
-import { renderWithProviders, testQueryClient } from '../../test/render'
-import { ClientForm } from './client-form'
+import {
+  cleanup,
+  fireEvent,
+  renderWithProviders,
+  screen,
+  testQueryClient,
+  waitFor,
+} from '../../test/render'
+
+// The component is imported after the static imports have run, so the DOM
+// from test/setup.ts exists before its dependencies are linked: libraries
+// decide at load time whether a document exists (layout effects, portals),
+// and `bun test` from the repository root has no preload to settle that.
+const { ClientForm } = await import('./client-form')
 
 /**
  * The form's two validation paths and what each does to the page. The local
@@ -50,7 +63,7 @@ function submit() {
 describe('ClientForm, creating', () => {
   test('a local validation failure lands on its field and sends nothing', async () => {
     api = mockApi({})
-    renderWithProviders(<ClientForm />)
+    await renderWithProviders(<ClientForm />)
 
     await screen.findByLabelText('Name')
     submit()
@@ -69,7 +82,7 @@ describe('ClientForm, creating', () => {
         email: ['Enter a valid email address'],
       }),
     })
-    renderWithProviders(<ClientForm />)
+    await renderWithProviders(<ClientForm />)
 
     await screen.findByLabelText('Name')
     type('Name', 'Acme')
@@ -89,7 +102,7 @@ describe('ClientForm, creating', () => {
     success = spyOn(toast, 'success')
     const queryClient = testQueryClient()
     const invalidate = spyOn(queryClient, 'invalidateQueries')
-    const { router } = renderWithProviders(<ClientForm />, { queryClient })
+    const { router } = await renderWithProviders(<ClientForm />, { queryClient })
 
     await screen.findByLabelText('Name')
     type('Name', 'Acme')
@@ -115,7 +128,7 @@ describe('ClientForm, editing', () => {
   test('starts from the record and patches the whole payload', async () => {
     api = mockApi({ 'PATCH /api/clients/c1': ok({ ...detail, name: 'Acme Group' }) })
     success = spyOn(toast, 'success')
-    const { router } = renderWithProviders(<ClientForm client={detail} />)
+    const { router } = await renderWithProviders(<ClientForm client={detail} />)
 
     await screen.findByLabelText('Name')
     expect(input('Name').value).toBe('Acme')
@@ -138,7 +151,7 @@ describe('ClientForm, editing', () => {
 
   test('cancel goes back without a request', async () => {
     api = mockApi({})
-    const { router } = renderWithProviders(<ClientForm client={detail} />)
+    const { router } = await renderWithProviders(<ClientForm client={detail} />)
     const back = spyOn(router.history, 'back')
 
     await screen.findByLabelText('Name')

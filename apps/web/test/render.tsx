@@ -1,15 +1,30 @@
 import './setup'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
+import type { QueryClient as QueryClientType } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
+
+// Everything below is imported after `setup.ts` has run. Bun evaluates a
+// CommonJS dependency while linking the module graph, before any ES module
+// body executes — so a static import here would load, for example, the
+// `use-sync-external-store` shim behind TanStack Router and Form with no
+// `window` in sight, and it would pick its server variant, which never
+// subscribes: a typed value would never re-render. The package's bunfig
+// preloads `setup.ts` ahead of linking; `bun test` from the repository root
+// has no preload, and this keeps both runs the same.
+const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
+const {
   createMemoryHistory,
   createRootRouteWithContext,
   createRoute,
   createRouter,
   Outlet,
   RouterProvider,
-} from '@tanstack/react-router'
-import { render } from '@testing-library/react'
-import type { ReactNode } from 'react'
+} = await import('@tanstack/react-router')
+const rtl = await import('@testing-library/react')
+const { render, within } = rtl
+
+/** Testing Library's helpers, loaded once the DOM exists; import them from here. */
+export const { act, cleanup, fireEvent, renderHook, waitFor } = rtl
+export { render }
 
 /**
  * Renders a component inside the two providers every component in the app
@@ -32,9 +47,19 @@ import type { ReactNode } from 'react'
  *   registered here would attach only to the first file to import this
  *   module — Bun evaluates it once — and every later file would render on
  *   top of the last test's DOM.
+ * - Queries come from the `screen` below, not Testing Library's. Its own
+ *   binds `document.body` when the package is evaluated, and Bun evaluates
+ *   a CommonJS package while linking — before `setup.ts` has run, unless
+ *   it was preloaded. This one binds on every access, so `bun test` from
+ *   the repository root, which preloads nothing, sees the same DOM.
  */
 
-export function testQueryClient(): QueryClient {
+/** Testing Library's `screen`, bound to the document at call time. */
+export const screen: typeof rtl.screen = new Proxy(rtl.screen, {
+  get: (_target, key) => Reflect.get(within(document.body), key),
+})
+
+export function testQueryClient(): QueryClientType {
   return new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0, staleTime: 0 },
@@ -44,7 +69,7 @@ export function testQueryClient(): QueryClient {
 }
 
 type RenderOptions = {
-  queryClient?: QueryClient
+  queryClient?: QueryClientType
   initialPath?: string
 }
 
@@ -54,10 +79,10 @@ type RenderOptions = {
  * `/login`, `/clients/$clientId`, `/` — resolves, the pathname moves, and
  * nothing of the app renders behind it.
  */
-export function renderWithProviders(ui: ReactNode, options: RenderOptions = {}) {
+export async function renderWithProviders(ui: ReactNode, options: RenderOptions = {}) {
   const queryClient = options.queryClient ?? testQueryClient()
 
-  const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  const rootRoute = createRootRouteWithContext<{ queryClient: QueryClientType }>()({
     component: () => <Outlet />,
   })
   const uiRoute = createRoute({
@@ -77,11 +102,18 @@ export function renderWithProviders(ui: ReactNode, options: RenderOptions = {}) 
     defaultPreload: false,
   })
 
-  const result = render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  )
+  // The router's first paint follows an async load; awaiting it inside `act`
+  // means the caller gets a settled page and React does not report the
+  // load's updates as unwrapped.
+  const result = await rtl.act(async () => {
+    const rendered = render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+    await router.load()
+    return rendered
+  })
 
   return { ...result, router, queryClient }
 }
