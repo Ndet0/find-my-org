@@ -15,7 +15,16 @@ function createPrismaClient() {
 
   return new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
-    log: process.env.NODE_ENV === 'production' ? ['error'] : ['warn', 'error'],
+    log: [
+      ...(process.env.NODE_ENV === 'production'
+        ? ['error' as const]
+        : ['warn' as const, 'error' as const]),
+      // Every SQL statement as an event, for `apps/api/scripts/explain.ts`
+      // to run under EXPLAIN. Off unless asked for: it is one event per query.
+      ...(process.env.PRISMA_LOG_QUERIES
+        ? [{ emit: 'event' as const, level: 'query' as const }]
+        : []),
+    ],
   })
 }
 

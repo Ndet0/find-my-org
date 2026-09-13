@@ -21,6 +21,8 @@
     "db:migrate": "pnpm --filter @opsflow/db run migrate",
     "db:seed": "pnpm --filter @opsflow/db run seed && pnpm --filter @opsflow/auth run seed",
     "db:studio": "pnpm --filter @opsflow/db run studio",
+    "db:bench": "pnpm --filter @opsflow/db run bench",
+    "db:explain": "pnpm --filter @opsflow/api run explain",
     "db:reset": "pnpm --filter @opsflow/db run reset"
   },
   "devDependencies": {

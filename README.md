@@ -86,6 +86,8 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:reset` | Drop, re-migrate and re-seed |
+| `pnpm db:bench` / `pnpm db:bench --clean` | Insert / remove a bench volume for measuring query plans |
+| `pnpm db:explain` | Run every list endpoint under `EXPLAIN ANALYZE` into `docs/perf/` |
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, the API tests and the
 build on every push to `main` and every pull request.

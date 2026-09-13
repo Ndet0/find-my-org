@@ -15,6 +15,7 @@
     "push": "prisma db push",
     "studio": "prisma studio --port 5555",
     "seed": "bun run --env-file=../../.env prisma/seed.ts",
+    "bench": "bun run --env-file=../../.env prisma/bench.ts",
     "typecheck": "tsc --noEmit"
   },
   "prisma": {
