@@ -24,12 +24,18 @@ function isTheme(value: unknown): value is Theme {
   return value === 'light' || value === 'dark' || value === 'system'
 }
 
+/**
+ * The choice made while storage was unavailable — private mode with storage
+ * disabled — so it still lasts for the session. Read only when storage throws.
+ */
+let unstored: Theme = 'system'
+
 export function readTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
     return isTheme(stored) ? stored : 'system'
   } catch {
-    return 'system'
+    return unstored
   }
 }
 
@@ -58,7 +64,9 @@ export function setTheme(theme: Theme): void {
       localStorage.setItem(THEME_STORAGE_KEY, theme)
     }
   } catch {
-    // Private mode with storage disabled: the choice lasts for the session.
+    // `sync` re-reads the preference, so without this the choice would be
+    // lost the moment it was made.
+    unstored = theme
   }
   sync()
 }

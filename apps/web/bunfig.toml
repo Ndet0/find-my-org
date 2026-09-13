@@ -1,0 +1,5 @@
+# `bun test` for the web app. The DOM is registered once for every test file
+# (see test/setup.ts); the tests themselves live beside the modules they cover.
+[test]
+root = "src"
+preload = ["./test/setup.ts"]
