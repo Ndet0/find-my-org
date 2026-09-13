@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 // The DOM must exist before `theme.ts` loads; see test/setup.ts.
 import '../../test/setup'
+import { act, cleanup, renderHook } from '@testing-library/react'
 
 /**
  * `theme.ts` reads `window.matchMedia` once at import and keeps the result,
@@ -21,9 +22,8 @@ const mql = {
 
 window.matchMedia = () => mql as unknown as MediaQueryList
 
-const { applyTheme, readTheme, resolveTheme, setTheme, THEME_STORAGE_KEY, THEMES } = await import(
-  './theme'
-)
+const { applyTheme, readTheme, resolveTheme, setTheme, THEME_STORAGE_KEY, THEMES, useTheme } =
+  await import('./theme')
 
 const root = document.documentElement
 
@@ -39,6 +39,8 @@ beforeEach(() => {
   root.className = ''
   root.style.colorScheme = ''
 })
+
+afterEach(cleanup)
 
 test('the key and the union are the ones mobile shares', () => {
   expect(THEME_STORAGE_KEY).toBe('opsflow.theme')
@@ -129,5 +131,22 @@ describe('setTheme', () => {
     } finally {
       if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor)
     }
+  })
+})
+
+describe('useTheme', () => {
+  test('reports the stored choice and what it resolves to, and re-renders on change', () => {
+    const { result } = renderHook(() => useTheme())
+    expect(result.current.theme).toBe('system')
+    expect(result.current.resolved).toBe('light')
+
+    act(() => result.current.setTheme('dark'))
+    expect(result.current.theme).toBe('dark')
+    expect(result.current.resolved).toBe('dark')
+
+    act(() => result.current.setTheme('system'))
+    act(() => osPrefersDark(true))
+    expect(result.current.theme).toBe('system')
+    expect(result.current.resolved).toBe('dark')
   })
 })
