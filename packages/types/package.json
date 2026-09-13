@@ -17,6 +17,7 @@
     "./user": "./src/user.ts"
   },
   "scripts": {
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@opsflow/config": "workspace:*",
+    "@types/bun": "latest",
     "typescript": "7.0.2"
   }
 }

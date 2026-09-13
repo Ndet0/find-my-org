@@ -1,4 +1,4 @@
 {
-  "extends": "@opsflow/config/tsconfig.base.json",
-  "include": ["src/**/*.ts"]
+  "extends": "@opsflow/config/tsconfig.bun.json",
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }
