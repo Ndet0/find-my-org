@@ -1299,7 +1299,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-12 — against the working tree, not from memory.
+**Last verified:** 2026-09-13 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -2194,7 +2194,7 @@ planning.
   unnecessary. Mobile list paging, the one thing mobile still does
   differently from the web, is a Phase 15 item (§25)
 
-## Phase 15 — Performance (2026-09-12 →, in progress)
+## Phase 15 — Performance (2026-09-12 → 2026-09-13, complete)
 
 Most of the phase brief was already satisfied by construction when it was
 audited against the tree, so it is a review with measurements rather than a
@@ -2203,7 +2203,10 @@ rebuild. What the audit found:
 - [x] Routes lazy-load: `autoCodeSplitting: true` in `apps/web/vite.config.ts`
   splits every route into its own chunk
 - [x] No N+1 queries: the list services use an explicit `select` with nested
-  relation selects and `_count`, one query per list
+  relation selects and `_count`. Prisma loads each nested relation as one
+  `WHERE id IN (…)` statement for the page, so a task list is four statements
+  — rows, projects, assignees, count — however many rows the page has (Slice 2
+  measured it)
 - [x] Indexes: all 21 secondary indexes `db_schema.md` documents are present in
   `schema.prisma`, with no drift in either direction
 - [x] Pagination at the API: default 25, ceiling 100, `Paginated<T>` carries
@@ -2303,6 +2306,75 @@ and nothing said the other 147 existed. Silent truncation, not slowness.
   dispatching the scroll event and cell layouts by hand, resumes it. On a phone
   `onLayout` is native and none of this applies
 
+### Slice 2 — query plans (2026-09-13)
+
+The audit had settled the indexes by inspection; this slice measured them.
+The development database had 7 tasks and 758 activity rows, too few for the
+planner to prefer any index over a sequential scan, so a plan read against it
+said nothing.
+
+- [x] `packages/db/prisma/bench.ts` (`pnpm db:bench`, `--clean`,
+  `BENCH_SCALE`): a deterministic bench volume, separate from `db:seed` —
+  200 users, 150 clients, 400 projects with 3–8 members, 8 000 tasks,
+  60 000 activity rows, 15 000 notifications, spread over two years and across
+  statuses. The seeded manager runs one project in eight and the seeded
+  employee is on one in ten, holds ~4% of tasks, wrote ~2% of the activity and
+  receives ~3% of the notifications, so the scoped plans have real selectivity.
+  Every row is marked (`@bench.opsflow.local` emails, a `[bench]` prefix) and
+  `--clean` removes them in FK order, returning each table to its prior count.
+  Ends with `ANALYZE`. 25 seconds to insert
+- [x] `apps/api/scripts/explain.ts` (`pnpm db:explain`): signs in as the
+  admin and the employee, drives 26 requests through `app.request()` — every
+  list with its filters, page 1 and a deep page, the unread count and the
+  dashboard — with `PRISMA_LOG_QUERIES=1` (a new opt-in in
+  `packages/db/src/index.ts`) capturing each SQL statement Prisma emits, and
+  runs each under `EXPLAIN (ANALYZE, BUFFERS)`. Nothing is copied by hand, so
+  the plans are the production queries' plans. The two `requireAuth`
+  lookups on every request are filtered out. Output:
+  `docs/perf/2026-09-13-query-plans.md`, 155 plans with a summary table. The
+  manager sees what the admin sees on every list and was not run separately
+- [x] What the plans show. Every page-1 list statement runs in under 2 ms
+  and every count under 3 ms, with one family of exceptions. The lists ordered
+  by time or due date walk `activity_logs_created_at_idx`,
+  `notifications_created_at_idx` and `tasks_due_date_idx` backward or forward
+  with an Incremental Sort for the `id` tiebreaker, stopping after 25 rows —
+  the tiebreaker costs nothing measurable. The employee-scoped versions use
+  the same scan with a filter (331 rows skipped for tasks, 132 for activity,
+  13 for notifications); the planner has the `assigned_to` / `user_id`
+  indexes as the alternative when a user's share is small, and takes it for
+  the counts. `entity_type, entity_id` serves a record's history (17 rows,
+  0.14 ms). The employee project scope (`manager_id = ? OR members some`) is a
+  hashed subplan over `project_members_user_id_idx`, 0.3 ms. The dashboard's
+  seventeen counts total 8.4 ms as the admin and eleven total 4.2 ms as the
+  employee, all on index-only scans
+- [x] The exceptions. Deep offset pages sort everything before them: task
+  page 300 of 8 000 is a 16 ms in-memory quicksort, activity page 1 000 of
+  60 000 is 28 ms. Inherent to `skip`, and nobody pages to 1 000 by hand; the
+  mobile lists reach it only by scrolling 25 000 rows. And the `q` searches:
+  `ILIKE '%…%'` cannot use a B-tree, so their *count* is a sequential scan —
+  10 ms over 8 000 tasks, 72 ms over 60 000 activity rows for a term that
+  matches a quarter of them. The page itself stays fast because the time
+  index stops after 25 matches
+- [x] Decision: no index changes. Every candidate from the plan — composite
+  `(user_id, created_at, id)` on notifications and activity, `(assigned_to,
+  due_date)` on tasks — would replace a filter that skips a few hundred rows
+  in a fraction of a millisecond. A `pg_trgm` GIN index was tried on the bench
+  database and dropped again: the activity count fell from 72 ms to 21 ms
+  (a bitmap over 15 000 matches remains), the task count from 10 ms to 2 ms,
+  for 3.7 MB of index on an 8.7 MB table and an extension every environment
+  must carry. Recorded under "Known gaps" with the numbers; the trigger is a
+  search over roughly 250 000 activity rows or a measured search above 100 ms
+- [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` (22 pass)
+  with the bench rows present — the tests create and remove their own
+  fixtures and were unaffected by 60 000 rows around them; `pnpm db:bench
+  --clean` removed exactly what was inserted (200 users, 150 clients, 400
+  projects, 8 000 tasks, 60 000 activity rows, 15 000 notifications) — the
+  32 activity and 4 notification rows the tables gained across the exercise
+  are what the test runs and the explain sign-ins wrote, not bench leftovers —
+  and the 22 tests pass again afterwards
+- [x] Phase 15 closed on 2026-09-13. Technical architecture §21.2 records
+  the method; `docs/perf/` holds the plans and is regenerated, not edited
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -2333,9 +2405,14 @@ and nothing said the other 147 existed. Silent truncation, not slowness.
   yesterday's date as "today" for the first hours of their day.
 - Rate limiting is Better Auth's default, which is active only in production.
 - The `q` search filters are `contains` with `mode: 'insensitive'`, which Postgres
-  runs as `ILIKE '%q%'` — no B-tree index can serve that. Fine at demo volumes; a
-  `pg_trgm` GIN index is the fix if search slows, and needs the extension enabled
-  in a migration.
+  runs as `ILIKE '%q%'` — no B-tree index can serve that. Measured on the Phase 15
+  bench volume: the search *page* is fast because the time index stops after 25
+  matches, but its *count* is a sequential scan — 10 ms over 8 000 tasks, 72 ms
+  over 60 000 activity rows for a common term. A `pg_trgm` GIN index was trialled
+  and brought those to 2 ms and 21 ms for 3.7 MB of index and an extension in
+  every environment (`CREATE EXTENSION IF NOT EXISTS pg_trgm` at the top of a
+  migration). Not added; add it when the activity trail passes roughly 250 000
+  rows or a search measures above 100 ms.
 - Mobile lists page by offset. A row inserted above what is loaded is absorbed by
   the client dedupe and appears on refresh; a row removed above it shifts the
   next page by one and skips a row until refresh. A cursor would avoid both, at
@@ -2355,7 +2432,7 @@ and nothing said the other 147 existed. Silent truncation, not slowness.
 
 ## Not started
 
-- [-] Phase 15 — Performance (slice 1, mobile paging, done; see above)
+- [x] Phase 15 — Performance (closed 2026-09-13; see above)
 - [ ] Phases 16-20 — Testing (started), security, deployment, demo
 
 ## Stack amendments
@@ -2376,27 +2453,30 @@ attention, the mobile app reaches every module the web does, and both
 clients read one palette, in light and dark, with the same status colours,
 one card, one error line, and a keyboard path through every dialog.
 
-Phase 15 is under way (§24). Its one unbuilt item is done: the mobile lists
-page as the reader scrolls, and their headers say how much of the total is on
-screen instead of claiming rows a phone never received. The audit settled the
-rest by inspection — routes are split, there is no N+1, the documented indexes
-exist, and the web bundle has a recorded baseline.
+Phase 15 is closed (§24). The mobile lists page as the reader scrolls, and
+the queries have been measured rather than inspected: on a bench volume of
+8 000 tasks and 60 000 activity rows every list page and every dashboard count
+uses an index and answers in low single-digit milliseconds, per role. No index
+was added, because none of the plans asked for one; the two costs found —
+deep offset pages and the `ILIKE` search counts — are recorded with their
+numbers and their trigger under "Known gaps". `pnpm db:bench` and
+`pnpm db:explain` regenerate the evidence after any query or schema change.
 
 Next:
 
 ```text
-1. Phase 15 — query plans, then close the phase
-2. Phase 16 — Testing
+1. Phase 16 — Testing
+2. Phase 17 — Security review
 ```
 
-What Phase 15 has not yet done is measure a query. Seed a realistic volume —
-thousands of tasks and tens of thousands of activity rows, not the handful the
-development seed makes — and read `EXPLAIN ANALYZE` for the list endpoints and
-the dashboard transaction. The question is whether the existing indexes are
-used with the visibility rules and the new `id` tiebreaker in the `orderBy`,
-and whether the `q` searches need the `pg_trgm` index recorded under "Known
-gaps". Fix what the plans show, record what they show either way, and close
-the phase.
+Phase 16 already has the API tests and CI. Start with what is cheapest and
+guards the most: unit tests for `@opsflow/types` — the permission matrix
+(`can()` for every role × permission), `TASK_TRANSITIONS` /
+`PROJECT_TRANSITIONS` and the `next*Statuses()` helpers, and the Zod list
+query schemas (page bounds, the `open` / `status` precedence). Then the web:
+the forms' local validation path and the `_authed` guard, with a critical
+flow or two. Then mobile. While there, fix the test hazard recorded in Phase
+14: `rules.test.ts` restores only the employee's credential.
 
 Phase 17's checklist already has a start in "Known gaps" above: the login
 page's missing deep-link restoration, the six-character password minimum, and

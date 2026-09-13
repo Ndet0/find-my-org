@@ -766,6 +766,17 @@ suggest:
 
 The purpose is to keep common dashboard, filtering, and lookup queries performant as the database grows.
 
+This list was measured, not only reasoned about. On a bench volume of 8 000
+tasks, 60 000 activity rows and 15 000 notifications (`pnpm db:bench`), every
+list endpoint and dashboard count runs on one of these indexes for every role
+(`pnpm db:explain`; technical architecture §21.2). The composites a first pass
+might add for the time-ordered lists — `(user_id, created_at, id)` on
+`notifications` and `activity_logs`, `(assigned_to, due_date)` on `tasks` —
+were considered and declined: the single-column time index already walks the
+list in order and stops after one page, and the per-user index serves the
+count. A trigram index for the `ILIKE` searches was trialled and declined at
+this volume; the numbers are in the sprint plan's known gaps.
+
 ---
 
 # Dashboard Data Sources

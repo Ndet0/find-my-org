@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.7  
+**Version:** 2.8  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -983,6 +983,44 @@ a one-line error in the list footer otherwise.
 
 The inbox is refreshed differently from the other five; see §26.
 
+## 21.2 Measured on a bench volume
+
+The indexes in §14 were chosen by reading the queries. Phase 15 measured them,
+and the measurement is repeatable:
+
+```text
+pnpm db:bench          200 users, 150 clients, 400 projects, 8 000 tasks,
+                       60 000 activity rows, 15 000 notifications; then ANALYZE
+pnpm db:explain        every list endpoint per role, deep pages, the unread
+                       count and the dashboard, each SQL statement under
+                       EXPLAIN (ANALYZE, BUFFERS)  →  docs/perf/<date>-query-plans.md
+pnpm db:bench --clean  every bench row removed, each table back to its count
+```
+
+`bench.ts` (`packages/db/prisma`) is deterministic and separate from
+`db:seed`: it reads the seeded accounts rather than creating them, marks every
+row it inserts, and gives the seeded employee and manager a realistic share of
+the work so the scoped queries have selectivity to measure. `explain.ts`
+(`apps/api/scripts`) drives the assembled Hono app in-process and captures the
+SQL from Prisma's query log (`PRISMA_LOG_QUERIES=1`, an opt-in in
+`packages/db/src/index.ts`), so the statements explained are exactly the ones
+the services build — nothing is transcribed.
+
+What the first run found (2026-09-13) is in `docs/perf/` and summarised in the
+sprint plan §24. In short: every page-1 statement and every dashboard count
+uses an index and completes in low single-digit milliseconds for both roles;
+the `id` tiebreaker in each `orderBy` is absorbed by an Incremental Sort that
+stops after one page; Prisma loads each nested relation as one `IN (…)`
+statement per page, so a list is one statement per relation plus the count,
+not one per row. The two costs that remain are structural rather than missing
+indexes — a deep offset page sorts everything before it, and an `ILIKE '%q%'`
+count is a sequential scan — and both are recorded with numbers and a trigger
+in the sprint plan's known gaps. No index was changed, and a `pg_trgm` trial
+was measured and declined.
+
+Regenerate the plans after any change to a list query, an index or the
+visibility rules; the file is output, not a document to edit.
+
 ---
 
 # 22. Styling Architecture
@@ -1867,5 +1905,6 @@ than only the outcome.
 | Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
 | `@opsflow/ui` ships a JSON palette, a status → tone table and a generated `tokens.css` | The web badge collapsed every status into three shadcn variants while the mobile badge coloured each one; the two clients disagreed on what `completed` or `cancelled` looks like. One tone table, read by both, settles it. JSON rather than TypeScript because the mobile Tailwind 3 config and the icon script `require()` it; the CSS is generated so the web's Tailwind 4 build reads the same values |
 | Mobile directory lists page with `useInfiniteQuery`; every paged list query ends its `orderBy` in `id` | Each mobile list fetched one page at the 100-row ceiling while its header showed the server's total, so anything past the first 100 rows silently did not exist on a phone. Concatenating offset pages needs a total order on the server and dedupe by id on the client; neither alone is enough. See §21.1 |
+| Query plans are measured on a bench volume, and the measurement is a script | Reading a plan against the seven-row development database says nothing: the planner prefers a sequential scan at that size whatever the indexes. `pnpm db:bench` and `pnpm db:explain` make the evidence reproducible after any query change, and the first run found no index worth adding. See §21.2 |
 | The mobile inbox is marked stale after a write and refetched on focus, instead of refetched after every write | It is an infinite list, and refetching one re-requests every loaded page in sequence. Marking one read patches the cached row. `maxPages` was rejected because it drops the oldest pages, removing rows the reader has already scrolled past. See §26.1 |
 
