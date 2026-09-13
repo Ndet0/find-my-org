@@ -1821,7 +1821,9 @@ create, edit and the status actions all shipped there.
   the `test` task never schedules the db package's generate task; migrations
   are applied with `migrate deploy`, not `migrate dev`. The same sequence
   works locally after `rm -rf packages/db/src/generated`
-- [ ] Unit, integration, frontend and mobile tests
+- [x] Unit tests for `@opsflow/types` and the clients' pure modules (2026-09-13,
+  below)
+- [ ] Component, integration and mobile flow tests
 
 ## Audit fixes (2026-09-05)
 
@@ -2375,6 +2377,64 @@ said nothing.
 - [x] Phase 15 closed on 2026-09-13. Technical architecture §21.2 records
   the method; `docs/perf/` holds the plans and is regenerated, not edited
 
+## Phase 16 — Unit tests (2026-09-13)
+
+The API tests and CI were pulled forward earlier (above). This slice adds the
+unit layer under the same runner — `bun test` in every package, one `pnpm test`
+— and leaves component and flow tests for the next.
+
+- [x] `packages/types/test/*.test.ts`, 215 tests. Every expected table is a
+  literal restated in the test, never derived from the export, so a change
+  to the matrix has to be made twice on purpose: every role × permission
+  (39 rows) against technical architecture §11; every `from → to` pair of
+  `TASK_TRANSITIONS` (16) and `PROJECT_TRANSITIONS` (36), with the terminal
+  `cancelled`, the `completed → active` reopen and the closed shortcuts
+  named; the six list-query schemas walked through one paging helper (the
+  defaults, the string coercion, the bounds, `q` trimming, the `'true'`-only
+  flags); the auth, client, project and task refinements the forms rely on
+  (`changePasswordSchema`'s two paths, the deadline rule on create and
+  update, `clientId: ''` refused so the select keeps mapping to `null`).
+  `can()` with an unknown role throwing is pinned as current behaviour, not
+  a contract — it is why `isRoleName` guards the database boundary
+- [x] `apps/web`, 24 tests, with happy-dom registered once from
+  `bunfig.toml` (`test/setup.ts`) for the module that reads `window` at
+  import. `lib/api.test.ts` mocks `fetch` and covers the envelope unwrap,
+  the error envelope with details, `MALFORMED_RESPONSE` for a non-envelope
+  body, a network failure propagating untouched, and the `fieldErrorsFrom` /
+  `formErrorMessage` branches every form uses. `lib/theme.test.ts` stubs
+  `matchMedia` before a dynamic import and covers read, resolve, apply, the
+  stored / `system` split, a live OS switch, and storage disabled — which
+  found a defect: `setTheme` swallowed the storage error and `sync()` then
+  re-read storage, so in private mode the choice was dropped the moment it
+  was made, against the module's own comment. It is kept in memory now.
+  `useTheme` waits for the component slice and `@testing-library/react`.
+  Vite never sees the colocated `*.test.ts` files; the build was grepped
+- [x] `apps/mobile`, 25 tests. `paged.ts` imports the API client, which
+  imports react-native, and Bun cannot load that outside Metro — so the
+  helpers that make offset concatenation correct were untestable. They
+  live in `src/lib/paging.ts` now (dedupe by id with first occurrence
+  winning, the freshest total, the count label, the guarded `onEndReached`,
+  and `nextPageParam` extracted from the query options), with `paged.ts`
+  re-exporting them so no screen changed. `toSearchParams` is covered too:
+  it is what makes the schemas' `'true'`-only flags right. The rule, in
+  `bunfig.toml`: a mobile module under test must not import react-native
+- [x] The seeded-credential hazard from Phase 14 is closed. `pnpm db:seed`
+  skips a user that already exists, so a password changed by hand stayed
+  changed and eight tests failed with bare 401s. `apps/api/test/helpers.ts`
+  now holds what both files shared (the accounts, the sign-in request, the
+  cookie join) and `assertSeededAccounts`, run in `beforeAll` by each file:
+  it names the account that refused `SEED_USER_PASSWORD`, says to set it
+  back through `/profile/password` or `pnpm db:reset && pnpm db:seed`, and
+  points at an aborted run of the rotation test when the employee is the
+  one refused. The API test files are typechecked from here on
+- [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8, with Bun's types now
+  visible to the web and mobile packages beside `vite/client` and the RN
+  typings — no clash), `pnpm test` at the root runs all four packages:
+  215 + 24 + 25 + 22 = 286 pass. Negative check of the guard: with the
+  admin's credential hash replaced by junk, the API run stops before any
+  test with the message naming `admin@opsflow.local` and the fix; restored,
+  22 pass. `pnpm --filter @opsflow/web build` contains no test code
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -2433,7 +2493,9 @@ said nothing.
 ## Not started
 
 - [x] Phase 15 — Performance (closed 2026-09-13; see above)
-- [ ] Phases 16-20 — Testing (started), security, deployment, demo
+- [-] Phase 16 — Testing (API, CI and the unit layer done; component and flow tests
+  remain)
+- [ ] Phases 17-20 — Security, deployment, demo
 
 ## Stack amendments
 
@@ -2469,14 +2531,17 @@ Next:
 2. Phase 17 — Security review
 ```
 
-Phase 16 already has the API tests and CI. Start with what is cheapest and
-guards the most: unit tests for `@opsflow/types` — the permission matrix
-(`can()` for every role × permission), `TASK_TRANSITIONS` /
-`PROJECT_TRANSITIONS` and the `next*Statuses()` helpers, and the Zod list
-query schemas (page bounds, the `open` / `status` precedence). Then the web:
-the forms' local validation path and the `_authed` guard, with a critical
-flow or two. Then mobile. While there, fix the test hazard recorded in Phase
-14: `rules.test.ts` restores only the employee's credential.
+Phase 16 has the API tests, CI, and now the unit layer (§24): the
+permission matrix, both state machines and the list-query schemas in
+`@opsflow/types`, the web API client and theme store, and the mobile paging
+helpers — 286 tests across four packages under one `pnpm test`. The
+seeded-credential hazard is closed. What remains is the component and flow
+layer: the web forms' local validation path (a ZodError landing on its field
+without a request) and the `_authed` guard's redirect, rendered with
+`@testing-library/react` under the happy-dom setup already in place — which
+is also when `useTheme` gets its test — then one critical flow on each
+client. That layer needs providers (Query, Router, the toaster) per test
+and is a slice of its own.
 
 Phase 17's checklist already has a start in "Known gaps" above: the login
 page's missing deep-link restoration, the six-character password minimum, and

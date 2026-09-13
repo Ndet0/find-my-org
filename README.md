@@ -78,7 +78,7 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm dev` | Run all apps in watch mode |
 | `pnpm build` | Build all apps and packages |
 | `pnpm typecheck` | Type-check the workspace |
-| `pnpm test` | Run the API tests against the local database |
+| `pnpm test` | Run every package's tests (the API's need the local database) |
 | `pnpm lint` / `pnpm lint:fix` | Biome check / autofix |
 | `pnpm db:up` / `pnpm db:down` | Start / stop local PostgreSQL |
 | `pnpm db:migrate` | Create and apply a migration |

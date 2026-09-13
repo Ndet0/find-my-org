@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.8  
+**Version:** 2.9  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1369,6 +1369,30 @@ Code consistency
 
 ```
 
+### Testing
+
+`bun test` in every package, one root `pnpm test` (Turborepo runs each
+package's `test` script), one assertion API across the repo. No second
+runner.
+
+```text
+apps/api          in-process against the seeded database (app.request());
+                  fails early, with a fix, if a seeded account cannot sign in
+packages/types    the permission matrix, both state machines, every list-query
+                  and form schema — tables restated as literals in the tests
+apps/web          the API client and the theme store; happy-dom is registered
+                  once from bunfig.toml for anything that reads `window`
+apps/mobile       the paging helpers and the query-string builder
+```
+
+Two rules keep the client tests cheap. On the web, a test that mocks `fetch`
+builds its responses with the registered `Response`, because the registrator
+replaces Bun's for the process. On mobile, a module under test must not
+import `react-native` — Bun cannot load it outside Metro — which is why the
+pure paging helpers live in `paging.ts` and the TanStack wiring that imports
+the API client lives in `paged.ts`. Component and flow tests are the next
+layer; they will add `@testing-library/react` on top of the same setup.
+
 ---
 
 # 31. Build Pipeline
@@ -1905,6 +1929,8 @@ than only the outcome.
 | Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
 | `@opsflow/ui` ships a JSON palette, a status → tone table and a generated `tokens.css` | The web badge collapsed every status into three shadcn variants while the mobile badge coloured each one; the two clients disagreed on what `completed` or `cancelled` looks like. One tone table, read by both, settles it. JSON rather than TypeScript because the mobile Tailwind 3 config and the icon script `require()` it; the CSS is generated so the web's Tailwind 4 build reads the same values |
 | Mobile directory lists page with `useInfiniteQuery`; every paged list query ends its `orderBy` in `id` | Each mobile list fetched one page at the 100-row ceiling while its header showed the server's total, so anything past the first 100 rows silently did not exist on a phone. Concatenating offset pages needs a total order on the server and dedupe by id on the client; neither alone is enough. See §21.1 |
+| Unit tests run on `bun test` in every package, with happy-dom for the web | One runner and one assertion API across the repo. happy-dom is what the theme module needs — `matchMedia`, `localStorage`, `documentElement` — and nothing more; a second runner would have been a dependency added for the stack rather than for a problem. See §30 |
+| The mobile paging helpers live in `paging.ts`, apart from the TanStack wiring in `paged.ts` | The helpers are pure; the wiring imports react-native through the API client, which Bun cannot load. The split makes the helpers testable and the boundary explicit, and `paged.ts` re-exports them so the screens did not change |
 | Query plans are measured on a bench volume, and the measurement is a script | Reading a plan against the seven-row development database says nothing: the planner prefers a sequential scan at that size whatever the indexes. `pnpm db:bench` and `pnpm db:explain` make the evidence reproducible after any query change, and the first run found no index worth adding. See §21.2 |
 | The mobile inbox is marked stale after a write and refetched on focus, instead of refetched after every write | It is an infinite list, and refetching one re-requests every loaded page in sequence. Marking one read patches the cached row. `maxPages` was rejected because it drops the oldest pages, removing rows the reader has already scrolled past. See §26.1 |
 
