@@ -2433,7 +2433,11 @@ unit layer under the same runner — `bun test` in every package, one `pnpm test
   215 + 24 + 25 + 22 = 286 pass. Negative check of the guard: with the
   admin's credential hash replaced by junk, the API run stops before any
   test with the message naming `admin@opsflow.local` and the fix; restored,
-  22 pass. `pnpm --filter @opsflow/web build` contains no test code
+  22 pass. `pnpm --filter @opsflow/web build` contains no test code. A
+  bare `bun test` at the repository root also passes all 286: it reads no
+  per-package `bunfig.toml`, so the web's DOM setup is a guarded import in
+  the test that needs it rather than only a preload — found when the root
+  run failed with `window is not defined`
 
 ## Known gaps in this plan
 

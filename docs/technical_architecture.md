@@ -1380,10 +1380,15 @@ apps/api          in-process against the seeded database (app.request());
                   fails early, with a fix, if a seeded account cannot sign in
 packages/types    the permission matrix, both state machines, every list-query
                   and form schema — tables restated as literals in the tests
-apps/web          the API client and the theme store; happy-dom is registered
-                  once from bunfig.toml for anything that reads `window`
+apps/web          the API client and the theme store; a test that needs the
+                  DOM imports test/setup.ts, which registers happy-dom once
 apps/mobile       the paging helpers and the query-string builder
 ```
+
+`pnpm test` is the entrypoint: Turborepo runs each package's script in its
+own directory, where its `bunfig.toml` applies. A bare `bun test` at the root
+also works — it reads no per-package bunfig, which is why the DOM setup is an
+explicit import rather than only a preload.
 
 Two rules keep the client tests cheap. On the web, a test that mocks `fetch`
 builds its responses with the registered `Response`, because the registrator

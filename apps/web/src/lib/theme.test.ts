@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+// The DOM must exist before `theme.ts` loads; see test/setup.ts.
+import '../../test/setup'
 
 /**
  * `theme.ts` reads `window.matchMedia` once at import and keeps the result,

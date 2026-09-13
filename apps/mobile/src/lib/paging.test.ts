@@ -54,7 +54,7 @@ describe('pagedCountLabel', () => {
     [247, 247, '247 tasks'],
     [0, 0, '0 tasks'],
     [30, 25, '25 tasks'],
-  ])('%i loaded of %s reads %j', (loaded, total, expected) => {
+  ])('%p loaded of %p reads %p', (loaded, total, expected) => {
     expect(pagedCountLabel(loaded, total, 'task', 'tasks')).toBe(expected)
   })
 })
@@ -98,7 +98,7 @@ describe('nextPageParam', () => {
     [3, 3, undefined],
     [1, 1, undefined],
     [1, 0, undefined],
-  ])('page %i of %i asks for %s next', (current, totalPages, expected) => {
+  ])('page %p of %p asks for %p next', (current, totalPages, expected) => {
     expect(nextPageParam(page([], current, totalPages, 0))).toBe(expected)
   })
 })
