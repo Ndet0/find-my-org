@@ -1,17 +1,19 @@
 import type { TaskListItem } from '@opsflow/types/task'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { PressableCard } from '@/components/card'
+import { ListFooter } from '@/components/list-footer'
 import { describeError, Message } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { Segmented } from '@/components/segmented'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { useCan, useCurrentUser } from '@/lib/current-user'
 import { isOverdue } from '@/lib/dates'
-import { tasksQueryOptions } from '@/lib/tasks'
+import { flattenPages, loadMore, pagedCountLabel, pagedTotal } from '@/lib/paged'
+import { tasksInfiniteQueryOptions } from '@/lib/tasks'
 
 type Scope = 'mine' | 'all'
 
@@ -20,7 +22,8 @@ type Scope = 'mine' | 'all'
  * work — everything they can see. The API already scopes an employee to
  * their own assignments; the explicit `assignedTo` makes "mine" mean the
  * same thing for a manager. Lists are ordered by due date on the server,
- * so overdue work surfaces first without any sorting here.
+ * so overdue work surfaces first without any sorting here, and a page at a
+ * time: the next one loads as the list reaches its end.
  */
 export default function TasksScreen() {
   const user = useCurrentUser()
@@ -28,17 +31,17 @@ export default function TasksScreen() {
   const canWrite = useCan('tasks:write')
   const [scope, setScope] = useState<Scope>('mine')
   const mine = scope === 'mine' || !canWrite
-  const tasks = useQuery({
-    ...tasksQueryOptions(mine ? { assignedTo: user?.id ?? '', pageSize: 100 } : { pageSize: 100 }),
+  const tasks = useInfiniteQuery({
+    ...tasksInfiniteQueryOptions(mine ? { assignedTo: user?.id ?? '' } : {}),
     enabled: user !== null,
   })
+  const items = flattenPages(tasks.data)
 
   if (!user) {
     return null
   }
 
-  const total = tasks.data?.total
-  const noun = total === 1 ? 'task' : 'tasks'
+  const count = pagedCountLabel(items.length, pagedTotal(tasks.data), 'task', 'tasks')
 
   return (
     <Screen>
@@ -48,13 +51,13 @@ export default function TasksScreen() {
             {mine ? 'My tasks' : 'All tasks'}
           </Text>
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            {total === undefined
+            {count === undefined
               ? mine
                 ? 'Work assigned to you, soonest due first'
                 : 'Every task you can see, soonest due first'
               : mine
-                ? `${total} ${noun} assigned to you`
-                : `${total} ${noun}`}
+                ? `${count} assigned to you`
+                : count}
           </Text>
         </View>
         {canWrite ? (
@@ -79,7 +82,7 @@ export default function TasksScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
-      ) : tasks.isError ? (
+      ) : tasks.isError && items.length === 0 ? (
         <Message
           title="Tasks could not be loaded"
           body={describeError(tasks.error)}
@@ -87,11 +90,16 @@ export default function TasksScreen() {
         />
       ) : (
         <FlatList
-          data={tasks.data.items}
+          data={items}
           keyExtractor={(task) => task.id}
           renderItem={({ item }) => <TaskRow task={item} showAssignee={!mine} />}
           ItemSeparatorComponent={() => <View className="h-2" />}
           contentContainerClassName="pb-6"
+          onEndReached={loadMore(tasks)}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            <ListFooter loading={tasks.isFetchingNextPage} failed={tasks.isFetchNextPageError} />
+          }
           ListEmptyComponent={
             mine ? (
               <Message title="Nothing assigned to you" body="New assignments will appear here." />

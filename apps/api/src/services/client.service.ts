@@ -73,7 +73,9 @@ export async function listClients(query: ClientListQuery): Promise<Paginated<Cli
     prisma.client.findMany({
       where,
       select: listSelect,
-      orderBy: { name: 'asc' },
+      // Client names are not unique, so `id` breaks the tie and makes the
+      // page boundaries stable.
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),

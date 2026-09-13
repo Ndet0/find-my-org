@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 2.6  
+**Version:** 2.7  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -261,10 +261,10 @@ and the phone only reports the refusal.
 
 Two rules differ between the clients by design. The web redirects a role
 away from a module it may not read; mobile hides the entry point instead,
-since a pushed screen has no loader to redirect from. And mobile lists ask
-for one page at the API's ceiling rather than paging, so the people
-directory and the activity feed are unsearchable single pages — the
-filtered, paged tables stay on the web.
+since a pushed screen has no loader to redirect from. And mobile lists load
+a page at a time as the reader scrolls rather than jumping to a page (§21.1),
+filtered with chips rather than searched — the searchable, jump-to-page
+tables stay on the web.
 
 ---
 
@@ -933,6 +933,56 @@ in place there is nothing for it to hide, and it would have been a dependency
 added for the stack rather than for a problem. The decision is recorded in
 §43. It can be revisited if a screen ever needs an unpaginated list.
 
+## 21.1 One contract, two ways to page
+
+The API contract is the same for both clients. What differs is how each one
+walks it:
+
+- **Web** jumps to a page. The table shows one page at a time with a total and
+  a page control, and the page number lives in the URL.
+- **Mobile** concatenates pages. A phone has no room for a page control, so the
+  six directory lists — tasks, projects, notifications, activity, people and
+  clients — ask for one page at the server's default size and append the next
+  as the reader reaches the end (`useInfiniteQuery`, `onEndReached`). The
+  header says how much of the total is on screen: `25 of 67 tasks` until
+  everything has loaded, then `67 tasks`. Pickers and dashboard feeds still
+  take one capped page, because they want a bounded list rather than a
+  scrolling one.
+
+Before this, each mobile list fetched one page at the 100-row ceiling and
+nothing more, while its header read the server's total — so an organisation
+with 247 tasks saw "247 tasks" above 100 rows, and nothing said the rest
+existed.
+
+Concatenating offset pages is only correct when two things hold, and each
+is enforced in a different place:
+
+- **A total order, on the server.** `skip`/`take` over a sort key that can tie
+  lets the tied rows swap between one request and the next, so a row lands on
+  two pages or on none. Every paged list query therefore ends in `id` —
+  `name, id` for people, clients and projects, `dueDate, title, id` for tasks,
+  and `createdAt desc, id desc` for activity and notifications, where `id` is
+  uuid(7) and so continues the time order.
+- **Dedupe, on the client.** A total order does not stop a row inserted *above*
+  the loaded window from shifting everything below it down by one, which
+  repeats the last row of one page as the first row of the next. That is the
+  normal case for the activity trail and the inbox, which are newest-first.
+  `flattenPages` in `apps/mobile/src/lib/paged.ts` keeps the first occurrence
+  of each id, so a repeat never becomes a duplicate `FlatList` key. The new row
+  itself appears on the next refresh.
+
+A removal above the window has the opposite effect — the next page starts one
+row later and skips one — and dedupe cannot recover a row it never received.
+That is offset paging's trade against a cursor, accepted here because every
+list is a total-and-page table on the web; a refresh restores it.
+
+A failed *next* page does not replace the list. `useInfiniteQuery` sets the
+query-wide `isError` when a next page fails, with the loaded rows intact, so
+the screens show their full-screen error only when nothing has loaded and put
+a one-line error in the list footer otherwise.
+
+The inbox is refreshed differently from the other five; see §26.
+
 ---
 
 # 22. Styling Architecture
@@ -1113,6 +1163,34 @@ User views notification
 Read
 
 ```
+
+## 26.1 Keeping the mobile inbox fresh
+
+Every write can raise a notification, so both clients' query caches refresh
+the notification queries after any successful mutation (§43). On mobile the
+inbox is an infinite list (§21.1), and refetching one re-requests every page it
+has loaded, one after another. Left alone, an inbox scrolled to page six would
+cost six requests for every tap anywhere in the app. So the inbox alone is
+handled differently:
+
+- **After any write, it is marked stale, not refetched.** The mobile
+  `MutationCache` invalidates the inbox with `refetchType: 'none'`. The unread
+  count and the dashboard feed are single cheap requests and still refresh
+  straight away.
+- **Marking one read patches the cache.** The server's copy of the row replaces
+  the cached one under the All chip, and the row is removed under Unread. The
+  inbox is then marked stale again: `setQueryData` clears the stale mark, which
+  may have been standing for an earlier write that raised a notification the
+  list has not seen.
+- **It refetches when the tab comes into focus, if stale.** Staleness is read at
+  focus time rather than subscribed to, so the refetch happens at most once per
+  visit, however many writes came before it. Returning while the list is fresh
+  costs nothing.
+- **Mark all read refetches.** It changes every row and is rare.
+
+`maxPages` was considered and rejected: it bounds how many pages are kept by
+dropping the oldest, so rows the reader had already scrolled past would vanish
+from the top of the list.
 
 ---
 
@@ -1788,4 +1866,6 @@ than only the outcome.
 | Completing a project sets `progress` to 100 | A completed project reading 60% is a contradiction the dashboard averages into its figures. Its tasks are left alone: auto-completing them would invent completion times for work nobody finished |
 | Web forms map a local ZodError like a 422 envelope | Forms validate with the shared schema before sending. Without this the failure reached the user as a generic banner with no field highlighted |
 | `@opsflow/ui` ships a JSON palette, a status → tone table and a generated `tokens.css` | The web badge collapsed every status into three shadcn variants while the mobile badge coloured each one; the two clients disagreed on what `completed` or `cancelled` looks like. One tone table, read by both, settles it. JSON rather than TypeScript because the mobile Tailwind 3 config and the icon script `require()` it; the CSS is generated so the web's Tailwind 4 build reads the same values |
+| Mobile directory lists page with `useInfiniteQuery`; every paged list query ends its `orderBy` in `id` | Each mobile list fetched one page at the 100-row ceiling while its header showed the server's total, so anything past the first 100 rows silently did not exist on a phone. Concatenating offset pages needs a total order on the server and dedupe by id on the client; neither alone is enough. See §21.1 |
+| The mobile inbox is marked stale after a write and refetched on focus, instead of refetched after every write | It is an infinite list, and refetching one re-requests every loaded page in sequence. Marking one read patches the cached row. `maxPages` was rejected because it drops the oldest pages, removing rows the reader has already scrolled past. See §26.1 |
 

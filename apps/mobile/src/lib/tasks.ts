@@ -10,12 +10,26 @@ import type {
 } from '@opsflow/types/task'
 import { queryOptions } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { infiniteListOptions } from '@/lib/paged'
 import { toSearchParams } from '@/lib/search-params'
 
-/** Same key layout as the web client, so the two stay comparable. */
+/**
+ * The page is `pageParam`'s to decide and the size is the server's default,
+ * so neither belongs in the filters a screen passes — a `page` here would sit
+ * in the query key while a different one went into the URL.
+ */
+type TaskInfiniteFilters = Omit<TaskListFilters, 'page' | 'pageSize'>
+
+/**
+ * The same key layout as the web client, plus an `infinite` branch the web has
+ * no use for: its table jumps to a page, this list appends one. Both sit under
+ * the `['tasks']` prefix, so every `invalidateQueries({ queryKey: taskKeys.all })`
+ * reaches them without knowing which is mounted.
+ */
 export const taskKeys = {
   all: ['tasks'] as const,
   list: (filters: TaskListFilters) => ['tasks', 'list', filters] as const,
+  infinite: (filters: TaskInfiniteFilters) => ['tasks', 'infinite', filters] as const,
   detail: (id: string) => ['tasks', 'detail', id] as const,
 }
 
@@ -24,6 +38,10 @@ export const tasksQueryOptions = (filters: TaskListFilters) =>
     queryKey: taskKeys.list(filters),
     queryFn: () => apiFetch<Paginated<TaskListItem>>(`/tasks${toSearchParams(filters)}`),
   })
+
+/** The infinite form, for the list screen. One page per scroll to the end. */
+export const tasksInfiniteQueryOptions = (filters: TaskInfiniteFilters = {}) =>
+  infiniteListOptions<TaskListItem>(taskKeys.infinite(filters), '/tasks', filters)
 
 export const taskQueryOptions = (id: string) =>
   queryOptions({

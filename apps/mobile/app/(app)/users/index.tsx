@@ -1,38 +1,40 @@
 import { ROLE_NAMES, type RoleName } from '@opsflow/types/permissions'
 import { USER_STATUSES, type UserListItem, type UserStatus } from '@opsflow/types/user'
 import { toneLabel } from '@opsflow/ui/tones'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { PressableCard } from '@/components/card'
 import { ChipRow } from '@/components/filter-chip'
+import { ListFooter } from '@/components/list-footer'
 import { describeError, Message } from '@/components/message'
 import { UserStatusBadge } from '@/components/status-badge'
 import { useCan } from '@/lib/current-user'
-import { usersQueryOptions } from '@/lib/users'
+import { flattenPages, loadMore, pagedCountLabel, pagedTotal } from '@/lib/paged'
+import { usersInfiniteQueryOptions } from '@/lib/users'
 
 type RoleFilter = 'all' | RoleName
 type StatusFilter = 'all' | UserStatus
 
 /**
  * The people directory, for administrators and managers. Ordered by name on
- * the server, one page at the API's ceiling; the searchable, paged table
- * stays on the web, as does filtering by department.
+ * the server and loaded a page at a time as the list reaches its end; the
+ * searchable table stays on the web, as does filtering by department.
  */
 export default function UsersScreen() {
   const router = useRouter()
   const canWrite = useCan('users:write')
   const [role, setRole] = useState<RoleFilter>('all')
   const [status, setStatus] = useState<StatusFilter>('all')
-  const users = useQuery(
-    usersQueryOptions({
-      pageSize: 100,
+  const users = useInfiniteQuery(
+    usersInfiniteQueryOptions({
       role: role === 'all' ? undefined : role,
       status: status === 'all' ? undefined : status,
     }),
   )
+  const items = flattenPages(users.data)
 
   return (
     <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
@@ -42,9 +44,8 @@ export default function UsersScreen() {
             People
           </Text>
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            {users.data
-              ? `${users.data.total} ${users.data.total === 1 ? 'person' : 'people'}`
-              : 'Everyone in OPSflow'}
+            {pagedCountLabel(items.length, pagedTotal(users.data), 'person', 'people') ??
+              'Everyone in OPSflow'}
           </Text>
         </View>
         {canWrite ? (
@@ -75,7 +76,7 @@ export default function UsersScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
-      ) : users.isError ? (
+      ) : users.isError && items.length === 0 ? (
         <Message
           title="People could not be loaded"
           body={describeError(users.error)}
@@ -83,11 +84,16 @@ export default function UsersScreen() {
         />
       ) : (
         <FlatList
-          data={users.data.items}
+          data={items}
           keyExtractor={(user) => user.id}
           renderItem={({ item }) => <UserRow user={item} />}
           ItemSeparatorComponent={() => <View className="h-2" />}
           contentContainerClassName="pb-6"
+          onEndReached={loadMore(users)}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            <ListFooter loading={users.isFetchingNextPage} failed={users.isFetchNextPageError} />
+          }
           ListEmptyComponent={
             <Message
               title="Nobody here"

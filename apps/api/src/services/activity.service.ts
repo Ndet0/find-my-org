@@ -89,7 +89,9 @@ export async function listActivity(
     prisma.activityLog.findMany({
       where,
       select: listSelect,
-      orderBy: { createdAt: 'desc' },
+      // Rows written in one transaction share `createdAt`, so `id` breaks the
+      // tie. It is uuid(7), so id-desc continues createdAt-desc.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),

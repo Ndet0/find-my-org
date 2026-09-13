@@ -37,9 +37,23 @@ export const queryClient: QueryClient = new QueryClient({
     // after any mutation rather than something each mutation remembers.
     // Invalidating a key that is not in the cache is a no-op, so this is
     // harmless around sign-in and sign-out.
+    //
+    // The inbox is the exception. It is an infinite list, and refetching one
+    // re-requests every page it has loaded, one after another — against an
+    // inbox scrolled to page six, six requests for every write anywhere in the
+    // app. So it is only marked stale here, and the inbox screen refetches it
+    // when it next comes into focus. The unread count and the dashboard feed
+    // are single cheap requests and still refresh straight away.
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: dashboardKeys.stats })
-      void queryClient.invalidateQueries({ queryKey: notificationKeys.all })
+      void queryClient.invalidateQueries({
+        queryKey: notificationKeys.all,
+        predicate: (query) => query.queryKey[1] !== notificationKeys.inbox[1],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: notificationKeys.inbox,
+        refetchType: 'none',
+      })
     },
   }),
 })

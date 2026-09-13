@@ -66,7 +66,15 @@ async function call(method: string, path: string, cookie: string, body?: unknown
   return { status: response.status, ...json }
 }
 
+/** The ids on one page of a list response, in the order the API returned them. */
+function ids(data: Record<string, unknown> | undefined) {
+  return ((data?.items ?? []) as { id: string }[]).map((item) => item.id)
+}
+
 const created = { projectId: '', departmentId: '', lifecycleProjectId: '', openWorkProjectId: '' }
+
+/** Notifications inserted straight through Prisma by the paging test. */
+let tiedNotificationIds: string[] = []
 
 /**
  * The seeded employee is a shared fixture, so the profile test records the
@@ -113,6 +121,11 @@ afterAll(async () => {
   if (employeeCredential) {
     const { id, password } = employeeCredential
     await prisma.account.update({ where: { id }, data: { password } }).catch(() => undefined)
+  }
+  if (tiedNotificationIds.length > 0) {
+    await prisma.notification
+      .deleteMany({ where: { id: { in: tiedNotificationIds } } })
+      .catch(() => undefined)
   }
 })
 
@@ -417,11 +430,6 @@ describe('self-service profile', () => {
 })
 
 describe('dashboard and open work', () => {
-  /** The ids on one page of a list response, in the order the API returned them. */
-  function ids(data: Record<string, unknown> | undefined) {
-    return ((data?.items ?? []) as { id: string }[]).map((item) => item.id)
-  }
-
   async function moveTask(cookie: string, taskId: unknown, statuses: string[]) {
     for (const status of statuses) {
       const moved = await call('PATCH', `/api/tasks/${taskId}/status`, cookie, { status })
@@ -483,5 +491,69 @@ describe('dashboard and open work', () => {
     // A task blocks from `in_progress`, never straight from `pending`.
     await moveTask(manager, task.data?.id, ['in_progress', 'blocked'])
     expect(await blockedCount()).toBe(before + 1)
+  })
+})
+
+describe('list paging', () => {
+  /**
+   * The mobile lists concatenate pages, so a row must land on exactly one of
+   * them. Offset paging only guarantees that over a total order, and the
+   * notification list sorts by `createdAt` — which several rows can share.
+   *
+   * The ties are written through Prisma because the API cannot make them:
+   * `createdAt` is microsecond-precise and the service creates notifications
+   * one at a time. A marker in the title, searched with `q`, walks this group
+   * alone and leaves the employee's real notifications out of it.
+   *
+   * What this proves and what it does not: without `id` in the `orderBy`,
+   * nothing orders the tied rows, so they do not come back id-descending and
+   * the final assertion fails. The four name- and date-ordered lists sort
+   * ascending, where a tie's incidental order at this size tends to match the
+   * fixed one, so a test there could pass either way; those lists carry the
+   * same tiebreaker on correctness grounds, with no reproduction behind it.
+   */
+  test('a tie group pages out once each, in id order', async () => {
+    const employee = await prisma.user.findUniqueOrThrow({
+      where: { email: 'employee@opsflow.local' },
+      select: { id: true },
+    })
+    const marker = `paging-fixture-${crypto.randomUUID()}`
+    const createdAt = new Date()
+
+    const rows = await prisma.notification.createManyAndReturn({
+      data: Array.from({ length: 5 }, (_, index) => ({
+        userId: employee.id,
+        title: `${marker} ${index}`,
+        message: 'Paging fixture',
+        type: 'system' as const,
+        createdAt,
+      })),
+      select: { id: true },
+    })
+    tiedNotificationIds = rows.map((row) => row.id)
+
+    const cookie = await signIn('employee@opsflow.local')
+    const walked: string[] = []
+    let totalPages = 1
+
+    for (let page = 1; page <= totalPages; page++) {
+      const response = await call(
+        'GET',
+        `/api/notifications?q=${marker}&pageSize=2&page=${page}`,
+        cookie,
+      )
+      expect(response.status).toBe(200)
+      expect(response.data?.total).toBe(5)
+      totalPages = response.data?.totalPages as number
+      walked.push(...ids(response.data))
+    }
+
+    expect(totalPages).toBe(3)
+    // Every row once: none repeated across a boundary, none skipped.
+    expect(new Set(walked).size).toBe(walked.length)
+    expect([...walked].sort()).toEqual([...tiedNotificationIds].sort())
+    // In the order the tiebreaker defines. uuid(7) strings sort as the database
+    // compares the column, so a string sort is the expected order.
+    expect(walked).toEqual([...tiedNotificationIds].sort().reverse())
   })
 })

@@ -1,30 +1,33 @@
 import type { ClientListItem, ClientStatus } from '@opsflow/types/client'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { PressableCard } from '@/components/card'
+import { ListFooter } from '@/components/list-footer'
 import { describeError, Message } from '@/components/message'
 import { Segmented } from '@/components/segmented'
 import { ClientStatusBadge } from '@/components/status-badge'
-import { clientsQueryOptions } from '@/lib/clients'
+import { clientsInfiniteQueryOptions } from '@/lib/clients'
 import { useCan } from '@/lib/current-user'
+import { flattenPages, loadMore, pagedCountLabel, pagedTotal } from '@/lib/paged'
 
 type Filter = 'all' | ClientStatus
 
 /**
  * The client directory, for administrators and managers. Ordered by name
- * on the server, one page at the API's ceiling; the searchable, paged table
- * stays on the web.
+ * on the server and loaded a page at a time as the list reaches its end;
+ * the searchable table stays on the web.
  */
 export default function ClientsScreen() {
   const router = useRouter()
   const canWrite = useCan('clients:write')
   const [filter, setFilter] = useState<Filter>('all')
-  const clients = useQuery(
-    clientsQueryOptions(filter === 'all' ? { pageSize: 100 } : { status: filter, pageSize: 100 }),
+  const clients = useInfiniteQuery(
+    clientsInfiniteQueryOptions(filter === 'all' ? {} : { status: filter }),
   )
+  const items = flattenPages(clients.data)
 
   return (
     <View className="flex-1 bg-neutral-100 dark:bg-neutral-950 px-4">
@@ -34,9 +37,8 @@ export default function ClientsScreen() {
             Clients
           </Text>
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            {clients.data
-              ? `${clients.data.total} ${clients.data.total === 1 ? 'client' : 'clients'}`
-              : 'Who the work is for'}
+            {pagedCountLabel(items.length, pagedTotal(clients.data), 'client', 'clients') ??
+              'Who the work is for'}
           </Text>
         </View>
         {canWrite ? (
@@ -61,7 +63,7 @@ export default function ClientsScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
-      ) : clients.isError ? (
+      ) : clients.isError && items.length === 0 ? (
         <Message
           title="Clients could not be loaded"
           body={describeError(clients.error)}
@@ -69,11 +71,19 @@ export default function ClientsScreen() {
         />
       ) : (
         <FlatList
-          data={clients.data.items}
+          data={items}
           keyExtractor={(client) => client.id}
           renderItem={({ item }) => <ClientRow client={item} />}
           ItemSeparatorComponent={() => <View className="h-2" />}
           contentContainerClassName="pb-6"
+          onEndReached={loadMore(clients)}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            <ListFooter
+              loading={clients.isFetchingNextPage}
+              failed={clients.isFetchNextPageError}
+            />
+          }
           ListEmptyComponent={
             <Message
               title="No clients here"

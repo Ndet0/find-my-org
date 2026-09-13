@@ -1299,7 +1299,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-07 — against the working tree, not from memory.
+**Last verified:** 2026-09-12 — against the working tree, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -2194,6 +2194,115 @@ planning.
   unnecessary. Mobile list paging, the one thing mobile still does
   differently from the web, is a Phase 15 item (§25)
 
+## Phase 15 — Performance (2026-09-12 →, in progress)
+
+Most of the phase brief was already satisfied by construction when it was
+audited against the tree, so it is a review with measurements rather than a
+rebuild. What the audit found:
+
+- [x] Routes lazy-load: `autoCodeSplitting: true` in `apps/web/vite.config.ts`
+  splits every route into its own chunk
+- [x] No N+1 queries: the list services use an explicit `select` with nested
+  relation selects and `_count`, one query per list
+- [x] Indexes: all 21 secondary indexes `db_schema.md` documents are present in
+  `schema.prisma`, with no drift in either direction
+- [x] Pagination at the API: default 25, ceiling 100, `Paginated<T>` carries
+  `totalPages`
+- [x] Dashboard: one `$transaction` of eleven counts (seventeen with the org
+  section), scoped by the list endpoints' own visibility rules
+- [x] Images: the web app ships none; the four mobile PNGs are generated and
+  each under 10 KB
+- [x] Bundle baseline, `pnpm build` on 2026-09-12: **802 KB raw / 237 KB gzip**
+  across all web JS; the largest chunk, `index`, is 297 KB raw / 92 KB gzip.
+  Recorded so later changes have something to be compared with
+
+### Slice 1 — paging for the mobile lists
+
+The one unbuilt item, and worse than a performance trade. Every mobile list
+fetched one page at `pageSize: 100` and nothing more, while its header read the
+server's total — an organisation with 247 tasks saw "247 tasks" above 100 rows
+and nothing said the other 147 existed. Silent truncation, not slowness.
+
+- [x] The six directory lists — tasks, projects, notifications, activity,
+  people, clients — use `useInfiniteQuery` and load the next page from
+  `onEndReached`, at the server's default page size of 25. Pickers, dashboard
+  feeds and a project's own task list keep one capped page: `FeedCard` is typed
+  to a plain query result, and a picker wants a bounded list
+- [x] `apps/mobile/src/lib/paged.ts`: one `infiniteListOptions` factory, so
+  `initialPageParam` and `getNextPageParam` are written once; `flattenPages`;
+  `pagedTotal`; `pagedCountLabel`; and `loadMore`, which drops a second
+  `onEndReached` while a page is on its way and passes `cancelRefetch: false`
+  for the one that slips past. Page and page size are omitted from the filters
+  type, so a caller cannot put a page number in the key while another goes into
+  the URL
+- [x] Each `xKeys` object gains `infinite(filters)` under the module's existing
+  prefix, so the existing `invalidateQueries({ queryKey: xKeys.all })` calls
+  reach the lists with no change to any mutation
+- [x] Headers say what is on screen: `25 of 67 tasks`, then `67 tasks` once
+  everything has loaded. The inbox keeps its unread count, which never claimed
+  to count rows
+- [x] `ListFooter`, the app's first list footer: a spinner while the next page
+  loads, `ErrorText` if it failed, nothing otherwise. A failed next page used
+  to be impossible to reach — `useInfiniteQuery` raises the query-wide
+  `isError` for it with the loaded rows intact, and every screen rendered
+  `isError` as a full-screen error. The full-screen error is now for a list
+  with nothing loaded
+- [x] A total order on every paged list query: `id` appended to the `orderBy`
+  in the task, project, client, user, activity and notification services.
+  Project, client and user names are not unique, and two activity or
+  notification rows can share `createdAt`, so `skip`/`take` could put a tied
+  row on two pages or none. Project members and departments are not paged and
+  were left alone
+- [x] Dedupe by id in `flattenPages`, because a total order does not stop a row
+  inserted above the loaded window from repeating across a page boundary — the
+  normal case for the newest-first activity trail and inbox. Both parts are
+  needed; technical architecture §21.1
+- [x] The inbox, which the mobile `MutationCache` refreshed after every write.
+  As an infinite list that became one request per loaded page, for every tap
+  anywhere. It is now marked stale with `refetchType: 'none'` and refetched
+  when the tab comes into focus, if stale; marking one read patches the cached
+  row (removing it under the Unread chip) and marks the inbox stale again,
+  since `setQueryData` would otherwise clear a stale mark left by an earlier
+  write. `maxPages` was rejected: it drops the oldest pages, so rows already
+  scrolled past would vanish. Technical architecture §26.1
+- [x] `rules.test.ts` walks a tie group of five notifications at `pageSize=2`
+  and asserts every row appears once, in id-descending order. It fails with the
+  notification tiebreaker removed — three runs out of three, on the ordering
+  assertion; the disjoint and complete assertions passed even then, so what it
+  reproduces is the reordering, not a duplicate. On the four ascending lists a
+  tie's incidental order at test sizes matches the fixed one, so the tiebreaker
+  there is a correctness fix with no failing test behind it
+- [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` (22 pass),
+  `pnpm build`. Against the running API, every page of all six lists walked
+  with no duplicate and no gap (67 tasks, 34 projects, 36 clients, 37 people,
+  694 activity rows over 28 pages, 67 notifications), on fixtures inserted for
+  the check and removed after, returning every table to its prior count
+- [x] Verified in the mobile web build at 390×844 as the admin. Tasks read
+  `25 of 67`, then `50 of 67`, then `67 tasks`, with pages 2 and 3 each requested
+  once across twelve scroll-to-end events. Projects, people, clients and
+  activity page the same way, and a filter chip on each restarts at page 1. With
+  clients page 2 made to fail, the 25 loaded rows stayed and the footer read
+  "Could not load more. Scroll to retry." as an alert, after the query's two
+  retries; scrolling again loaded it. With four activity pages loaded, a row
+  inserted at the top made page 5 begin with row 100 again, and the list grew to
+  124 rows, not 125, all unique. In the inbox, marking a page-2 row read sent the
+  PATCH, the unread count and the dashboard stats and no inbox request, and the
+  row turned read in place. Returning 5 seconds after the inbox's last fetch —
+  inside its 30-second stale window, so only the write could have made it stale —
+  refetched it once; with no write in between, a return seconds later sent
+  nothing. Under Unread the row disappeared. Mark all
+  read refetched and left "Nothing unread" with no footer. The console recorded
+  no React warnings. Not verifiable here: the pull-to-refresh gesture, which
+  `RefreshControl` does not implement on the web, and a native device
+- [x] Harness notes, so the next browser pass does not chase them. The Expo
+  server's API address is a LAN IP this machine cannot reach, so requests were
+  rewritten to localhost from inside the page. The embedded browser pauses
+  rendering while unobserved, which stops `requestAnimationFrame`, scroll events
+  and react-native-web's `onLayout` delivery: a list mounted in that state
+  measures no cells and never reaches `onEndReached`. A viewport resize, or
+  dispatching the scroll event and cell layouts by hand, resumes it. On a phone
+  `onLayout` is native and none of this applies
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -2223,6 +2332,14 @@ planning.
 - Overdue is computed against the UTC date, so a user ahead of UTC sees
   yesterday's date as "today" for the first hours of their day.
 - Rate limiting is Better Auth's default, which is active only in production.
+- The `q` search filters are `contains` with `mode: 'insensitive'`, which Postgres
+  runs as `ILIKE '%q%'` — no B-tree index can serve that. Fine at demo volumes; a
+  `pg_trgm` GIN index is the fix if search slows, and needs the extension enabled
+  in a migration.
+- Mobile lists page by offset. A row inserted above what is loaded is absorbed by
+  the client dedupe and appears on refresh; a row removed above it shifts the
+  next page by one and skips a row until refresh. A cursor would avoid both, at
+  the cost of the web's jump-to-page tables sharing the contract.
 - There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
@@ -2238,7 +2355,8 @@ planning.
 
 ## Not started
 
-- [ ] Phases 15-20 — Performance, testing (started), security, deployment, demo
+- [-] Phase 15 — Performance (slice 1, mobile paging, done; see above)
+- [ ] Phases 16-20 — Testing (started), security, deployment, demo
 
 ## Stack amendments
 
@@ -2258,28 +2376,31 @@ attention, the mobile app reaches every module the web does, and both
 clients read one palette, in light and dark, with the same status colours,
 one card, one error line, and a keyboard path through every dialog.
 
-What mobile still does differently is paging: every mobile list is one page
-at the API's ceiling, filtered with chips, where the web has search, filters
-and jump-to-page. That is a deliberate trade, but it is also the next thing
-that will hurt — an organisation with more than a hundred people or a busy
-activity trail sees only the first page on a phone, and the header count is
-what tells them so. It is the first candidate for Phase 15, whose brief is
-"remains responsive as data grows".
+Phase 15 is under way (§24). Its one unbuilt item is done: the mobile lists
+page as the reader scrolls, and their headers say how much of the total is on
+screen instead of claiming rows a phone never received. The audit settled the
+rest by inspection — routes are split, there is no N+1, the documented indexes
+exist, and the web bundle has a recorded baseline.
 
 Next:
 
 ```text
-1. Phase 15 — Performance
+1. Phase 15 — query plans, then close the phase
+2. Phase 16 — Testing
 ```
 
-Phase 15's other items are largely settled by construction — pages cap at
-100 rows, the dashboard is one transaction of counts, virtualization was
-evaluated and dropped in Phase 12 — so the phase is a review with a
-measurement, not a rebuild: the bundle size of the web app, the query plans
-behind the list endpoints and the dashboard, and the indexes the schema
-document promises. Phase 17's checklist already has a start in "Known gaps"
-above: the login page's missing deep-link restoration, the six-character
-password minimum, and `SameSite` for a cross-site deployment.
+What Phase 15 has not yet done is measure a query. Seed a realistic volume —
+thousands of tasks and tens of thousands of activity rows, not the handful the
+development seed makes — and read `EXPLAIN ANALYZE` for the list endpoints and
+the dashboard transaction. The question is whether the existing indexes are
+used with the visibility rules and the new `id` tiebreaker in the `orderBy`,
+and whether the `q` searches need the `pg_trgm` index recorded under "Known
+gaps". Fix what the plans show, record what they show either way, and close
+the phase.
+
+Phase 17's checklist already has a start in "Known gaps" above: the login
+page's missing deep-link restoration, the six-character password minimum, and
+`SameSite` for a cross-site deployment.
 
 CI runs lint, typecheck, the API tests and the build on every push and pull
 request, so each commit from here is verified.

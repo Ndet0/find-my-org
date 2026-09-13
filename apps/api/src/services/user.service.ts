@@ -107,7 +107,9 @@ export async function listUsers(query: UserListQuery): Promise<Paginated<UserLis
     prisma.user.findMany({
       where,
       select: listSelect,
-      orderBy: { name: 'asc' },
+      // Two people can share a name, so `id` breaks the tie and makes the
+      // page boundaries stable.
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),

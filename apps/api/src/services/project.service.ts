@@ -162,7 +162,9 @@ export async function listProjects(
     prisma.project.findMany({
       where,
       select: listSelect,
-      orderBy: { name: 'asc' },
+      // Project names are not unique, so `id` breaks the tie and makes the
+      // page boundaries stable.
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),

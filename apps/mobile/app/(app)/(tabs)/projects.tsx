@@ -1,29 +1,32 @@
 import type { ProjectListItem } from '@opsflow/types/project'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useRouter } from 'expo-router'
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { Button } from '@/components/button'
 import { PressableCard } from '@/components/card'
+import { ListFooter } from '@/components/list-footer'
 import { describeError, Message } from '@/components/message'
 import { ProgressBar } from '@/components/progress-bar'
 import { Screen } from '@/components/screen'
 import { PriorityBadge, ProjectStatusBadge } from '@/components/status-badge'
 import { useCan, useCurrentUser } from '@/lib/current-user'
 import { isProjectOverdue } from '@/lib/dates'
-import { projectsQueryOptions } from '@/lib/projects'
+import { flattenPages, loadMore, pagedCountLabel, pagedTotal } from '@/lib/paged'
+import { projectsInfiniteQueryOptions } from '@/lib/projects'
 
 /**
  * Every project the caller may see, ordered by name on the server. The API
  * already narrows an employee to the projects they manage or belong to.
- * One page at the API's ceiling: the screen is for orientation, and the
- * filtered, paged table stays on the web. Roles with `projects:write` add
+ * A page at a time, the next loading as the list reaches its end; the
+ * filtered table stays on the web. Roles with `projects:write` add
  * projects from here and manage them from the project screen.
  */
 export default function ProjectsScreen() {
   const user = useCurrentUser()
   const router = useRouter()
   const canWrite = useCan('projects:write')
-  const projects = useQuery(projectsQueryOptions({ pageSize: 100 }))
+  const projects = useInfiniteQuery(projectsInfiniteQueryOptions())
+  const items = flattenPages(projects.data)
 
   if (!user) {
     return null
@@ -37,13 +40,10 @@ export default function ProjectsScreen() {
             Projects
           </Text>
           <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-            {projects.data
-              ? projects.data.total > projects.data.items.length
-                ? `Showing ${projects.data.items.length} of ${projects.data.total} projects`
-                : `${projects.data.total} ${projects.data.total === 1 ? 'project' : 'projects'}`
-              : user.role.name === 'employee'
+            {pagedCountLabel(items.length, pagedTotal(projects.data), 'project', 'projects') ??
+              (user.role.name === 'employee'
                 ? 'Projects you manage or belong to'
-                : 'Every project in the workspace'}
+                : 'Every project in the workspace')}
           </Text>
         </View>
         {canWrite ? (
@@ -55,7 +55,7 @@ export default function ProjectsScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
-      ) : projects.isError ? (
+      ) : projects.isError && items.length === 0 ? (
         <Message
           title="Projects could not be loaded"
           body={describeError(projects.error)}
@@ -63,11 +63,19 @@ export default function ProjectsScreen() {
         />
       ) : (
         <FlatList
-          data={projects.data.items}
+          data={items}
           keyExtractor={(project) => project.id}
           renderItem={({ item }) => <ProjectRow project={item} />}
           ItemSeparatorComponent={() => <View className="h-2" />}
           contentContainerClassName="pb-6"
+          onEndReached={loadMore(projects)}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            <ListFooter
+              loading={projects.isFetchingNextPage}
+              failed={projects.isFetchNextPageError}
+            />
+          }
           ListEmptyComponent={
             <Message
               title="No projects yet"

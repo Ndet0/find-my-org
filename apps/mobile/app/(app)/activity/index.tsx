@@ -6,34 +6,35 @@ import {
 import type { RoleName } from '@opsflow/types/permissions'
 import { can } from '@opsflow/types/permissions'
 import { toneLabel } from '@opsflow/ui/tones'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { type Href, Link } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native'
 import { PressableCard } from '@/components/card'
 import { ChipRow } from '@/components/filter-chip'
+import { ListFooter } from '@/components/list-footer'
 import { describeError, Message } from '@/components/message'
 import { Badge } from '@/components/status-badge'
-import { activityQueryOptions } from '@/lib/activity'
+import { activityInfiniteQueryOptions } from '@/lib/activity'
 import { useCurrentUser } from '@/lib/current-user'
 import { formatDateTime } from '@/lib/dates'
+import { flattenPages, loadMore, pagedCountLabel, pagedTotal } from '@/lib/paged'
 
 type Filter = 'all' | ActivityEntityType
 
 /**
- * The activity trail, newest first. Every role reaches this screen, but the
- * API narrows an employee's rows to the actions they performed, so what
- * differs by role is decided on the server — apart from where a row may
- * lead, which is decided here.
+ * The activity trail, newest first, a page at a time as the list reaches its
+ * end. Every role reaches this screen, but the API narrows an employee's rows
+ * to the actions they performed, so what differs by role is decided on the
+ * server — apart from where a row may lead, which is decided here.
  */
 export default function ActivityScreen() {
   const user = useCurrentUser()
   const [filter, setFilter] = useState<Filter>('all')
-  const activity = useQuery(
-    activityQueryOptions(
-      filter === 'all' ? { pageSize: 100 } : { entityType: filter, pageSize: 100 },
-    ),
+  const activity = useInfiniteQuery(
+    activityInfiniteQueryOptions(filter === 'all' ? {} : { entityType: filter }),
   )
+  const items = flattenPages(activity.data)
 
   if (!user) {
     return null
@@ -46,9 +47,8 @@ export default function ActivityScreen() {
           Activity
         </Text>
         <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-          {activity.data
-            ? `${activity.data.total} ${activity.data.total === 1 ? 'event' : 'events'}`
-            : 'What changed'}
+          {pagedCountLabel(items.length, pagedTotal(activity.data), 'event', 'events') ??
+            'What changed'}
         </Text>
       </View>
 
@@ -70,7 +70,7 @@ export default function ActivityScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" />
         </View>
-      ) : activity.isError ? (
+      ) : activity.isError && items.length === 0 ? (
         <Message
           title="Activity could not be loaded"
           body={describeError(activity.error)}
@@ -78,13 +78,21 @@ export default function ActivityScreen() {
         />
       ) : (
         <FlatList
-          data={activity.data.items}
+          data={items}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <ActivityRow item={item} to={destinationFor(item, user.role.name)} />
           )}
           ItemSeparatorComponent={() => <View className="h-2" />}
           contentContainerClassName="pb-6"
+          onEndReached={loadMore(activity)}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            <ListFooter
+              loading={activity.isFetchingNextPage}
+              failed={activity.isFetchNextPageError}
+            />
+          }
           ListEmptyComponent={
             <Message
               title={filter === 'all' ? 'No activity yet' : 'Nothing here'}

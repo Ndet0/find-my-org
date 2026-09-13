@@ -145,7 +145,9 @@ export async function listTasks(
     prisma.task.findMany({
       where,
       select: listSelect,
-      orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { title: 'asc' }],
+      // `id` last so the order is total: two tasks sharing a due date and a
+      // title would otherwise be free to swap between one page and the next.
+      orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { title: 'asc' }, { id: 'asc' }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),

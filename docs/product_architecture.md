@@ -962,10 +962,10 @@ Review Progress
 | Reporting      | ✓   | Limited |
 
 
-Every mobile list is a single page ordered by the server, filtered with
-chips rather than searched. The filtered, paged, sortable tables — and
-reporting — remain the web's, which is what "Limited" means in the rows
-above.
+Every mobile list is ordered by the server and loads a page at a time as it
+is scrolled, filtered with chips rather than searched. The searchable,
+sortable tables that jump to a page — and reporting — remain the web's,
+which is what "Limited" means in the rows above.
 
 The web application remains the primary administrative platform.
 

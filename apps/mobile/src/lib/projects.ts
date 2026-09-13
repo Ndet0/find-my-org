@@ -11,12 +11,25 @@ import type {
 } from '@opsflow/types/project'
 import { queryOptions } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { infiniteListOptions } from '@/lib/paged'
 import { toSearchParams } from '@/lib/search-params'
 
-/** The keys match the web client's layout. */
+/**
+ * The page is `pageParam`'s to decide and the size is the server's default,
+ * so neither belongs in the filters a screen passes — a `page` here would sit
+ * in the query key while a different one went into the URL.
+ */
+type ProjectInfiniteFilters = Omit<ProjectListFilters, 'page' | 'pageSize'>
+
+/**
+ * The keys match the web client's layout, plus the `infinite` branch the list
+ * screen reads. Both are under the `['projects']` prefix that the mutations
+ * invalidate.
+ */
 export const projectKeys = {
   all: ['projects'] as const,
   list: (filters: ProjectListFilters) => ['projects', 'list', filters] as const,
+  infinite: (filters: ProjectInfiniteFilters) => ['projects', 'infinite', filters] as const,
   detail: (id: string) => ['projects', 'detail', id] as const,
 }
 
@@ -25,6 +38,10 @@ export const projectsQueryOptions = (filters: ProjectListFilters) =>
     queryKey: projectKeys.list(filters),
     queryFn: () => apiFetch<Paginated<ProjectListItem>>(`/projects${toSearchParams(filters)}`),
   })
+
+/** The infinite form, for the list screen. One page per scroll to the end. */
+export const projectsInfiniteQueryOptions = (filters: ProjectInfiniteFilters = {}) =>
+  infiniteListOptions<ProjectListItem>(projectKeys.infinite(filters), '/projects', filters)
 
 export const projectQueryOptions = (id: string) =>
   queryOptions({
