@@ -23,7 +23,8 @@
     "db:studio": "pnpm --filter @opsflow/db run studio",
     "db:bench": "pnpm --filter @opsflow/db run bench",
     "db:explain": "pnpm --filter @opsflow/api run explain",
-    "db:reset": "pnpm --filter @opsflow/db run reset"
+    "db:reset": "pnpm --filter @opsflow/db run reset",
+    "bootstrap:admin": "pnpm --filter @opsflow/auth run create-admin"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",

@@ -8,10 +8,14 @@
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
     "API_PORT",
+    "PORT",
     "WEB_URL",
     "VITE_API_URL",
     "EXPO_PUBLIC_API_URL",
-    "SEED_USER_PASSWORD"
+    "SEED_USER_PASSWORD",
+    "ADMIN_NAME",
+    "ADMIN_EMAIL",
+    "ADMIN_PASSWORD"
   ],
   "tasks": {
     "build": {

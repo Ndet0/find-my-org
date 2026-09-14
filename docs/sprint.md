@@ -2687,6 +2687,49 @@ that only needed reading are recorded as reviewed.
 - [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` — 219 types,
   69 web, 49 mobile, 31 API = 368 pass
 
+## Phase 18 — Deployment (2026-09-14, in progress)
+
+Target: Railway or Render — a container for the API, a static host for the web
+build, managed Postgres alongside — on one registrable domain
+(`app.<domain>`, `api.<domain>`), which is what `SameSite=Lax` requires
+(Phase 17). This slice is the part that does not depend on which of the two is
+chosen; the decisions are written into
+[`technical_architecture.md`](technical_architecture.md) §36.
+
+- [x] **The first administrator.** A fresh production database had no way in.
+  Signup is blocked at the HTTP layer (`app.ts`), `POST /api/users` needs an
+  admin session, and `packages/auth/scripts/seed-users.ts` refuses to run
+  under `NODE_ENV=production` because its credentials are public — so the
+  roles-and-departments seed left a database nobody could sign in to.
+  `pnpm bootstrap:admin` reads `ADMIN_NAME`, `ADMIN_EMAIL` and
+  `ADMIN_PASSWORD`, validates them against the same
+  `createUserSchema` fields `POST /api/users` uses, and provisions one
+  administrator through `auth.api.signUpEmail` so the hash and the credential
+  row are written the way every other account's are. The profile patch and
+  its activity row share a transaction, and the account is removed if that
+  fails — the same repair Phase 17 made to `createUser`. It reports and exits
+  when an administrator already exists, so a release command can keep calling
+  it, and it never prints the password
+- [x] **The port.** The API bound `API_PORT`, defaulting to 3000. Railway and
+  Render assign a port and inject it as `PORT`, and a service that binds
+  anything else never answers its health check, so the platform rolls the
+  release back. `lib/env.ts` now validates both and exports
+  `port = PORT ?? API_PORT`; `API_PORT` stays the local convention.
+  `--env-file=../../.env` in the API's `start` script was checked and left
+  alone: Bun ignores a missing env file, so the platform's variables are what
+  the process reads in a deployment
+- [x] **Recorded.** §36 of the architecture, which was still the pre-build
+  diagram: the two-role database (migrations as the schema owner through
+  `migrate deploy`, the API on DML only), the SPA rewrite the web build needs
+  from its host or every deep link is the host's 404, `VITE_API_URL` and
+  `EXPO_PUBLIC_API_URL` being build-time values, and `/api/health` as the
+  platform probe. §32 gained `PORT` and the bootstrap variables
+- [ ] Dockerfile for the API, `.dockerignore`, and a production-like compose
+- [ ] Provision the host: database, both services, custom domain, `https`
+  `BETTER_AUTH_URL` and `WEB_URL`, the least-privilege role, a restore drill
+- [ ] `expo-font`, then the Android build
+- [ ] Git hooks
+
 ## Known gaps in this plan
 
 - The session cookie is `SameSite=Lax`, chosen for a deployment where the web
@@ -2755,6 +2798,10 @@ that only needed reading are recorded as reviewed.
   because it has none. `user-form.test.tsx` drives the user form through its
   text inputs only, which is enough to pin the diffed payload.
 - There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
+- The bootstrap administrator's password arrives as an environment variable and
+  is never rotated by the tool that set it. Whoever runs the deployment should
+  change it from the profile screen after the first sign-in, and there is no
+  password reset to fall back on if they do not.
 - Password minimum is 8 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   the same bound Better Auth and the create forms share. There is no complexity
   rule and no breach-list check.
@@ -2773,7 +2820,9 @@ that only needed reading are recorded as reviewed.
 - [x] Phase 16 — Testing (closed 2026-09-14; rendered mobile screens deferred, see
   known gaps)
 - [x] Phase 17 — Security review (closed 2026-09-14; see above)
-- [ ] Phases 18-20 — Deployment, demo
+- [-] Phase 18 — Deployment (started 2026-09-14; the host-independent
+  prerequisites are done, see above)
+- [ ] Phases 19-20 — Optional SaaS, demo
 
 ## Stack amendments
 
@@ -2819,20 +2868,27 @@ request bodies are bounded, the health probe times out, the cookie
 attributes and the rate-limit store are written down, and the dependency
 audit is recorded and repeated in CI. 368 tests.
 
+Phase 18 has started (§24), on Railway or Render: the part that does not
+depend on which one was done first. A fresh production database could not be
+signed in to at all — signup is closed, `POST /api/users` needs an admin
+session, and the development seed refuses production — so
+`pnpm bootstrap:admin` provisions the first administrator from the
+environment. The API binds the port the platform injects. §36 of the
+architecture, still the pre-build diagram until now, carries the rest of the
+decisions.
+
 Next:
 
 ```text
-1. Phase 18 — Deployment
+1. Phase 18 — Dockerfile for the API, then provision the host
 ```
 
-Phase 18's inputs from Phase 17: the web and the API deploy on one
-registrable domain (`SameSite=Lax` assumes it); the production database
-needs a least-privilege role for the API with `migrate deploy` run as the
-owner; `BETTER_AUTH_URL` and `WEB_URL` are `https`; `expo-font` is installed
-for the first development build. Add the `pg` deprecation warning the API
-tests print ("Calling client.query() when the client is already executing a
-query") to the `pg@9` upgrade note: it comes from Prisma's adapter, not the
-app.
+Phase 18's remaining inputs from Phase 17: the production database needs a
+least-privilege role for the API with `migrate deploy` run as the owner;
+`BETTER_AUTH_URL` and `WEB_URL` are `https`; `expo-font` is installed for the
+first development build. Add the `pg` deprecation warning the API tests print
+("Calling client.query() when the client is already executing a query") to the
+`pg@9` upgrade note: it comes from Prisma's adapter, not the app.
 
 CI runs lint, typecheck, the API tests and the build on every push and pull
 request, so each commit from here is verified.

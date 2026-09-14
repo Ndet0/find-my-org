@@ -86,11 +86,28 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:reset` | Drop, re-migrate and re-seed |
+| `pnpm bootstrap:admin` | Create the first administrator on a database that has none |
 | `pnpm db:bench` / `pnpm db:bench --clean` | Insert / remove a bench volume for measuring query plans |
 | `pnpm db:explain` | Run every list endpoint under `EXPLAIN ANALYZE` into `docs/perf/` |
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, the API tests and the
 build on every push to `main` and every pull request.
+
+## The first administrator
+
+`pnpm db:seed`'s development users are refused under `NODE_ENV=production`, and
+there is no public signup, so a production database is seeded in two steps:
+
+```bash
+pnpm --filter @opsflow/db run seed          # roles and departments
+ADMIN_NAME="Ada Admin" \
+ADMIN_EMAIL="admin@example.com" \
+ADMIN_PASSWORD="…" pnpm bootstrap:admin
+```
+
+It does nothing once an administrator exists, so it is safe in a release
+command. Change the password from the profile screen after signing in — there
+is no password reset.
 
 ## Mobile app
 

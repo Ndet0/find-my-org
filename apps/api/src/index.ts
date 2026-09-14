@@ -1,9 +1,9 @@
 import { app } from './app.js'
-import { env } from './lib/env.js'
+import { port } from './lib/env.js'
 
-console.log(`OPSflow API listening on http://localhost:${env.API_PORT}`)
+console.log(`OPSflow API listening on port ${port}`)
 
 export default {
-  port: env.API_PORT,
+  port,
   fetch: app.fetch,
 }

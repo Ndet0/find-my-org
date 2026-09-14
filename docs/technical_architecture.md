@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 3.1  
+**Version:** 3.2  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1496,13 +1496,22 @@ The variables the system actually reads:
 | `DATABASE_URL`       | API, Prisma  | PostgreSQL connection string                     |
 | `BETTER_AUTH_SECRET` | Auth         | Session signing key, at least 32 bytes           |
 | `BETTER_AUTH_URL`    | Auth         | Origin Better Auth issues and validates URLs for |
-| `API_PORT`           | API          | Port the Hono server binds to                    |
+| `API_PORT`           | API          | Port the Hono server binds to locally            |
+| `PORT`               | API          | Port assigned by the platform; wins over the above |
 | `WEB_URL`            | API, Auth    | CORS allow-list and Better Auth trusted origin   |
 | `VITE_API_URL`       | Web (public) | API origin the browser calls                     |
 
 
 `WEB_URL` has no default. It is both the CORS allow-list and Better Auth's
 trusted origin, so guessing it wrong fails in confusing, security-shaped ways.
+
+`PORT` is the deployment convention — Railway, Render and most other platforms
+assign a port and inject it under that name — and `API_PORT` is the local one.
+The server binds `PORT ?? API_PORT` (`lib/env.ts`); a deployment that bound
+anything else would never answer its health check.
+
+`ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` are read only by
+`pnpm bootstrap:admin` (§36) and only on a database with no administrator.
 
 Anything behind a `VITE_` prefix is inlined into the browser bundle at build
 time and is therefore public. Secrets must never use that prefix.
@@ -1691,7 +1700,63 @@ A production deployment may follow:
 
 ```
 
-The web, API, and database should be independently deployable.
+The web, API, and database are independently deployable. The decisions taken
+in Phase 18 (sprint §24), and what each one constrains:
+
+### One registrable domain
+
+The web app and the API are deployed as `app.<domain>` and `api.<domain>` on a
+managed platform (Railway or Render) with its Postgres alongside. The session
+cookie is `SameSite=Lax` (§33), which only works if the two share a
+registrable domain; a cross-site deployment would need `SameSite=None`, which
+Safari blocks by default. The choice of host is therefore not free — it has to
+allow a custom domain on both services.
+
+### Web
+
+A static Vite build: `dist/` served by any static host. Two consequences.
+`VITE_API_URL` is inlined at build time (§32), so pointing the app at a
+different API is a rebuild rather than a restart. And TanStack Router owns
+every path below `/`, so the host has to serve `index.html` for unknown paths;
+without that rewrite a deep link or a refresh on `/projects/:id` is the host's
+own 404.
+
+### API
+
+Bun serving the Hono app, bound to the port the platform assigns (§32).
+`GET /api/health` is the platform's probe: it races its `SELECT 1` against two
+seconds and answers 503, so a database that accepts the connection and hangs
+fails the check instead of hanging it (§33).
+
+### Database
+
+Two roles, not one. Migrations run as the schema owner in a release step
+(`prisma migrate deploy`, never `migrate dev`, which can reset); the API
+connects as a role with DML only — `SELECT`, `INSERT`, `UPDATE`, `DELETE` on
+the application schema and no DDL. The local compose database is a single
+owner account, which is fine for development and is not the production shape.
+Backups are the managed provider's scheduled snapshots; the only application
+requirement is that a restore be tried once, because an untested backup is a
+hypothesis.
+
+### First administrator
+
+A fresh database has no way in: signup is blocked at the HTTP layer (§10), and
+`POST /api/users` needs an admin session. So a deployment is seeded in two
+steps — the `@opsflow/db` seed writes the roles and departments that
+`users.role_id` requires, then `pnpm bootstrap:admin` reads `ADMIN_NAME`,
+`ADMIN_EMAIL` and `ADMIN_PASSWORD` and provisions one administrator through
+Better Auth, so the password hash and credential row are written the same way
+every other account's are. It does nothing when an administrator already
+exists, which makes it safe to leave in a release command. The development
+user seed is not an alternative: its credentials are public and it refuses to
+run under `NODE_ENV=production`.
+
+### Mobile
+
+`EXPO_PUBLIC_API_URL` is inlined at bundle time, so a release build is tied to
+the API origin it was built against. `expo-font` has to be installed before
+the first native build; inside Expo Go it is not needed.
 
 ---
 
@@ -2027,3 +2092,5 @@ than only the outcome.
 | Cookie attributes written out: `SameSite=Lax`, `Secure` in production | The deployment is one registrable domain; the setting was Better Auth's default and the decision it rests on was nowhere |
 | Better Auth's rate limiter counts in the `rate_limits` table | The memory store is per instance; the table shares the count through the Prisma adapter already in use. Production only, as before |
 | `pnpm audit --prod` in CI, advisory | The findings are in tooling-only paths; gating on a tool's transitive tree would block unrelated work, while running it keeps drift visible |
+| The API binds `PORT ?? API_PORT` | Railway and Render assign the port and inject it as `PORT`. Binding `API_PORT` in a deployment means the health check never answers |
+| `pnpm bootstrap:admin` provisions the first administrator from the environment | A fresh production database had no way in: signup is closed at the HTTP layer, `POST /api/users` needs an admin session, and the development seed refuses to run in production. It is a no-op once an administrator exists, so a release command can keep calling it. See §36 |

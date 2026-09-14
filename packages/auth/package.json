@@ -8,6 +8,7 @@
   },
   "scripts": {
     "seed": "bun run --env-file=../../.env scripts/seed-users.ts",
+    "create-admin": "bun run --env-file=../../.env scripts/create-admin.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
