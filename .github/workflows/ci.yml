@@ -73,6 +73,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
 
+      # Advisory, not gating: every finding at the time of writing is in a
+      # tooling-only path (the Prisma CLI's MySQL driver, Expo's prebuild
+      # plugins). Recorded in docs/sprint.md Phase 17; this keeps drift visible.
+      - run: pnpm audit --prod --audit-level high
+        continue-on-error: true
+
       - run: pnpm --filter @opsflow/db migrate:deploy
       - run: pnpm db:seed
 
