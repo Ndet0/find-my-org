@@ -10,6 +10,7 @@ import { ErrorText } from '@/components/error-text'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, useCan, useCurrentUser } from '@/lib/current-user'
+import { clearSession } from '@/lib/session'
 
 export default function ProfileScreen() {
   const user = useCurrentUser()
@@ -23,12 +24,9 @@ export default function ProfileScreen() {
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
     onSuccess: () => {
-      // Nothing cached under the old session may survive into the next one.
       // The current user is set rather than removed so the root guard sees
       // "signed out" immediately instead of refetching first.
-      queryClient.removeQueries({
-        predicate: (query) => query.queryKey[0] !== currentUserQueryOptions.queryKey[0],
-      })
+      clearSession(queryClient)
       queryClient.setQueryData(currentUserQueryOptions.queryKey, null)
     },
   })

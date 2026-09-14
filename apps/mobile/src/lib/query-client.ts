@@ -3,6 +3,7 @@ import { ApiRequestError } from '@/lib/api'
 import { currentUserQueryOptions } from '@/lib/current-user'
 import { dashboardKeys } from '@/lib/dashboard'
 import { notificationKeys } from '@/lib/notifications'
+import { clearSession } from '@/lib/session'
 
 export const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +28,16 @@ export const queryClient: QueryClient = new QueryClient({
         error.status === 401 &&
         query.queryKey[0] !== currentUserQueryOptions.queryKey[0]
       ) {
+        clearSession(queryClient)
         queryClient.setQueryData(currentUserQueryOptions.queryKey, null)
+      }
+    },
+    // The profile resolving to `null` is the other way a session ends — a
+    // 401 or 403 on `/api/me` itself, which `fetchCurrentUser` maps rather
+    // than throws — so the same clean-up applies.
+    onSuccess: (data, query) => {
+      if (query.queryKey[0] === currentUserQueryOptions.queryKey[0] && data === null) {
+        clearSession(queryClient)
       }
     },
   }),

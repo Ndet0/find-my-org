@@ -3,6 +3,7 @@ import type { CurrentUser, UpdateProfileInput } from '@opsflow/types/user'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { ApiRequestError, apiFetch } from '@/lib/api'
 import { authClient } from '@/lib/auth-client'
+import { CURRENT_USER_KEY } from '@/lib/session'
 
 /**
  * `/api/me` is the client's single source of truth for authentication, as
@@ -39,7 +40,7 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
 }
 
 export const currentUserQueryOptions = queryOptions({
-  queryKey: ['current-user'],
+  queryKey: [CURRENT_USER_KEY],
   queryFn: fetchCurrentUser,
   retry: false,
   staleTime: 5 * 60 * 1000,

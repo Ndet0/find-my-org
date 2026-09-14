@@ -11,6 +11,7 @@ import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, fetchCurrentUser } from '@/lib/current-user'
+import { clearSession } from '@/lib/session'
 
 type FieldErrors = { email?: string[]; password?: string[] }
 
@@ -45,8 +46,12 @@ export default function LoginScreen() {
         throw cause
       }
     },
-    // Writing the user into the cache is what flips the root guard.
-    onSuccess: (user) => queryClient.setQueryData(currentUserQueryOptions.queryKey, user),
+    // Writing the user into the cache is what flips the root guard. Anything
+    // still cached belongs to whoever was signed in before, so it goes first.
+    onSuccess: (user) => {
+      clearSession(queryClient)
+      queryClient.setQueryData(currentUserQueryOptions.queryKey, user)
+    },
   })
 
   function submit() {
