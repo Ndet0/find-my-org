@@ -22,7 +22,9 @@ describe('createUserSchema', () => {
   })
 
   test('lowercases the email to match how Better Auth stores it', () => {
-    expect(createUserSchema.parse({ ...valid, password: 'secret1' }).email).toBe('ada@example.com')
+    expect(
+      createUserSchema.parse({ ...valid, password: 'a'.repeat(PASSWORD_MIN_LENGTH) }).email,
+    ).toBe('ada@example.com')
   })
 })
 
