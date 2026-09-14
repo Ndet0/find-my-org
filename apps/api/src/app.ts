@@ -1,5 +1,6 @@
 import { auth } from '@opsflow/auth'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
@@ -37,8 +38,17 @@ app.use(
     credentials: true,
     allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
+    // Browsers may cache the preflight answer this long, so a burst of
+    // PATCHes from one page costs one OPTIONS rather than one each.
+    maxAge: 600,
   }),
 )
+
+// The largest legal body is a task or project with a 5 000-character
+// description and every other field at its limit — a few kilobytes. 64 KiB
+// leaves room for that and stops a request from being read into memory
+// before Zod ever sees it; without this, Bun's own ceiling is 128 MiB.
+app.use('/api/*', bodyLimit({ maxSize: 64 * 1024 }))
 
 app.onError(onError)
 app.notFound(onNotFound)

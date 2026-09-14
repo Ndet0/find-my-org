@@ -1,5 +1,10 @@
-import { beforeAll, describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, spyOn, test } from 'bun:test'
+import { APIError } from '@opsflow/auth'
+import { prisma } from '@opsflow/db'
 import { app } from '../src/app'
+import { AppError } from '../src/lib/errors'
+import { withinTimeout } from '../src/routes/health'
+import { createUser } from '../src/services/user.service'
 import {
   ACCOUNTS,
   assertSeededAccounts,
@@ -142,5 +147,86 @@ describe('authorization', () => {
       body: JSON.stringify({ title: 'Nope', projectId: '00000000-0000-7000-8000-000000000000' }),
     })
     expect(create.status).toBe(403)
+  })
+})
+
+describe('request limits and the health probe', () => {
+  test('a body past the limit is refused before it is read by a route', async () => {
+    const { cookie } = await signIn('manager')
+    const response = await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ title: 'x'.repeat(100 * 1024), projectId: 'irrelevant' }),
+    })
+    expect(response.status).toBe(413)
+    // Still the envelope: `onError` maps Hono's own exception into it.
+    expect((await json(response)).success).toBe(false)
+  })
+
+  test('the probe gives up on a database that never answers', async () => {
+    // Prisma's client proxies its methods, so the query itself cannot be
+    // stubbed; the budget is applied by `withinTimeout`, tested on its own.
+    const hung = new Promise<never>(() => undefined)
+    const startedAt = performance.now()
+
+    await expect(withinTimeout(hung, 50)).rejects.toThrow('no answer within 50 ms')
+    expect(performance.now() - startedAt).toBeLessThan(1_000)
+    await expect(withinTimeout(Promise.resolve('ok'), 50)).resolves.toBe('ok')
+  })
+
+  test('the health probe is open and answers when the database does', async () => {
+    const response = await get('/api/health')
+    expect(response.status).toBe(200)
+    expect((await json(response)).success).toBe(true)
+  })
+})
+
+describe('creating an account', () => {
+  const actor = { id: '00000000-0000-7000-8000-000000000000', name: 'Test', role: 'admin' as const }
+
+  test("Better Auth refusing the request is the caller's 400, with its message", async () => {
+    // Past Better Auth's own ceiling, which the validator would catch on the
+    // HTTP path; calling the service directly reaches Better Auth's refusal.
+    const thrown = await createUser(
+      {
+        name: 'Too Long',
+        email: 'too-long@opsflow.local',
+        password: 'x'.repeat(300),
+        role: 'employee',
+      },
+      actor,
+    ).catch((error: unknown) => error)
+
+    expect(thrown).toBeInstanceOf(AppError)
+    expect((thrown as AppError).code).toBe('SIGNUP_FAILED')
+    expect((thrown as AppError).status).toBe(400)
+    expect(await prisma.user.findUnique({ where: { email: 'too-long@opsflow.local' } })).toBeNull()
+  })
+
+  test('a fault after Better Auth has committed removes the half-made account', async () => {
+    const failing = spyOn(prisma, '$transaction').mockImplementation(() => {
+      throw new Error('simulated database fault')
+    })
+
+    try {
+      const thrown = await createUser(
+        {
+          name: 'Half Made',
+          email: 'half-made@opsflow.local',
+          password: PASSWORD,
+          role: 'employee',
+        },
+        actor,
+      ).catch((error: unknown) => error)
+
+      // Not a Better Auth refusal, so not a 400 — it reaches `onError` as a fault.
+      expect(thrown).toBeInstanceOf(Error)
+      expect(thrown).not.toBeInstanceOf(AppError)
+      expect(thrown).not.toBeInstanceOf(APIError)
+    } finally {
+      failing.mockRestore()
+    }
+
+    expect(await prisma.user.findUnique({ where: { email: 'half-made@opsflow.local' } })).toBeNull()
   })
 })

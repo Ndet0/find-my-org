@@ -1,4 +1,4 @@
-import { auth } from '@opsflow/auth'
+import { APIError, auth } from '@opsflow/auth'
 import { Prisma, prisma } from '@opsflow/db'
 import type { Paginated } from '@opsflow/types/api'
 import { isRoleName } from '@opsflow/types/permissions'
@@ -221,41 +221,52 @@ export async function createUser(input: CreateUserInput, actor: EventActor): Pro
     })
     createdId = result.user.id
   } catch (error) {
-    // Better Auth throws its own APIError. The API does not depend on
-    // `better-auth` directly, so this is recognised by shape rather than
-    // `instanceof`.
-    if (error instanceof Error) {
+    // Only Better Auth refusing the request is the caller's problem. A
+    // database fault inside the call is a 500 like anywhere else, and its
+    // message stays on the server (middleware/error.ts).
+    if (error instanceof APIError) {
       throw new AppError('SIGNUP_FAILED', error.message || 'The account could not be created', 400)
     }
     throw error
   }
 
-  const row = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({
-      where: { id: createdId },
-      data: {
-        roleId,
-        departmentId: input.departmentId ?? null,
-        position: input.position ?? null,
-        phone: input.phone ?? null,
-        joinedAt: input.joinedAt ? new Date(input.joinedAt) : new Date(),
-        emailVerified: true,
-      },
-      select: detailSelect,
+  // Better Auth has committed the user and its credential; the OPSflow
+  // profile is a second write. If it fails, the half-made account — default
+  // role, no department, no activity row — is removed rather than left to
+  // answer the next attempt with "that email already exists".
+  try {
+    const row = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: createdId },
+        data: {
+          roleId,
+          departmentId: input.departmentId ?? null,
+          position: input.position ?? null,
+          phone: input.phone ?? null,
+          joinedAt: input.joinedAt ? new Date(input.joinedAt) : new Date(),
+          emailVerified: true,
+        },
+        select: detailSelect,
+      })
+
+      await recordActivity(tx, {
+        actor,
+        action: 'created',
+        entityType: 'user',
+        entityId: updated.id,
+        description: `${actor.name} created ${updated.name}`,
+      })
+
+      return updated
     })
 
-    await recordActivity(tx, {
-      actor,
-      action: 'created',
-      entityType: 'user',
-      entityId: updated.id,
-      description: `${actor.name} created ${updated.name}`,
+    return toDetail(row)
+  } catch (error) {
+    await prisma.user.delete({ where: { id: createdId } }).catch((cleanupError: unknown) => {
+      console.error(`[users] could not remove half-created user ${createdId}`, cleanupError)
     })
-
-    return updated
-  })
-
-  return toDetail(row)
+    throw error
+  }
 }
 
 export async function updateUser(
