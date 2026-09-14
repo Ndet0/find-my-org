@@ -134,7 +134,25 @@ export const auth = betterAuth({
     },
   },
 
+  // Better Auth's limiter is on in production only, keyed by IP, and covers
+  // its own endpoints — sign-in is the one that matters. Its default store is
+  // process memory, which is per instance; the database store shares the
+  // count across instances through the same Prisma adapter, at the cost of
+  // one small table (`rate_limits` in the schema).
+  rateLimit: {
+    enabled: isProduction,
+    storage: 'database',
+  },
+
   advanced: {
+    // The web app and the API are deployed on one registrable domain
+    // (app.<domain> and api.<domain>), so `SameSite=Lax` — Better Auth's
+    // default — is the right setting and is written out here so the
+    // decision is visible. A cross-site deployment would need `none`, which
+    // Safari's tracking protection then blocks by default. `Secure` is on in
+    // production; local development is plain http.
+    useSecureCookies: isProduction,
+    defaultCookieAttributes: { sameSite: 'lax' },
     // Better Auth turns its origin check off by default whenever NODE_ENV is
     // `test`, which Bun's test runner sets. Pinning it on means the API tests
     // exercise the same trusted-origin rule as production, and a stray
@@ -187,3 +205,11 @@ export const auth = betterAuth({
 })
 
 export type Session = typeof auth.$Infer.Session
+
+/**
+ * Better Auth's error class, re-exported so the API can recognise a failure
+ * from `auth.api.*` by `instanceof` without depending on `better-auth`
+ * itself. Anything else that escapes one of those calls is not Better Auth
+ * refusing the request; it is a fault, and is reported as one.
+ */
+export { APIError }

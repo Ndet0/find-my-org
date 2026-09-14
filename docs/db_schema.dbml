@@ -210,6 +210,16 @@ Table verifications {
   Note: 'Email verification and password reset tokens. No foreign key to users.'
 }
 
+Table rate_limits {
+  id uuid [pk]
+
+  key text [not null, unique]
+  count int [not null]
+  last_request bigint [not null]
+
+  Note: 'Better Auth request counter, shared across API instances. Production only.'
+}
+
 // ============================================================
 // CLIENTS
 // ============================================================
