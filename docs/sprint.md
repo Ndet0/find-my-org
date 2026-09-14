@@ -2774,26 +2774,33 @@ chosen; the decisions are written into
   carry method, path, status and time and nothing else
 - [x] **The workspace.** Render MCP connected (the plugin authenticates by
   OAuth; the reload is what made its tools work, not an API key). One
-  workspace, `My Workspace` — two unrelated free services on it and no
-  Postgres, so `opsflow-api`, `opsflow-web` and `opsflow-db` all land clean.
-  Two consequences of the free plan: its Postgres expires after 30 days, and
-  `preDeployCommand` needs a paid instance, so the first `migrate deploy` runs
-  from a local shell — the fallback §36 already carries
+  workspace, `My Workspace`. `opsflow-db` was created in the dashboard first
+  (free, Oregon, expires 2026-10-14). The first Blueprint sync then created
+  `opsflow-api` and `opsflow-web` and failed on the database with "name
+  already in use" — a Blueprint does not adopt a dashboard-created instance,
+  it tries to create a second one. The `databases:` block is gone from
+  [`render.yaml`](../render.yaml); `DATABASE_URL` stays a dashboard value
+  (the Internal URL). Render suffixed the public hosts:
+  `https://opsflow-api-hxy9.onrender.com` and
+  `https://opsflow-web-18mx.onrender.com`. The API health check is 200. The
+  first `migrate deploy` still runs from a local shell against the External
+  URL — the fallback §36 already carries
 - [x] **Free is not the default, and the blueprint has to say so.** The first
   sync asked for a paid subscription. Omitting `plan` does not mean "cheapest":
   Render defaults a new web service to `0.5c-512mb` and a new database to
-  `0.1c-256mb`, both paid. `plan: free` is now explicit on the API service and
-  the database; a static site has no compute plan and needs nothing. The
-  pre-deploy migration is commented out with it, because it requires paid
+  `0.1c-256mb`, both paid. `plan: free` is explicit on the API service; the
+  database was created in the dashboard on free. A static site has no compute
+  plan. The pre-deploy migration is commented out, because it requires paid
   compute — and `MIGRATE_DATABASE_URL` is commented out alongside, since an
   owner credential sitting in the running container's environment with nothing
   to use it is exactly what the two-role split exists to prevent. Both are
   restored together if the service ever moves to a paid plan
 - [-] **One origin without a domain, under test.** No custom domain is
-  available, so the blueprint now carries a `/api/*` rewrite on the static
-  site to the API service. A Render rewrite is invisible to the browser, so
-  the app calls its own origin and the cookie is first-party;
-  `VITE_API_URL` is therefore the static site's own URL. Unverified, and the
+  available, so the blueprint carries a `/api/*` rewrite on the static site
+  to `https://opsflow-api-hxy9.onrender.com/api/*`. A Render rewrite is
+  invisible to the browser, so the app calls its own origin and the cookie
+  is first-party; `VITE_API_URL` is therefore the static site's own URL
+  (`https://opsflow-web-18mx.onrender.com`). Unverified, and the
   documentation does not settle it: rewrites to an external URL are
   documented, but not whether POST, the request cookie and `Set-Cookie`
   survive the hop, and sign-in needs all three. The README carries the three
@@ -2801,8 +2808,8 @@ chosen; the decisions are written into
   from Hono — no web code changes, because `apiFetch` and the auth client
   both build from `VITE_API_URL`; it costs a static middleware, a web build
   stage in the image, and independent deployability
-- [ ] Provision the host: database, both services, `https` `BETTER_AUTH_URL`
-  and `WEB_URL`, the least-privilege role, a restore drill
+- [ ] Seed production: `migrate deploy`, roles seed, and `bootstrap:admin`
+  against the External Database URL; then run the rewrite probes
 - [ ] `expo-font`, then the Android build
 - [ ] Git hooks
 

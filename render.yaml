@@ -2,11 +2,11 @@
 # site, and managed PostgreSQL. See docs/technical_architecture.md §36.
 #
 # THE TWO SERVICES MUST LOOK LIKE ONE ORIGIN TO THE BROWSER. `onrender.com` is
-# on the Public Suffix List, so `opsflow-web.onrender.com` and
-# `opsflow-api.onrender.com` are cross-site to each other. The session cookie
-# is `SameSite=Lax` (packages/auth), which a browser never attaches to a
-# cross-site fetch: sign-in would return 200 and every request after it would
-# be anonymous, which reads as a session bug rather than a DNS one.
+# on the Public Suffix List, so two `*.onrender.com` hosts are cross-site to
+# each other. The session cookie is `SameSite=Lax` (packages/auth), which a
+# browser never attaches to a cross-site fetch: sign-in would return 200 and
+# every request after it would be anonymous, which reads as a session bug
+# rather than a DNS one.
 #
 # Two ways to satisfy that, and this file is set up for the second:
 #
@@ -23,6 +23,10 @@
 # That is the whole trick: the browser only ever talks to one origin.
 #
 # The `sync: false` values are entered in the dashboard on first sync.
+# `opsflow-db` is not listed here: it was created in the dashboard first, and
+# a Blueprint that names it tries to create a second instance and fails with
+# "name already in use". DATABASE_URL stays a dashboard value (the Internal
+# URL of that instance).
 
 services:
   - type: web
@@ -71,13 +75,13 @@ services:
       #     name: opsflow-db
       #     property: connectionString
       # The origin the browser is on — the static site's URL under option 2
-      # (https://opsflow-web.onrender.com), or https://app.<domain> under
+      # (https://opsflow-web-18mx.onrender.com), or https://app.<domain> under
       # option 1. It is the CORS allow-list and Better Auth's trusted origin,
       # and the proxied request still carries the browser's Origin header, so
       # it must name where the browser is, not where the request lands.
       - key: WEB_URL
         sync: false
-      # This service's own URL: https://opsflow-api.onrender.com, or
+      # This service's own URL: https://opsflow-api-hxy9.onrender.com, or
       # https://api.<domain> under option 1.
       - key: BETTER_AUTH_URL
         sync: false
@@ -95,7 +99,7 @@ services:
       # domain on both services would remove the need for this rule entirely.
       - type: rewrite
         source: /api/*
-        destination: https://opsflow-api.onrender.com/api/*
+        destination: https://opsflow-api-hxy9.onrender.com/api/*
       # TanStack Router owns every path below `/`, and the build is a single
       # index.html. Without this rewrite, a refresh or a shared link on
       # /projects/:id is Render's 404 rather than the app's route.
@@ -107,12 +111,3 @@ services:
       # it at build time, so changing it is a rebuild, not a restart.
       - key: VITE_API_URL
         sync: false
-
-databases:
-  - name: opsflow-db
-    databaseName: opsflow
-    postgresMajorVersion: '16'
-    # Same trap as the web service: the default is 0.1c-256mb, which is paid.
-    # A free database expires 30 days after creation and cannot be restored
-    # afterwards, so treat anything in it as demo data with an expiry date.
-    plan: free

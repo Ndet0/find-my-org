@@ -147,7 +147,7 @@ request cookies and `Set-Cookie` survive them, and sign-in needs all three.
 Test it on the first deploy, against the *static site's* URL:
 
 ```bash
-SITE=https://opsflow-web.onrender.com
+SITE=https://opsflow-web-18mx.onrender.com
 
 # 1. Does the proxy forward GET at all?
 curl -s $SITE/api/health
