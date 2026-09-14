@@ -2601,15 +2601,97 @@ into the next user's session (Phase 17); the mobile dashboard tiles open
 unfiltered lists and the app never refetches on resume; four documented
 notifications are not raised.
 
+## Phase 17 — Security review (2026-09-14, complete)
+
+The checklist in the Phase 17 plan, walked with the 2026-09-14 audit as its
+input. Each item that changed code is its own commit with a test; the items
+that only needed reading are recorded as reviewed.
+
+- [x] **Session handling, web.** A session that ended underneath the app was
+  noticed only when a route loader failed; the dashboard's polling, the
+  unread badge and every save failed quietly and left a signed-out page on
+  screen. The Query client now ends the session on a 401 from any query or
+  mutation outside the guard, through the `endSession` the route error
+  component already used. `requireUser` redirects only on 401 and 403; a
+  network failure or a 500 on the profile is rethrown so `RouteError` shows
+  something retryable instead of a silent bounce
+- [x] **Authentication, deep-link restoration.** The known gap. The guard now
+  carries the page it turned away as `?redirect=`, and the login page returns
+  there — through `safeRedirect`, which accepts only a path within the app:
+  one leading slash, not two (`//evil.example` is protocol-relative) and not
+  a backslash. `current-user.test.ts` and `login.test.tsx` cover both the
+  internal and the external case
+- [x] **Session handling, mobile.** Only the profile screen's sign-out dropped
+  the cache; an expired session or a 403 on the profile set the current user
+  to `null` and left every list behind, so a second person signing in on the
+  same phone saw the first person's tasks, projects and inbox while the
+  refetches ran. `clearSession` in `lib/session.ts` — free of react-native,
+  tested under Bun — is called on every path that ends a session and before
+  a new sign-in writes its user
+- [x] **Password policy.** `PASSWORD_MIN_LENGTH` is 8, up from the
+  six-character demo concession. One constant, read by Better Auth and both
+  create forms; the tests derive their bounds from it
+- [x] **API validation and safe errors.** Creating an account wrapped every
+  error into a 400 carrying its raw message, past the production redaction in
+  `onError`; only Better Auth's `APIError` (re-exported from `@opsflow/auth`)
+  is the caller's problem now. The half-made account the two-step create
+  could leave behind — employee role, no department, no activity row,
+  answering the retry with "that email already exists" — is removed when the
+  second step fails. Tested by calling the service with a password past Better
+  Auth's ceiling (a 400) and with `$transaction` stubbed to throw (a fault, and
+  no user left)
+- [x] **Exposed endpoints and limits.** `bodyLimit` of 64 KiB on `/api/*`
+  (the largest legal body is a few kilobytes; Bun's own ceiling is 128 MiB),
+  answered as a 413 in the envelope. The health probe races its `SELECT 1`
+  against two seconds and answers 503, so a database that accepts the
+  connection and hangs no longer hangs the probe a platform reads as "still
+  starting". `withinTimeout` is tested on its own because Prisma's client
+  proxies its methods and cannot be stubbed
+- [x] **Cookies and CORS.** The deployment decision — web and API on one
+  registrable domain — is written into `packages/auth`: `SameSite=Lax`
+  (Better Auth's default, now explicit), `Secure` in production. A cross-site
+  deployment would need `none`, which Safari then blocks by default; recorded
+  so the choice is visible. CORS is unchanged (`WEB_URL` only in production)
+  with a ten-minute preflight cache
+- [x] **Rate limiting.** Better Auth's limiter covers its own endpoints —
+  sign-in is the one that matters — in production only. Its memory store is
+  per instance; it now counts in a `rate_limits` table through the same
+  Prisma adapter (`20260914080139_add_rate_limits`), recorded in the schema
+  docs. The OPSflow routes have no limiter of their own; every one of them
+  needs a session, which the limited sign-in gates
+- [x] **Dependency review.** `pnpm audit --prod`: five advisories, none in a
+  runtime path. `mysql2` (high, moderate) and `deepmerge-ts` (high) arrive
+  through the Prisma CLI — the MySQL driver and `@prisma/config`, used by
+  migrate and generate, never by the runtime client, which connects through
+  `@prisma/adapter-pg`. `uuid` (moderate) is under Expo's config plugins,
+  used at native prebuild; `decode-uri-component` (moderate) is under Expo
+  Router's dev-server package. No override was added for tooling-only paths.
+  CI now runs the audit as an advisory step (`continue-on-error`) so drift is
+  visible without gating on a tool's transitive tree. The `pg` deprecation
+  the API tests print ("client.query() when the client is already executing a
+  query") comes from Prisma's adapter; it is noted for the `pg@9` upgrade
+- [x] **Reviewed, no change.** Authorization: the matrix and the row scoping
+  were re-read in the audit and found consistent; the API tests hold one
+  decision per role and the audit's IDOR cases (an employee reaching a task or
+  project not theirs is a 404) are covered by the visibility `where` clauses.
+  Environment: `env.ts` fails fast on a missing or malformed variable and
+  `packages/auth` refuses the placeholder secret. Logging: Hono's `logger`
+  prints method, path, status and time — never a body or a header — and
+  `onError` logs the full error server-side while the client gets a code and,
+  in production, a fixed message. Database permissions: the compose user is
+  the database owner, which is fine for development; production needs a
+  role with only DML on the application schema and `migrate deploy` run as
+  the owner — a Phase 18 item. Sessions: read from the database on every
+  request (no cookie cache), deleted on suspension, refused at creation for
+  a non-active account
+- [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` — 219 types,
+  69 web, 49 mobile, 31 API = 368 pass
+
 ## Known gaps in this plan
 
-- The login page always lands on `/`. Deep-link restoration was left out
-  deliberately: an unvalidated `?redirect=` parameter is an open redirect. Add
-  it with an internal-path check now that the route table has more than one
-  protected page.
-- The session cookie is `SameSite=Lax`. Correct for development and for
-  production hosts that share a registrable domain, but a genuinely cross-site
-  deployment needs `SameSite=None; Secure` (Phase 18).
+- The session cookie is `SameSite=Lax`, chosen for a deployment where the web
+  app and the API share a registrable domain. A cross-site deployment needs
+  `SameSite=None; Secure`, which Safari blocks by default (Phase 17).
 - The users table pages, but has no sortable columns. Sorting is a service-layer
   `orderBy` plus a search parameter; it was left out until a screen needs it.
   The product document (§29) also lists bulk actions; none exist.
@@ -2639,12 +2721,13 @@ notifications are not raised.
 - Departments are hard-deleted behind a 409 guard where the product document
   says archive. A deliberate simplification, recorded here.
 - Creating a user is two steps (Better Auth signup, then the profile patch).
-  If the second fails, an employee-role account without a department remains.
-  The catch around the first step also wraps any `Error` into a 400 carrying
-  the raw message, past the production redaction in `onError` (Phase 17).
+  If the second fails the account is removed again (Phase 17), but the two
+  writes are still not one transaction; a crash between them leaves the
+  account behind.
 - Overdue is computed against the UTC date, so a user ahead of UTC sees
   yesterday's date as "today" for the first hours of their day.
-- Rate limiting is Better Auth's default, which is active only in production.
+- Rate limiting is Better Auth's, on its own endpoints, active only in
+  production; the OPSflow routes rely on every one of them needing a session.
 - The `q` search filters are `contains` with `mode: 'insensitive'`, which Postgres
   runs as `ILIKE '%q%'` — no B-tree index can serve that. Measured on the Phase 15
   bench volume: the search *page* is fast because the time index stops after 25
@@ -2672,9 +2755,9 @@ notifications are not raised.
   because it has none. `user-form.test.tsx` drives the user form through its
   text inputs only, which is enough to pin the diffed payload.
 - There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
-- Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
-  a demo concession. Raise it before production; it is the same bound Better Auth
-  and the create form share, so they cannot drift.
+- Password minimum is 8 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
+  the same bound Better Auth and the create forms share. There is no complexity
+  rule and no breach-list check.
 - There is no password reset. Email notifications are post-MVP (§23), so a
   forgotten password still needs an admin to set a new one out of band.
   Changing a password you know is self-service on both clients.
@@ -2689,7 +2772,8 @@ notifications are not raised.
 - [x] Phase 15 — Performance (closed 2026-09-13; see above)
 - [x] Phase 16 — Testing (closed 2026-09-14; rendered mobile screens deferred, see
   known gaps)
-- [ ] Phases 17-20 — Security, deployment, demo
+- [x] Phase 17 — Security review (closed 2026-09-14; see above)
+- [ ] Phases 18-20 — Deployment, demo
 
 ## Stack amendments
 
@@ -2727,24 +2811,28 @@ mobile screen, which needs a second runner; it is recorded under "Known gaps"
 with the route to it.
 
 The 2026-09-14 audit (§24) closed the defects it found in the forms, the
-search fields, suspension and sign-in, and left the rest as Phase 17 input.
+search fields, suspension and sign-in, and Phase 17 (§24) then walked the
+security checklist with the rest of the audit as its input: a 401 from
+anywhere ends the session on both clients, the login page returns to the
+page that was asked for and nowhere else, the password minimum is eight,
+request bodies are bounded, the health probe times out, the cookie
+attributes and the rate-limit store are written down, and the dependency
+audit is recorded and repeated in CI. 368 tests.
 
 Next:
 
 ```text
-1. Phase 17 — Security review
-2. Phase 18 — Deployment
+1. Phase 18 — Deployment
 ```
 
-Phase 17's checklist has its starts recorded under "Known gaps": the login
-page's missing deep-link restoration (add it with an internal-path check),
-the six-character password minimum, `SameSite` and `Secure` for the
-deployment target, the web's missing global 401 handler and the mobile cache
-surviving into the next user's session, and the raw error the user-creation
-path can leak. Add the `pg` deprecation warning the API tests print ("Calling
-client.query() when the client is already executing a query") to the
-dependency review: it comes from Prisma's adapter, not the app, and `pg@9`
-will remove the behaviour.
+Phase 18's inputs from Phase 17: the web and the API deploy on one
+registrable domain (`SameSite=Lax` assumes it); the production database
+needs a least-privilege role for the API with `migrate deploy` run as the
+owner; `BETTER_AUTH_URL` and `WEB_URL` are `https`; `expo-font` is installed
+for the first development build. Add the `pg` deprecation warning the API
+tests print ("Calling client.query() when the client is already executing a
+query") to the `pg@9` upgrade note: it comes from Prisma's adapter, not the
+app.
 
 CI runs lint, typecheck, the API tests and the build on every push and pull
 request, so each commit from here is verified.

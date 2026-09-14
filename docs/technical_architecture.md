@@ -1514,42 +1514,70 @@ secrets.
 
 # 33. Security Architecture
 
-Security considerations include:
+Reviewed in Phase 17 (sprint §24). What holds, and where.
 
 ### Authentication
 
-Handled through Better Auth.
+Better Auth, with a session read from the database on every request rather
+than from a cookie cache, so suspension takes effect on the next request.
+Sessions are refused at creation for a non-active account and deleted when
+an account leaves `active`; Better Auth's signup and `update-user` endpoints
+are closed (§10). Better Auth's rate limiter covers its own endpoints in
+production, counting in the `rate_limits` table so the count is shared
+across instances. Passwords are at least eight characters
+(`PASSWORD_MIN_LENGTH`), one constant read by Better Auth and both create
+forms.
+
+### Session cookie
+
+`SameSite=Lax`, `HttpOnly`, and `Secure` in production. The web app and the
+API deploy on one registrable domain; a cross-site deployment would need
+`SameSite=None`, which Safari blocks by default. On a device there is no
+cookie jar: the Expo plugin keeps the cookie in SecureStore and the API
+client attaches it by hand (§6).
+
+On the web, a 401 from any query or mutation ends the session — the cached
+profile is dropped and the login page takes over — and the page that was
+asked for is carried as `?redirect=`, honoured only as a path within the app
+(`safeRedirect`). On the phone, every path that ends a session clears the
+cache so nothing survives into the next person's sign-in.
 
 ### Authorization
 
-Handled through server-side role and permission checks.
-
-### Database
-
-Prisma should use parameterized queries and prevent raw unsafe SQL where possible.
-
-### Secrets
-
-Secrets must be stored in environment variables or deployment secret managers.
+Server-side, twice: a role gate in middleware (`requirePermission`, §11) and
+row scoping in the service (`projectVisibilityWhere`, `taskVisibilityWhere`),
+with a hidden row answered as 404. The clients hide controls as a courtesy
+only.
 
 ### API
 
-The API should implement:
+Every body is validated by the shared Zod schema before a handler runs;
+bodies are bounded to 64 KiB before they are read; ids are UUIDs; list pages
+are capped at 100 rows. Errors reach the client as a code and a message —
+in production a fixed message for anything unexpected — while the full error
+is logged server-side. The request log prints method, path, status and time,
+never a body or a header. The health probe is open, needs no session, and
+answers 503 after two seconds rather than hanging with the database.
 
-- Input validation
-- Authentication checks
-- Authorization checks
-- Rate limiting where necessary
-- Safe error responses
+### Database
 
-### Client
+Prisma, so every query is parameterised; the one raw statement is the
+probe's `SELECT 1`. The development role is the database owner. Production
+needs a role with only DML on the application schema, with `migrate deploy`
+run as the owner (Phase 18).
 
-The frontend must never contain:
+### Secrets
 
-- Database credentials
-- Private API keys
-- Authentication secrets
-- Server-only environment variables
+Environment variables only, validated at boot (`env.ts`); the API refuses
+to start with the placeholder `BETTER_AUTH_SECRET`. The clients see only
+`VITE_*` and `EXPO_PUBLIC_*` values, which are public by construction.
+
+### Dependencies
+
+`pnpm audit --prod` runs in CI as an advisory step. The findings at the time
+of writing are all in tooling-only paths (the Prisma CLI's MySQL driver and
+config parser, Expo's prebuild plugins and dev server); none is loaded by the
+running app. See sprint §24, Phase 17.
 
 ---
 
@@ -1990,3 +2018,12 @@ than only the outcome.
 | `POST /api/auth/update-user` is closed | It let a caller rewrite `name` and `image` past `updateProfileSchema` and the activity log. `PATCH /api/me` is the profile edit |
 | `/api/me` resolving to `null` on 403 as well as 401 in the mobile client, after signing out | A 403 is a live session on a suspended account; kept, the stored cookie answered every retry the same way and left the phone on an error screen with no way out |
 | `progress` is `z.number()`, not coerced | A cleared input arrived as `''` or `null` and became 0% |
+| A 401 from any web query or mutation ends the session; the guard redirects only on 401 and 403 | A session that ended underneath the app was noticed only by route loaders; polling, the unread badge and saves failed quietly. A 500 on the profile is retryable, not a bounce to login. See §33 |
+| The login page returns to the page the guard turned away, through `safeRedirect` | Deep-link restoration was left out until it could be done without an open redirect; only a path within the app is honoured |
+| `clearSession` on every path that ends a mobile session | Only the sign-out button cleared the cache; an expired session or a 403 left the previous person's lists for the next sign-in to show |
+| `PASSWORD_MIN_LENGTH` is 8 | Six was a demo concession recorded as pre-production work |
+| `bodyLimit` of 64 KiB on `/api/*`; the health probe times out at two seconds | Bodies were read whole before validation; a hung database hung the probe, which a platform reads as "still starting" |
+| Account creation wraps only Better Auth's `APIError` into a 400 and removes the account if the profile write fails | Any error became a 400 carrying its raw message; a failed second step left an employee-role account answering the retry with "email taken" |
+| Cookie attributes written out: `SameSite=Lax`, `Secure` in production | The deployment is one registrable domain; the setting was Better Auth's default and the decision it rests on was nowhere |
+| Better Auth's rate limiter counts in the `rate_limits` table | The memory store is per instance; the table shares the count through the Prisma adapter already in use. Production only, as before |
+| `pnpm audit --prod` in CI, advisory | The findings are in tooling-only paths; gating on a tool's transitive tree would block unrelated work, while running it keeps drift visible |
