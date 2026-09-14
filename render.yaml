@@ -31,11 +31,21 @@ services:
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
-    # Migrations run as the database owner, before the new instance starts.
-    # prisma.config.ts reads DATABASE_URL, so the owner's URL is passed under
-    # that name for the length of this command only; the server itself never
-    # holds a role that can change the schema.
-    preDeployCommand: DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
+    # Explicit, because omitting it is not free: Render defaults a new web
+    # service to 0.5c-512mb, which is a paid compute plan. Free is 0.1 CPU /
+    # 512 MB and spins down after 15 minutes of inactivity, so the first
+    # request after an idle period pays a cold start.
+    plan: free
+    # Migrations would run as the database owner before the new instance
+    # starts, passing the owner's URL as DATABASE_URL — which prisma.config.ts
+    # reads — for the length of the command only, so the server never holds a
+    # role that can change the schema.
+    #
+    # Commented out because a pre-deploy command requires a paid compute plan.
+    # On free, run the same command once from a local shell against the
+    # database's external URL; README and §36 carry the procedure.
+    #
+    # preDeployCommand: DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
     envVars:
       # The image sets this too. Declared here so the dashboard shows what the
       # service runs as, and so it survives someone editing the Dockerfile.
@@ -50,11 +60,16 @@ services:
       # only exposes the owner's connection string.
       - key: DATABASE_URL
         sync: false
-      # The owner, used only by preDeployCommand above.
-      - key: MIGRATE_DATABASE_URL
-        fromDatabase:
-          name: opsflow-db
-          property: connectionString
+      # The owner's connection string, for the pre-deploy migration. Commented
+      # out with the command that used it: leaving it here would put a
+      # schema-changing credential in the running container's environment,
+      # which is the opposite of what the two-role split is for. Restore both
+      # together if this service moves to a paid plan.
+      #
+      # - key: MIGRATE_DATABASE_URL
+      #   fromDatabase:
+      #     name: opsflow-db
+      #     property: connectionString
       # The origin the browser is on — the static site's URL under option 2
       # (https://opsflow-web.onrender.com), or https://app.<domain> under
       # option 1. It is the CORS allow-list and Better Auth's trusted origin,
@@ -97,3 +112,7 @@ databases:
   - name: opsflow-db
     databaseName: opsflow
     postgresMajorVersion: '16'
+    # Same trap as the web service: the default is 0.1c-256mb, which is paid.
+    # A free database expires 30 days after creation and cannot be restored
+    # afterwards, so treat anything in it as demo data with an expiry date.
+    plan: free

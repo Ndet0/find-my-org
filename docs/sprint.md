@@ -2779,6 +2779,16 @@ chosen; the decisions are written into
   Two consequences of the free plan: its Postgres expires after 30 days, and
   `preDeployCommand` needs a paid instance, so the first `migrate deploy` runs
   from a local shell — the fallback §36 already carries
+- [x] **Free is not the default, and the blueprint has to say so.** The first
+  sync asked for a paid subscription. Omitting `plan` does not mean "cheapest":
+  Render defaults a new web service to `0.5c-512mb` and a new database to
+  `0.1c-256mb`, both paid. `plan: free` is now explicit on the API service and
+  the database; a static site has no compute plan and needs nothing. The
+  pre-deploy migration is commented out with it, because it requires paid
+  compute — and `MIGRATE_DATABASE_URL` is commented out alongside, since an
+  owner credential sitting in the running container's environment with nothing
+  to use it is exactly what the two-role split exists to prevent. Both are
+  restored together if the service ever moves to a paid plan
 - [-] **One origin without a domain, under test.** No custom domain is
   available, so the blueprint now carries a `/api/*` rewrite on the static
   site to the API service. A Render rewrite is invisible to the browser, so
