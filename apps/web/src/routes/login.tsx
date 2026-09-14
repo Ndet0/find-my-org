@@ -37,10 +37,11 @@ export function LoginPage() {
         throw new Error(error.message ?? 'Those credentials were not accepted')
       }
 
-      // Better Auth authenticates, but it does not know about suspended or
-      // inactive accounts — only /api/me does. Until that succeeds the
-      // session is unusable, so it is discarded rather than left behind to
-      // bounce the user off every protected route.
+      // Sign-in already refuses a non-active account, but /api/me is the
+      // one answer the protected routes trust — it also proves the role
+      // resolves. Until it succeeds the session is unusable, so it is
+      // discarded rather than left behind to bounce the user off every
+      // protected route.
       try {
         return await queryClient.fetchQuery(currentUserQueryOptions)
       } catch (cause) {

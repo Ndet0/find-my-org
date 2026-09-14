@@ -2,13 +2,12 @@ import { can, ROLE_NAMES } from '@opsflow/types/permissions'
 import { USER_STATUSES, type UserListFilters, type UserStatus } from '@opsflow/types/user'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { ListPending } from '@/components/route-feedback'
+import { SearchField } from '@/components/search-field'
 import { StatusBadge } from '@/components/status-badge'
 import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -99,7 +98,12 @@ function UsersPage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SearchField value={search.q ?? ''} onChange={(q) => setFilter({ q: q || undefined })} />
+        <SearchField
+          id="user-search"
+          placeholder="Name or email"
+          value={search.q ?? ''}
+          onChange={(q) => setFilter({ q: q || undefined })}
+        />
 
         <FilterSelect
           label="Role"
@@ -198,40 +202,6 @@ function UsersPage() {
           onChange={(page) => navigate({ search: (prev) => ({ ...prev, page }) })}
         />
       ) : null}
-    </div>
-  )
-}
-
-/**
- * Typing writes to the URL, so it is debounced: one history entry and one
- * request per pause, rather than per keystroke.
- */
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [draft, setDraft] = useState(value)
-
-  // Re-sync when the URL changes from elsewhere, such as the back button.
-  useEffect(() => setDraft(value), [value])
-
-  useEffect(() => {
-    if (draft === value) {
-      return
-    }
-
-    const timer = setTimeout(() => onChange(draft), 300)
-
-    return () => clearTimeout(timer)
-  }, [draft, value, onChange])
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor="user-search">Search</Label>
-      <Input
-        id="user-search"
-        type="search"
-        placeholder="Name or email"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
     </div>
   )
 }

@@ -167,7 +167,9 @@ export const updateProjectSchema = z
     description,
     clientId: optionalId('client'),
     managerId: optionalId('manager'),
-    progress: z.coerce.number().int().min(0).max(100),
+    // A JSON body already carries a number; coercion would turn `null` or `""`
+    // from a cleared input into 0% rather than rejecting it.
+    progress: z.number().int().min(0).max(100),
     startDate: optionalDate,
     deadline: optionalDate,
   })

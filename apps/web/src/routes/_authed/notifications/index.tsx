@@ -2,13 +2,12 @@ import type { NotificationListFilters } from '@opsflow/types/notification'
 import { can } from '@opsflow/types/permissions'
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { ListPending } from '@/components/route-feedback'
+import { SearchField } from '@/components/search-field'
 import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -106,7 +105,12 @@ function NotificationsPage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <SearchField value={search.q ?? ''} onChange={(q) => setFilter({ q: q || undefined })} />
+        <SearchField
+          id="notification-search"
+          placeholder="Title or message"
+          value={search.q ?? ''}
+          onChange={(q) => setFilter({ q: q || undefined })}
+        />
 
         <FilterSelect
           label="Status"
@@ -189,35 +193,6 @@ function NotificationsPage() {
 
 function formatWhen(value: string) {
   return new Date(value).toLocaleString()
-}
-
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [draft, setDraft] = useState(value)
-
-  useEffect(() => setDraft(value), [value])
-
-  useEffect(() => {
-    if (draft === value) {
-      return
-    }
-
-    const timer = setTimeout(() => onChange(draft), 300)
-
-    return () => clearTimeout(timer)
-  }, [draft, value, onChange])
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor="notification-search">Search</Label>
-      <Input
-        id="notification-search"
-        type="search"
-        placeholder="Title or message"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
-    </div>
-  )
 }
 
 function FilterSelect({

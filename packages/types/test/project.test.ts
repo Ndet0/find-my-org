@@ -123,12 +123,15 @@ describe('updateProjectSchema', () => {
     expect(result.error?.issues[0]?.message).toBe('Provide at least one field to update')
   })
 
-  test('progress is coerced from a string and bounded to 0–100 whole numbers', () => {
-    expect(updateProjectSchema.parse({ progress: '50' }).progress).toBe(50)
+  test('progress is a whole number from 0 to 100, never coerced', () => {
     expect(updateProjectSchema.parse({ progress: 0 }).progress).toBe(0)
     expect(updateProjectSchema.parse({ progress: 100 }).progress).toBe(100)
-    for (const bad of ['101', '-1', '50.5']) {
+    for (const bad of [101, -1, 50.5, Number.NaN]) {
       expect(updateProjectSchema.safeParse({ progress: bad }).success).toBe(false)
+    }
+    // A cleared input used to arrive as '' or null and silently become 0%.
+    for (const cleared of ['', null, '50']) {
+      expect(updateProjectSchema.safeParse({ progress: cleared }).success).toBe(false)
     }
   })
 })

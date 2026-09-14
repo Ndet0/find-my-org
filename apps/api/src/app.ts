@@ -57,6 +57,13 @@ api.post('/auth/sign-up/email', () => {
   throw forbidden('Accounts are created by an administrator')
 })
 
+// Better Auth's own profile edit would let anyone rewrite their `name` and
+// `image` past `updateProfileSchema` and the activity log. OPSflow's profile
+// edit is `PATCH /api/me`; the clients never call this.
+api.post('/auth/update-user', () => {
+  throw forbidden('Profiles are edited through /api/me')
+})
+
 // Better Auth owns every other method under its basePath (`/api/auth`) and
 // returns a Response directly, so it is mounted before the application's own
 // routes.

@@ -1,3 +1,4 @@
+import { changedFields, hasChanges } from '@opsflow/types/changes'
 import { PRIORITY_LEVELS, type PriorityLevel } from '@opsflow/types/project'
 import { createTaskSchema, type TaskDetail, updateTaskSchema } from '@opsflow/types/task'
 import { useForm } from '@tanstack/react-form'
@@ -99,19 +100,34 @@ export function TaskForm({
   const isEdit = task !== undefined
 
   const mutation = useMutation({
-    mutationFn: (values: TaskFormValues) => {
-      const payload = toPayload(values, !isEdit)
-
-      if (isEdit) {
-        return updateTask(task.id, updateTaskSchema.parse(payload))
+    mutationFn: async (values: TaskFormValues) => {
+      if (!isEdit) {
+        return {
+          saved: await createTask(createTaskSchema.parse(toPayload(values, true))),
+          changed: true,
+        }
       }
 
-      return createTask(createTaskSchema.parse(payload))
+      // Only what changed goes over the wire. The API re-checks the project
+      // and the assignee whenever either key arrives, so resending them
+      // unchanged would refuse a title fix on a task whose project has since
+      // closed or whose assignee has since been deactivated.
+      const changes = changedFields(toPayload(values, false), toPayload(valuesFrom(task), false))
+
+      if (!hasChanges(changes)) {
+        return { saved: task, changed: false }
+      }
+
+      return { saved: await updateTask(task.id, updateTaskSchema.parse(changes)), changed: true }
     },
-    onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: taskKeys.all })
-      await queryClient.invalidateQueries({ queryKey: projectKeys.all })
-      toast.success(isEdit ? `${saved.title} was updated` : `${saved.title} was added`)
+    onSuccess: async ({ saved, changed }) => {
+      if (changed) {
+        await queryClient.invalidateQueries({ queryKey: taskKeys.all })
+        await queryClient.invalidateQueries({ queryKey: projectKeys.all })
+        toast.success(isEdit ? `${saved.title} was updated` : `${saved.title} was added`)
+      } else {
+        toast.info('Nothing to save')
+      }
       await router.navigate({ to: '/tasks/$taskId', params: { taskId: saved.id } })
     },
     onError: (error) => {
@@ -137,6 +153,13 @@ export function TaskForm({
     enabled: projectSelected,
   })
   const people = selectedProject.data ? assigneeOptions(selectedProject.data) : []
+  // The saved assignee may no longer be offered — deactivated, say. They are
+  // still the answer on file, so the control shows them rather than a blank
+  // that would read as "unassigned" while the id is still held.
+  const retiredAssignee =
+    task?.assignee && !people.some((person) => person.id === task.assignee?.id)
+      ? task.assignee
+      : null
 
   return (
     <form
@@ -237,6 +260,11 @@ export function TaskForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>Unassigned</SelectItem>
+                {retiredAssignee ? (
+                  <SelectItem value={retiredAssignee.id}>
+                    {retiredAssignee.name} (no longer available)
+                  </SelectItem>
+                ) : null}
                 {people.map((person) => (
                   <SelectItem key={person.id} value={person.id}>
                     {person.name}

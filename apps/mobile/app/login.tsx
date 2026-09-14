@@ -28,9 +28,10 @@ export default function LoginScreen() {
         throw new Error(error.message ?? 'Those credentials were not accepted')
       }
 
-      // Better Auth authenticates, but only /api/me knows whether the account
-      // is still active. Until that succeeds the session is unusable, so it
-      // is discarded rather than left in SecureStore to fail on every screen.
+      // Sign-in already refuses a non-active account, but /api/me is the
+      // one answer the app stack trusts — it also proves the role resolves.
+      // Until it succeeds the session is unusable, so it is discarded rather
+      // than left in SecureStore to fail on every screen.
       try {
         const user = await fetchCurrentUser()
 

@@ -1,3 +1,4 @@
+import { changedFields, hasChanges } from '@opsflow/types/changes'
 import { PRIORITY_LEVELS, type PriorityLevel } from '@opsflow/types/project'
 import { createTaskSchema, type TaskDetail, updateTaskSchema } from '@opsflow/types/task'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -34,6 +35,17 @@ function assigneeOptions(project: {
   return [...people.entries()].map(([value, label]) => ({ value, label }))
 }
 
+/** The edit form's wire shape for the task as loaded, to diff a submission against. */
+function payloadFrom(task: TaskDetail) {
+  return {
+    title: task.title,
+    description: task.description ?? '',
+    projectId: task.project.id,
+    assignedTo: task.assignee?.id ?? null,
+    dueDate: task.dueDate,
+  }
+}
+
 /**
  * Create and edit share one form, as on the web. Status is never a field:
  * a new task starts pending and moves through its states from the task
@@ -67,11 +79,27 @@ export function TaskForm({
   })
   const people = selectedProject.data ? assigneeOptions(selectedProject.data) : []
 
+  // The saved assignee may no longer be offered — deactivated, say. They are
+  // still the answer on file, so the picker shows them rather than
+  // "Unassigned" while the id is still held.
+  if (task?.assignee && !people.some((option) => option.value === task.assignee?.id)) {
+    people.unshift({ value: task.assignee.id, label: task.assignee.name })
+  }
+
   const save = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      isEdit
-        ? updateTask(task.id, updateTaskSchema.parse(payload))
-        : createTask(createTaskSchema.parse(payload)),
+    mutationFn: async (payload: Record<string, unknown>) => {
+      if (!isEdit) {
+        return createTask(createTaskSchema.parse(payload))
+      }
+
+      // Only what changed goes over the wire. The API re-checks the project
+      // and the assignee whenever either key arrives, so resending them
+      // unchanged would refuse a title fix on a task whose project has since
+      // closed or whose assignee has since been deactivated.
+      const changes = changedFields(payload, payloadFrom(task))
+
+      return hasChanges(changes) ? updateTask(task.id, updateTaskSchema.parse(changes)) : task
+    },
     onSuccess: async (saved) => {
       queryClient.setQueryData(taskKeys.detail(saved.id), saved)
       await queryClient.invalidateQueries({ queryKey: taskKeys.all })

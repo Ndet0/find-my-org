@@ -3,13 +3,12 @@ import { PRIORITY_LEVELS, type PriorityLevel } from '@opsflow/types/project'
 import { TASK_STATUSES, type TaskListFilters, type TaskStatus } from '@opsflow/types/task'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { ListPending } from '@/components/route-feedback'
+import { SearchField } from '@/components/search-field'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { MessageRow, RefreshFailed } from '@/components/table-message'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -124,7 +123,12 @@ function TasksPage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <SearchField value={search.q ?? ''} onChange={(q) => setFilter({ q: q || undefined })} />
+        <SearchField
+          id="task-search"
+          placeholder="Title or description"
+          value={search.q ?? ''}
+          onChange={(q) => setFilter({ q: q || undefined })}
+        />
 
         <FilterSelect
           label="Status"
@@ -299,35 +303,6 @@ function DueDate({ value, status }: { value: string | null; status: TaskStatus }
 
 function utcToday(): string {
   return new Date().toISOString().slice(0, 10)
-}
-
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [draft, setDraft] = useState(value)
-
-  useEffect(() => setDraft(value), [value])
-
-  useEffect(() => {
-    if (draft === value) {
-      return
-    }
-
-    const timer = setTimeout(() => onChange(draft), 300)
-
-    return () => clearTimeout(timer)
-  }, [draft, value, onChange])
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor="task-search">Search</Label>
-      <Input
-        id="task-search"
-        type="search"
-        placeholder="Title or description"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
-    </div>
-  )
 }
 
 function FilterSelect({

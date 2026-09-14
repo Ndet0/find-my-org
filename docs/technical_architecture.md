@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 3.0  
+**Version:** 3.1  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -439,6 +439,17 @@ Authentication should support:
 - Protected routes
 
 Authentication and authorization should remain separate concerns.
+
+Account status is enforced at two points. `requireAuth` in the API refuses a
+session whose user is no longer `active` on every OPSflow route, reading the
+session from the database rather than a cookie cache so suspension takes
+effect on the next request. Better Auth's own endpoints sit in front of that
+middleware, so `packages/auth` also refuses to *create* a session for a
+non-active user (`databaseHooks.session.create.before`), which turns sign-in
+into a 403, and the user service deletes the person's sessions when their
+status leaves `active`. Better Auth's `update-user` endpoint is closed like
+its signup endpoint: profiles are edited through `PATCH /api/me`, where the
+schema and the activity log apply.
 
 ---
 
@@ -906,6 +917,18 @@ Forms should include:
 - Field-level validation
 
 Client-side validation improves UX but does not replace server-side validation.
+
+An edit form sends only the fields that changed. Every update endpoint treats
+an absent key as "leave it alone" and runs its eligibility guards per key that
+arrives — a `projectId` is checked for an open project, a `clientId` for an
+active client, a `role` for a self-edit — so a form that resent the whole
+record tripped those guards on records whose related rows had since closed,
+and logged changes that had not happened. `changedFields` in
+`@opsflow/types/changes` diffs the submission against the loaded record's
+wire shape; an untouched form makes no request. A saved value that is no
+longer offered (an archived client, a deactivated assignee) is still shown by
+the control, labelled as such, rather than rendered blank while the id is
+still held.
 
 ---
 
@@ -1960,4 +1983,10 @@ than only the outcome.
 | The mobile paging helpers live in `paging.ts`, apart from the TanStack wiring in `paged.ts` | The helpers are pure; the wiring imports react-native through the API client, which Bun cannot load. The split makes the helpers testable and the boundary explicit, and `paged.ts` re-exports them so the screens did not change |
 | Query plans are measured on a bench volume, and the measurement is a script | Reading a plan against the seven-row development database says nothing: the planner prefers a sequential scan at that size whatever the indexes. `pnpm db:bench` and `pnpm db:explain` make the evidence reproducible after any query change, and the first run found no index worth adding. See §21.2 |
 | The mobile inbox is marked stale after a write and refetched on focus, instead of refetched after every write | It is an infinite list, and refetching one re-requests every loaded page in sequence. Marking one read patches the cached row. `maxPages` was rejected because it drops the oldest pages, removing rows the reader has already scrolled past. See §26.1 |
-
+| Edit forms PATCH only the fields that changed, via `changedFields` in `@opsflow/types/changes` | The update services run their guards per key that arrives. Resending the whole record made an admin's own phone edit a 403 (`role` present), a title fix on a task in a closed project a 409, and wrote `role_changed` on every user edit. See §20 |
+| One `SearchField` component for the web lists, which adopts the URL only when the URL moved on its own | The URL trails the field by one loader round trip; resetting the draft on every URL change dropped keystrokes typed during that trip |
+| Suspending, deactivating or demoting a person is refused with `USER_HAS_OPEN_WORK` while they manage an open project or hold an open task; leaving `active` deletes their sessions | The manager and assignee rules were enforced on every path except the one that takes a person out of service. Same shape as `ASSIGNEE_HAS_OPEN_TASKS` |
+| Better Auth refuses to create a session for a non-active user | Sign-in checked the password only, so a suspended person could mint a session and reach Better Auth's endpoints in front of `requireAuth`. Better Auth's own guidance names `databaseHooks.session.create.before` for this. See §10 |
+| `POST /api/auth/update-user` is closed | It let a caller rewrite `name` and `image` past `updateProfileSchema` and the activity log. `PATCH /api/me` is the profile edit |
+| `/api/me` resolving to `null` on 403 as well as 401 in the mobile client, after signing out | A 403 is a live session on a suspended account; kept, the stored cookie answered every retry the same way and left the phone on an error screen with no way out |
+| `progress` is `z.number()`, not coerced | A cleared input arrived as `''` or `null` and became 0% |

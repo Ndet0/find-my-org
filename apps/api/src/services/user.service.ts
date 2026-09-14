@@ -279,6 +279,7 @@ export async function updateUser(
 
   if (input.role !== undefined) {
     await assertNotLastAdmin(id, current, { role: input.role })
+    await assertNoManagedProjects(id, current.role.name, input.role)
   }
 
   if (input.email && input.email !== current.email) {
@@ -360,12 +361,26 @@ export async function setUserStatus(
 
   await assertNotLastAdmin(id, current, { status })
 
+  const leaving = status !== 'active' && current.status === 'active'
+
+  if (leaving) {
+    await assertNoOpenWork(id)
+  }
+
   return prisma.$transaction(async (tx) => {
     const row = await tx.user.update({
       where: { id },
       data: { status },
       select: detailSelect,
     })
+
+    // `requireAuth` already refuses a non-active user on every OPSflow route,
+    // but Better Auth's own endpoints — change-password, list-sessions — sit
+    // in front of it and know nothing about `status`. Dropping the sessions
+    // closes that door too, and means "signed out" is literally true.
+    if (leaving) {
+      await tx.session.deleteMany({ where: { userId: id } })
+    }
 
     await recordActivity(tx, {
       actor,
@@ -378,6 +393,71 @@ export async function setUserStatus(
 
     return toDetail(row)
   })
+}
+
+/**
+ * Every other path keeps a project's manager an active admin or manager and
+ * a task's assignee an active person on the project; taking someone out of
+ * service must not be the one path that breaks those. Their open work has to
+ * be handed on first, the same rule `removeProjectMember` applies. Completed
+ * tasks and closed projects are history and stay with them.
+ */
+async function assertNoOpenWork(userId: string): Promise<void> {
+  const [projects, tasks] = await prisma.$transaction([
+    prisma.project.count({
+      where: { managerId: userId, status: { notIn: ['completed', 'cancelled'] } },
+    }),
+    prisma.task.count({ where: { assignedTo: userId, status: { not: 'completed' } } }),
+  ])
+
+  if (projects > 0 || tasks > 0) {
+    throw conflict(
+      'USER_HAS_OPEN_WORK',
+      `Reassign ${describeOpenWork(projects, tasks)} held by this person first`,
+    )
+  }
+}
+
+/**
+ * A project manager must be an admin or a manager. Demoting one to employee
+ * would leave their open projects with a manager no other path could set,
+ * and keep them fully visible to someone who should now see only their own.
+ */
+async function assertNoManagedProjects(
+  userId: string,
+  currentRole: string,
+  nextRole: string,
+): Promise<void> {
+  const eligible = (role: string) => role === 'admin' || role === 'manager'
+
+  if (!eligible(currentRole) || eligible(nextRole)) {
+    return
+  }
+
+  const projects = await prisma.project.count({
+    where: { managerId: userId, status: { notIn: ['completed', 'cancelled'] } },
+  })
+
+  if (projects > 0) {
+    throw conflict(
+      'USER_HAS_OPEN_WORK',
+      `Reassign ${describeOpenWork(projects, 0)} managed by this person before changing their role`,
+    )
+  }
+}
+
+function describeOpenWork(projects: number, tasks: number): string {
+  const parts: string[] = []
+
+  if (projects > 0) {
+    parts.push(`${projects} open ${projects === 1 ? 'project' : 'projects'}`)
+  }
+
+  if (tasks > 0) {
+    parts.push(`${tasks} open ${tasks === 1 ? 'task' : 'tasks'}`)
+  }
+
+  return parts.join(' and ')
 }
 
 type AdminGuardRow = { status: UserStatus; role: { name: string } }

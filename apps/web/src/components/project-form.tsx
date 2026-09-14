@@ -1,3 +1,4 @@
+import { changedFields, hasChanges } from '@opsflow/types/changes'
 import {
   createProjectSchema,
   PRIORITY_LEVELS,
@@ -75,7 +76,11 @@ function toPayload(values: ProjectFormValues, includeProgress: boolean) {
     managerId: values.managerId === NONE ? null : values.managerId,
     startDate: values.startDate === '' ? null : values.startDate,
     deadline: values.deadline === '' ? null : values.deadline,
-    ...(includeProgress ? { progress: values.progress } : { priority: values.priority }),
+    // A cleared input is NaN rather than 0, so the schema refuses it instead
+    // of quietly resetting the project to 0%.
+    ...(includeProgress
+      ? { progress: values.progress.trim() === '' ? Number.NaN : Number(values.progress) }
+      : { priority: values.priority }),
   }
 }
 
@@ -92,20 +97,50 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
     (person) => person.role.name === 'admin' || person.role.name === 'manager',
   )
 
-  const mutation = useMutation({
-    mutationFn: (values: ProjectFormValues) => {
-      const payload = toPayload(values, isEdit)
+  // Only active clients and eligible managers are offered, but the ones on
+  // file may no longer be either. They are still the answer saved on the
+  // project, so the controls show them rather than a blank that would read
+  // as "unassigned" while the id is still held.
+  const clientItems = clients.data?.items ?? []
+  const retiredClient =
+    project?.client && !clientItems.some((client) => client.id === project.client?.id)
+      ? project.client
+      : null
+  const retiredManager =
+    project?.manager && !managers.some((person) => person.id === project.manager?.id)
+      ? project.manager
+      : null
 
-      if (isEdit) {
-        return updateProject(project.id, updateProjectSchema.parse(payload))
+  const mutation = useMutation({
+    mutationFn: async (values: ProjectFormValues) => {
+      if (!isEdit) {
+        const saved = await createProject(createProjectSchema.parse(toPayload(values, false)))
+        return { saved, changed: true }
       }
 
-      return createProject(createProjectSchema.parse(payload))
+      // Only what changed goes over the wire. The API re-checks the client
+      // and the manager whenever either key arrives, so resending them
+      // unchanged would refuse a progress update on a project whose client
+      // has since been archived.
+      const changes = changedFields(toPayload(values, true), toPayload(valuesFrom(project), true))
+
+      if (!hasChanges(changes)) {
+        return { saved: project, changed: false }
+      }
+
+      return {
+        saved: await updateProject(project.id, updateProjectSchema.parse(changes)),
+        changed: true,
+      }
     },
-    onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: projectKeys.all })
-      await queryClient.invalidateQueries({ queryKey: clientKeys.all })
-      toast.success(isEdit ? `${saved.name} was updated` : `${saved.name} was added`)
+    onSuccess: async ({ saved, changed }) => {
+      if (changed) {
+        await queryClient.invalidateQueries({ queryKey: projectKeys.all })
+        await queryClient.invalidateQueries({ queryKey: clientKeys.all })
+        toast.success(isEdit ? `${saved.name} was updated` : `${saved.name} was added`)
+      } else {
+        toast.info('Nothing to save')
+      }
       await router.navigate({ to: '/projects/$projectId', params: { projectId: saved.id } })
     },
     onError: (error) => {
@@ -186,7 +221,12 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>Unassigned</SelectItem>
-                {(clients.data?.items ?? []).map((client) => (
+                {retiredClient ? (
+                  <SelectItem value={retiredClient.id}>
+                    {retiredClient.name} (no longer active)
+                  </SelectItem>
+                ) : null}
+                {clientItems.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.company ? `${client.name} · ${client.company}` : client.name}
                   </SelectItem>
@@ -208,6 +248,11 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>Unassigned</SelectItem>
+                {retiredManager ? (
+                  <SelectItem value={retiredManager.id}>
+                    {retiredManager.name} (no longer eligible)
+                  </SelectItem>
+                ) : null}
                 {managers.map((person) => (
                   <SelectItem key={person.id} value={person.id}>
                     {person.name}

@@ -58,7 +58,14 @@ function ids(data: Record<string, unknown> | undefined) {
   return ((data?.items ?? []) as { id: string }[]).map((item) => item.id)
 }
 
-const created = { projectId: '', departmentId: '', lifecycleProjectId: '', openWorkProjectId: '' }
+const created = {
+  projectId: '',
+  departmentId: '',
+  lifecycleProjectId: '',
+  openWorkProjectId: '',
+  serviceProjectId: '',
+  serviceUserId: '',
+}
 
 /** Notifications inserted straight through Prisma by the paging test. */
 let tiedNotificationIds: string[] = []
@@ -97,6 +104,14 @@ afterAll(async () => {
   if (created.openWorkProjectId) {
     await prisma.task.deleteMany({ where: { projectId: created.openWorkProjectId } })
     await prisma.project.delete({ where: { id: created.openWorkProjectId } }).catch(() => undefined)
+  }
+  if (created.serviceProjectId) {
+    await prisma.task.deleteMany({ where: { projectId: created.serviceProjectId } })
+    await prisma.project.delete({ where: { id: created.serviceProjectId } }).catch(() => undefined)
+  }
+  if (created.serviceUserId) {
+    // Sessions, accounts and notifications cascade; activity rows keep a null actor.
+    await prisma.user.delete({ where: { id: created.serviceUserId } }).catch(() => undefined)
   }
   if (created.departmentId) {
     await prisma.department.delete({ where: { id: created.departmentId } }).catch(() => undefined)
@@ -413,6 +428,121 @@ describe('self-service profile', () => {
     expect(edited.status).toBe(200)
     expect(edited.data?.name).toBe('Seeded Employee')
     expect(edited.data?.position).toBe(before.data?.position ?? null)
+  })
+})
+
+describe('taking someone out of service', () => {
+  const EMAIL = 'service-fixture@opsflow.local'
+
+  test('an admin edits their own record as long as the role is left out', async () => {
+    const admin = await signIn('admin@opsflow.local')
+    const me = await call('GET', '/api/me', admin)
+    const id = me.data?.id as string
+    const phone = me.data?.phone as string | null
+
+    const withRole = await call('PATCH', `/api/users/${id}`, admin, {
+      role: 'admin',
+      phone: '+1 555 0199',
+    })
+    expect(withRole.status).toBe(403)
+
+    const withoutRole = await call('PATCH', `/api/users/${id}`, admin, { phone: '+1 555 0199' })
+    expect(withoutRole.status).toBe(200)
+    expect(withoutRole.data?.phone).toBe('+1 555 0199')
+
+    expect((await call('PATCH', `/api/users/${id}`, admin, { phone })).status).toBe(200)
+  })
+
+  test('suspending someone waits for their open work, then ends their sessions', async () => {
+    const admin = await signIn('admin@opsflow.local')
+
+    const person = await call('POST', '/api/users', admin, {
+      name: 'Service Fixture',
+      email: EMAIL,
+      password: PASSWORD,
+      role: 'employee',
+    })
+    expect(person.status).toBe(201)
+    created.serviceUserId = person.data?.id as string
+
+    const project = await call('POST', '/api/projects', admin, {
+      name: 'Service fixture project',
+      priority: 'low',
+    })
+    expect(project.status).toBe(201)
+    created.serviceProjectId = project.data?.id as string
+
+    const membership = await call(
+      'POST',
+      `/api/projects/${created.serviceProjectId}/members`,
+      admin,
+      { userId: created.serviceUserId },
+    )
+    expect(membership.status).toBe(201)
+
+    const task = await call('POST', '/api/tasks', admin, {
+      title: 'Service fixture task',
+      projectId: created.serviceProjectId,
+      assignedTo: created.serviceUserId,
+    })
+    expect(task.status).toBe(201)
+
+    const statusPath = `/api/users/${created.serviceUserId}/status`
+
+    const held = await call('PATCH', statusPath, admin, { status: 'suspended' })
+    expect(held.status).toBe(409)
+    expect(held.error?.code).toBe('USER_HAS_OPEN_WORK')
+
+    // Handing the task on clears the way.
+    const handedOn = await call('PATCH', `/api/tasks/${task.data?.id}`, admin, {
+      assignedTo: null,
+    })
+    expect(handedOn.status).toBe(200)
+
+    const theirs = await signIn(EMAIL)
+    expect((await call('GET', '/api/me', theirs)).status).toBe(200)
+
+    const suspended = await call('PATCH', statusPath, admin, { status: 'suspended' })
+    expect(suspended.status).toBe(200)
+
+    // Not merely refused by OPSflow's routes: the session row is gone, so
+    // Better Auth's own endpoints no longer recognise the cookie either.
+    expect((await call('GET', '/api/me', theirs)).status).toBe(401)
+    expect(await signInStatus(EMAIL, PASSWORD)).toBe(403)
+  })
+
+  test('a manager keeps their role while they still run a project', async () => {
+    const admin = await signIn('admin@opsflow.local')
+    const manager = await prisma.user.findUniqueOrThrow({
+      where: { email: 'manager@opsflow.local' },
+      select: { id: true },
+    })
+
+    const handed = await call('PATCH', `/api/projects/${created.serviceProjectId}`, admin, {
+      managerId: manager.id,
+    })
+    expect(handed.status).toBe(200)
+
+    const demoted = await call('PATCH', `/api/users/${manager.id}`, admin, { role: 'employee' })
+    expect(demoted.status).toBe(409)
+    expect(demoted.error?.code).toBe('USER_HAS_OPEN_WORK')
+
+    // A sideways move keeps them eligible, so it is not held up.
+    const promoted = await call('PATCH', `/api/users/${manager.id}`, admin, { role: 'admin' })
+    expect(promoted.status).toBe(200)
+    expect(
+      (await call('PATCH', `/api/users/${manager.id}`, admin, { role: 'manager' })).status,
+    ).toBe(200)
+  })
+
+  test("Better Auth's own profile edit is closed", async () => {
+    const employee = await signIn('employee@opsflow.local')
+    const response = await app.request('/api/auth/update-user', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: WEB_ORIGIN, cookie: employee },
+      body: JSON.stringify({ name: '' }),
+    })
+    expect(response.status).toBe(403)
   })
 })
 

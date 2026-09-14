@@ -148,6 +148,25 @@ export const auth = betterAuth({
   },
 
   databaseHooks: {
+    session: {
+      create: {
+        // Sign-in checks the password and nothing else, so a suspended or
+        // deactivated person could otherwise mint a fresh session and reach
+        // Better Auth's own endpoints, which sit in front of the API's
+        // `requireAuth`. Refusing the session here closes that door with
+        // the same message the API gives an existing session.
+        before: async (session) => {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { status: true },
+          })
+
+          if (user && user.status !== 'active') {
+            throw new APIError('FORBIDDEN', { message: 'This account is not active' })
+          }
+        },
+      },
+    },
     user: {
       create: {
         before: async (user) => {

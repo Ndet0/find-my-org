@@ -1,3 +1,4 @@
+import { changedFields, hasChanges } from '@opsflow/types/changes'
 import { ROLE_NAMES, type RoleName } from '@opsflow/types/permissions'
 import { createUserSchema, type UserDetail, updateUserSchema } from '@opsflow/types/user'
 import { toneLabel } from '@opsflow/ui/tones'
@@ -14,6 +15,19 @@ import { createUser, updateUser, userKeys } from '@/lib/users'
 
 const ROLE_OPTIONS = ROLE_NAMES.map((name) => ({ value: name, label: toneLabel(name) }))
 
+/** The edit form's wire shape for the person as loaded, to diff a submission against. */
+function payloadFrom(user: UserDetail) {
+  return {
+    name: user.name,
+    email: user.email,
+    role: user.role.name,
+    position: user.position ?? '',
+    phone: user.phone ?? '',
+    departmentId: user.department?.id ?? null,
+    joinedAt: user.joinedAt,
+  }
+}
+
 /**
  * Create and edit share one form. The password is a create-only field:
  * there is no invite email, so an administrator hands the initial password
@@ -22,7 +36,8 @@ const ROLE_OPTIONS = ROLE_NAMES.map((name) => ({ value: name, label: toneLabel(n
  *
  * The role picker stays visible when you edit yourself. The API refuses a
  * self-demotion with a 403, which lands on the form's error line; hiding
- * the control would quietly differ from the web and hide the rule.
+ * the control would quietly differ from the web and hide the rule. Only the
+ * fields that changed are sent, so leaving the role alone never trips it.
  */
 export function UserForm({ user }: { user?: UserDetail }) {
   const router = useRouter()
@@ -42,10 +57,19 @@ export function UserForm({ user }: { user?: UserDetail }) {
   const [formError, setFormError] = useState<string | null>(null)
 
   const save = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      isEdit
-        ? updateUser(user.id, updateUserSchema.parse(payload))
-        : createUser(createUserSchema.parse(payload)),
+    mutationFn: async (payload: Record<string, unknown>) => {
+      if (!isEdit) {
+        return createUser(createUserSchema.parse(payload))
+      }
+
+      // Only what changed goes over the wire. The API refuses a self-edit
+      // that carries a role and logs a role change for any role it is sent,
+      // so resending the whole form would 403 an admin fixing their own
+      // phone number and record changes that never happened.
+      const changes = changedFields(payload, payloadFrom(user))
+
+      return hasChanges(changes) ? updateUser(user.id, updateUserSchema.parse(changes)) : user
+    },
     onSuccess: async (saved) => {
       queryClient.setQueryData(userKeys.detail(saved.id), saved)
       await queryClient.invalidateQueries({ queryKey: userKeys.all })

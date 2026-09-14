@@ -1,3 +1,4 @@
+import { changedFields, hasChanges } from '@opsflow/types/changes'
 import {
   createProjectSchema,
   PRIORITY_LEVELS,
@@ -11,13 +12,34 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { Field } from '@/components/field'
 import { FormScreen } from '@/components/form-screen'
-import { Picker } from '@/components/picker'
+import { Picker, type PickerOption } from '@/components/picker'
 import { type FieldErrorMap, fieldErrorsFrom } from '@/lib/api'
 import { clientKeys, clientsQueryOptions } from '@/lib/clients'
 import { createProject, projectKeys, updateProject } from '@/lib/projects'
 import { usersQueryOptions } from '@/lib/users'
 
 const PRIORITY_OPTIONS = PRIORITY_LEVELS.map((level) => ({ value: level, label: level }))
+
+/**
+ * A cleared input is NaN rather than 0, so the schema refuses it instead of
+ * quietly resetting the project to 0%.
+ */
+function progressNumber(text: string): number {
+  return text.trim() === '' ? Number.NaN : Number(text)
+}
+
+/** The edit form's wire shape for the project as loaded, to diff a submission against. */
+function payloadFrom(project: ProjectDetail) {
+  return {
+    name: project.name,
+    description: project.description ?? '',
+    clientId: project.client?.id ?? null,
+    managerId: project.manager?.id ?? null,
+    startDate: project.startDate,
+    deadline: project.deadline,
+    progress: project.progress,
+  }
+}
 
 /**
  * Create and edit share one form, as on the web. Status is never a field:
@@ -43,15 +65,50 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
 
   const clients = useQuery(clientsQueryOptions({ status: 'active', pageSize: 100 }))
   const people = useQuery(usersQueryOptions({ status: 'active', pageSize: 100 }))
-  const managers = (people.data?.items ?? [])
+  const managers: PickerOption[] = (people.data?.items ?? [])
     .filter((person) => person.role.name === 'admin' || person.role.name === 'manager')
     .map((person) => ({ value: person.id, label: person.name, hint: person.role.name }))
+  const clientOptions = (clients.data?.items ?? []).map((client) => ({
+    value: client.id,
+    label: client.name,
+    hint: client.company ?? undefined,
+  }))
+
+  // Only active clients and eligible managers are offered, but the ones on
+  // file may no longer be either. They are still the answer saved on the
+  // project, so the pickers show them rather than "No client" while the id
+  // is still held.
+  if (project?.client && !clientOptions.some((option) => option.value === project.client?.id)) {
+    clientOptions.unshift({
+      value: project.client.id,
+      label: project.client.name,
+      hint: 'No longer active',
+    })
+  }
+  if (project?.manager && !managers.some((option) => option.value === project.manager?.id)) {
+    managers.unshift({
+      value: project.manager.id,
+      label: project.manager.name,
+      hint: 'No longer eligible',
+    })
+  }
 
   const save = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      isEdit
-        ? updateProject(project.id, updateProjectSchema.parse(payload))
-        : createProject(createProjectSchema.parse(payload)),
+    mutationFn: async (payload: Record<string, unknown>) => {
+      if (!isEdit) {
+        return createProject(createProjectSchema.parse(payload))
+      }
+
+      // Only what changed goes over the wire. The API re-checks the client
+      // and the manager whenever either key arrives, so resending them
+      // unchanged would refuse a progress update on a project whose client
+      // has since been archived.
+      const changes = changedFields(payload, payloadFrom(project))
+
+      return hasChanges(changes)
+        ? updateProject(project.id, updateProjectSchema.parse(changes))
+        : project
+    },
     onSuccess: async (saved) => {
       queryClient.setQueryData(projectKeys.detail(saved.id), saved)
       await queryClient.invalidateQueries({ queryKey: projectKeys.all })
@@ -75,7 +132,7 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
       managerId: managerId === '' ? null : managerId,
       startDate: startDate === '' ? null : startDate,
       deadline: deadline === '' ? null : deadline,
-      ...(isEdit ? { progress } : { priority }),
+      ...(isEdit ? { progress: progressNumber(progress) } : { priority }),
     }
     // Widened: create requires priority and update has progress, so TS cannot
     // infer one error type for z.flattenError from the union of the two.
@@ -121,11 +178,7 @@ export function ProjectForm({ project }: { project?: ProjectDetail }) {
       <Picker
         label="Client"
         value={clientId}
-        options={(clients.data?.items ?? []).map((client) => ({
-          value: client.id,
-          label: client.name,
-          hint: client.company ?? undefined,
-        }))}
+        options={clientOptions}
         onChange={setClientId}
         emptyLabel="No client"
         loading={clients.isPending}

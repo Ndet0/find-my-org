@@ -1,3 +1,4 @@
+import { changedFields, hasChanges } from '@opsflow/types/changes'
 import { ROLE_NAMES, type RoleName } from '@opsflow/types/permissions'
 import { createUserSchema, type UserDetail, updateUserSchema } from '@opsflow/types/user'
 import { useForm } from '@tanstack/react-form'
@@ -83,20 +84,37 @@ export function UserForm({ user }: { user?: UserDetail }) {
   const isEdit = user !== undefined
 
   const mutation = useMutation({
-    mutationFn: (values: UserFormValues) => {
+    mutationFn: async (values: UserFormValues) => {
       const payload = toPayload(values)
 
-      if (isEdit) {
-        return updateUser(user.id, updateUserSchema.parse(payload))
+      if (!isEdit) {
+        const saved = await createUser(
+          createUserSchema.parse({ ...payload, password: values.password }),
+        )
+        return { saved, changed: true }
       }
 
-      return createUser(createUserSchema.parse({ ...payload, password: values.password }))
+      // Only what changed goes over the wire. The API refuses a self-edit
+      // that carries a role and logs a role change for any role it is sent,
+      // so resending the whole form would 403 an admin fixing their own
+      // phone number and record changes that never happened.
+      const changes = changedFields(payload, toPayload(valuesFrom(user)))
+
+      if (!hasChanges(changes)) {
+        return { saved: user, changed: false }
+      }
+
+      return { saved: await updateUser(user.id, updateUserSchema.parse(changes)), changed: true }
     },
-    onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: userKeys.all })
-      await queryClient.invalidateQueries({ queryKey: departmentKeys.all })
-      await queryClient.invalidateQueries({ queryKey: currentUserQueryOptions.queryKey })
-      toast.success(isEdit ? `${saved.name} was updated` : `${saved.name} was added`)
+    onSuccess: async ({ saved, changed }) => {
+      if (changed) {
+        await queryClient.invalidateQueries({ queryKey: userKeys.all })
+        await queryClient.invalidateQueries({ queryKey: departmentKeys.all })
+        await queryClient.invalidateQueries({ queryKey: currentUserQueryOptions.queryKey })
+        toast.success(isEdit ? `${saved.name} was updated` : `${saved.name} was added`)
+      } else {
+        toast.info('Nothing to save')
+      }
       await router.navigate({ to: '/users/$userId', params: { userId: saved.id } })
     },
     onError: (error) => {

@@ -2527,6 +2527,80 @@ instead of rendering. 344 tests across the four packages now, under one
   scheduling, not a missed assertion, and every assertion after an event
   goes through `findBy*` or `waitFor`
 
+## Audit fixes (2026-09-14)
+
+A second full read of the code against this plan and the product document,
+this time with the three apps reviewed side by side. Every defect below is
+fixed and pinned by a test; the suites stand at 356 (219 types, 64 web, 47
+mobile, 26 API).
+
+- [x] Every edit form on both clients resent every field. The API runs its
+  eligibility guards per key that arrives — a `projectId` is checked for an
+  open project, a `clientId` for an active client, a `role` for a self-edit —
+  so an admin fixing their own phone number was refused with "You cannot
+  change your own role", a title fix on a task in a completed project was a
+  409 `PROJECT_CLOSED`, a progress update on a project whose client had been
+  archived was `CLIENT_NOT_ACTIVE`, and every user edit wrote a
+  `role_changed` activity row for a role that had not changed. The user,
+  task and project forms now diff the submission against the loaded record
+  with `changedFields` in `@opsflow/types/changes` and PATCH only what moved;
+  an untouched form sends nothing and says "Nothing to save". When the saved
+  client, manager or assignee is no longer offered — archived, deactivated,
+  demoted — the control shows them as "no longer active" rather than a blank
+  that read as unassigned while the id was still held. `user-form.test.tsx`
+  asserts the body carries only the changed key and that an unchanged submit
+  makes no request; the client form is the one form that still sends the
+  whole payload, because nothing it sends is guarded
+- [x] The search box on every web list dropped keystrokes. The field reset
+  its draft whenever the URL changed, and the URL only changes once the
+  route's loader has fetched — so typing "ab" submitted "a", the fetch landed,
+  and the draft snapped back to "a" with the "b" gone. The six copies are one
+  `SearchField` now, which remembers what it last submitted and adopts the URL
+  only when the URL moved on its own (the back button). `search-field.test.tsx`
+  drives both cases
+- [x] A suspended person's phone was a dead end. `/api/me` answers 403 for a
+  session whose account is no longer active; the mobile client mapped only
+  401, so the root layout showed "OPSflow could not be reached" with a Retry
+  that produced the same 403 forever. A 403 now signs out and resolves to
+  `null`, which is the login screen
+- [x] Taking someone out of service left their work behind. Suspending or
+  deactivating a person, or demoting a manager to employee, kept them as
+  `projects.manager_id` and `tasks.assigned_to` — states no other path can
+  produce, since a manager must be an active admin or manager and an assignee
+  an active person on the project. Both now refuse with `USER_HAS_OPEN_WORK`
+  until the open projects and tasks are handed on, the rule
+  `removeProjectMember` already applied; completed work stays with them.
+  Leaving `active` also deletes the person's sessions in the same transaction,
+  so "signed out" is literally true
+- [x] Sign-in ignored account status. Found by the test for the previous item:
+  Better Auth checks the password and nothing else, so a suspended person could
+  mint a fresh session and reach Better Auth's own endpoints — change-password,
+  list-sessions — which sit in front of the API's `requireAuth`. A
+  `databaseHooks.session.create.before` hook in `packages/auth` now refuses the
+  session with a 403 when the user is not `active`, the route Better Auth's own
+  documentation points at for this case. The `/api/me` check both login screens
+  make after sign-in stays as defence in depth
+- [x] Better Auth's `POST /api/auth/update-user` let anyone rewrite their
+  `name` and `image` past `updateProfileSchema` and the activity log. It is
+  closed with a 403 the same way signup is; profiles are edited through
+  `PATCH /api/me`
+- [x] `updateProjectSchema` coerced `progress`, so a cleared input (`''` or
+  `null`) saved 0%. It is `z.number()` now, and both clients send `NaN` for an
+  empty field so the schema refuses it on the field
+- [x] `apps/api/test/rules.test.ts` gains a "taking someone out of service"
+  group: an admin edits their own record as long as the role is left out; a
+  suspension is held by an open task, then succeeds, ends the session and
+  refuses a fresh sign-in; a demotion is held by a managed project while a
+  sideways move to admin is not; `update-user` is closed. The fixture user and
+  project are removed in `afterAll`
+- [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` — 356 pass
+
+What the audit found and this slice leaves for later, recorded under "Known
+gaps" below: the web has no global 401 handler and the mobile cache survives
+into the next user's session (Phase 17); the mobile dashboard tiles open
+unfiltered lists and the app never refetches on resume; four documented
+notifications are not raised.
+
 ## Known gaps in this plan
 
 - The login page always lands on `/`. Deep-link restoration was left out
@@ -2548,11 +2622,26 @@ instead of rendering. 344 tests across the four packages now, under one
   entity evolved".
 - No avatar upload path; `users.avatar_url` is never written.
 - No deadline reminders (product §25 "due tomorrow"); notifications fire only
-  on direct actions.
+  on direct actions. Four direct actions the product document names are not
+  raised either: adding a member tells the new member but not the rest of the
+  team; handing a project to a new manager tells nobody (creation does); a
+  manager completing someone's task tells the manager, not the assignee; and
+  taking a task off someone tells only whoever it went to. Unassigning is also
+  logged as `assigned` with no recipient.
+- The mobile dashboard tiles ("3 overdue tasks", "Delayed projects") open the
+  bare tasks and projects tabs, which read no params and offer no status or
+  overdue chips; the web tiles deep-link `?overdue=true` / `?status=delayed`.
+- The mobile app never refetches on resume. TanStack's `focusManager` is not
+  wired to `AppState`, so `refetchOnWindowFocus` never fires and the 30-second
+  polling continues while backgrounded. Wire `focusManager.setEventListener`
+  to `AppState` in the root layout; `expo-network` is already a dependency for
+  `onlineManager`.
 - Departments are hard-deleted behind a 409 guard where the product document
   says archive. A deliberate simplification, recorded here.
 - Creating a user is two steps (Better Auth signup, then the profile patch).
   If the second fails, an employee-role account without a department remains.
+  The catch around the first step also wraps any `Error` into a 400 carrying
+  the raw message, past the production redaction in `onError` (Phase 17).
 - Overdue is computed against the UTC date, so a user ahead of UTC sees
   yesterday's date as "today" for the first hours of their day.
 - Rate limiting is Better Auth's default, which is active only in production.
@@ -2580,7 +2669,8 @@ instead of rendering. 344 tests across the four packages now, under one
 - Radix Select is not under test. A select-based form (task, project, user)
   needs `hasPointerCapture` and `ResizeObserver` on happy-dom before its
   control can be opened; the client form was chosen for the form tests
-  because it has none.
+  because it has none. `user-form.test.tsx` drives the user form through its
+  text inputs only, which is enough to pin the diffed payload.
 - There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
 - Password minimum is 6 characters (`PASSWORD_MIN_LENGTH` in `@opsflow/types/auth`),
   a demo concession. Raise it before production; it is the same bound Better Auth
@@ -2628,13 +2718,16 @@ deep offset pages and the `ILIKE` search counts — are recorded with their
 numbers and their trigger under "Known gaps". `pnpm db:bench` and
 `pnpm db:explain` regenerate the evidence after any query or schema change.
 
-Phase 16 is closed (§24): 344 tests across four packages under one
+Phase 16 is closed (§24): 356 tests across four packages under one
 `pnpm test` — the API in-process on the seeded database, the types package's
 matrices and schemas, the web's forms, guard, login flow, dialog and feedback
 components rendered with Testing Library on happy-dom, and the mobile logic
 in modules react-native never reaches. The one thing left out is a rendered
 mobile screen, which needs a second runner; it is recorded under "Known gaps"
 with the route to it.
+
+The 2026-09-14 audit (§24) closed the defects it found in the forms, the
+search fields, suspension and sign-in, and left the rest as Phase 17 input.
 
 Next:
 
@@ -2643,10 +2736,12 @@ Next:
 2. Phase 18 — Deployment
 ```
 
-Phase 17's checklist has three starts recorded under "Known gaps": the login
+Phase 17's checklist has its starts recorded under "Known gaps": the login
 page's missing deep-link restoration (add it with an internal-path check),
-the six-character password minimum, and `SameSite` for a cross-site
-deployment. Add the `pg` deprecation warning the API tests print ("Calling
+the six-character password minimum, `SameSite` and `Secure` for the
+deployment target, the web's missing global 401 handler and the mobile cache
+surviving into the next user's session, and the raw error the user-creation
+path can leak. Add the `pg` deprecation warning the API tests print ("Calling
 client.query() when the client is already executing a query") to the
 dependency review: it comes from Prisma's adapter, not the app, and `pg@9`
 will remove the behaviour.
