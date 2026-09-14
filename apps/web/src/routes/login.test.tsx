@@ -103,6 +103,39 @@ describe('LoginPage', () => {
     expect(api.calls[0]?.body).toMatchObject({ email: 'employee@opsflow.local' })
   })
 
+  test('an internal ?redirect= is honoured and an external one is not', async () => {
+    api = mockApi({
+      [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },
+      'GET /api/me': ok(user),
+    })
+    const { router } = await renderWithProviders(<LoginPage />, {
+      initialPath: '/?redirect=%2Ftasks%3Fstatus%3Dblocked',
+    })
+
+    await screen.findByLabelText('Email')
+    fill('employee@opsflow.local', 'opsflow-dev-password')
+    submit()
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/tasks'))
+    expect(router.state.location.search).toEqual({ status: 'blocked' })
+    api.restore()
+    cleanup()
+
+    api = mockApi({
+      [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },
+      'GET /api/me': ok(user),
+    })
+    const external = await renderWithProviders(<LoginPage />, {
+      initialPath: '/?redirect=%2F%2Fevil.example',
+    })
+
+    await screen.findByLabelText('Email')
+    fill('employee@opsflow.local', 'opsflow-dev-password')
+    submit()
+
+    await waitFor(() => expect(external.router.state.location.pathname).toBe('/'))
+  })
+
   test('a session /api/me rejects is discarded rather than left behind', async () => {
     api = mockApi({
       [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },

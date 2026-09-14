@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ApiRequestError } from '@/lib/api'
-import { currentUserQueryOptions } from '@/lib/current-user'
+import { endSession } from '@/lib/current-user'
 
 /**
  * Router-level feedback states, registered once on the router in `main.tsx`.
@@ -86,16 +86,13 @@ export function RouteError({ error }: ErrorComponentProps) {
     queryErrors.reset()
   }, [queryErrors])
 
-  // A 401 means the session ended underneath the app. The cached profile is
-  // what the `/_authed` guard trusts, so drop it before handing over to the
-  // login page, otherwise the guard would let the user straight back in.
+  // A 401 means the session ended underneath the app; see `endSession`.
   useEffect(() => {
     if (!sessionEnded) {
       return
     }
 
-    queryClient.removeQueries({ queryKey: currentUserQueryOptions.queryKey })
-    void router.navigate({ to: '/login' })
+    endSession(queryClient, (to) => router.navigate({ to }))
   }, [sessionEnded, queryClient, router])
 
   if (sessionEnded) {

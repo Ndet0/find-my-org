@@ -1,12 +1,32 @@
-import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouteError, RouteNotFound, RoutePending } from '@/components/route-feedback'
 import { activityKeys } from '@/lib/activity'
+import { ApiRequestError } from '@/lib/api'
+import { currentUserQueryOptions, endSession } from '@/lib/current-user'
 import { dashboardKeys } from '@/lib/dashboard'
 import { notificationKeys } from '@/lib/notifications'
 import { routeTree } from './routeTree.gen'
+
+/**
+ * A 401 from anywhere means the session ended underneath the app: the
+ * dashboard's polling, the unread badge, a save. Route loaders already land
+ * on `RouteError`, which handles it; this catches the rest, which would
+ * otherwise fail quietly and leave a signed-out page on screen. The
+ * current-user query is excluded: the guard turns its 401 into a redirect
+ * itself, and the login page's probe expects it to fail.
+ */
+function onSessionEnded(error: unknown, queryKey?: readonly unknown[]) {
+  if (
+    error instanceof ApiRequestError &&
+    error.status === 401 &&
+    queryKey?.[0] !== currentUserQueryOptions.queryKey[0]
+  ) {
+    endSession(queryClient, (to) => router.navigate({ to }))
+  }
+}
 
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +41,11 @@ const queryClient: QueryClient = new QueryClient({
       staleTime: 30_000,
     },
   },
+  queryCache: new QueryCache({
+    onError: (error, query) => onSessionEnded(error, query.queryKey),
+  }),
   mutationCache: new MutationCache({
+    onError: (error) => onSessionEnded(error),
     // The API logs activity for every write, may notify someone, and the
     // dashboard counts change with all of them. They are derived views of
     // every module, so they are invalidated here rather than by each

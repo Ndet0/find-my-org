@@ -4,7 +4,9 @@ import { requireUser } from '@/lib/current-user'
 
 /** Layout route for everything that requires a session; see `requireUser`. */
 export const Route = createFileRoute('/_authed')({
-  beforeLoad: async ({ context }) => ({ user: await requireUser(context.queryClient) }),
+  beforeLoad: async ({ context, location }) => ({
+    user: await requireUser(context.queryClient, location.href),
+  }),
   component: AuthedLayout,
 })
 

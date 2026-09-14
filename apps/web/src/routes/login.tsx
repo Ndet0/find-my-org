@@ -1,6 +1,6 @@
 import { signInSchema } from '@opsflow/types/auth'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouter, useSearch } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -8,12 +8,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
-import { currentUserQueryOptions, isSignedIn } from '@/lib/current-user'
+import { currentUserQueryOptions, isSignedIn, safeRedirect } from '@/lib/current-user'
+
+/** `?redirect=` is the page the guard turned away; see `safeRedirect`. */
+const loginSearchSchema = z.object({ redirect: z.string().optional() })
 
 export const Route = createFileRoute('/login')({
-  beforeLoad: async ({ context }) => {
+  validateSearch: (search) => loginSearchSchema.catch({}).parse(search),
+  beforeLoad: async ({ context, search }) => {
     if (await isSignedIn(context.queryClient)) {
-      throw redirect({ to: '/' })
+      throw redirect({ href: safeRedirect(search.redirect) })
     }
   },
   component: LoginPage,
@@ -24,6 +28,9 @@ type FieldErrors = { email?: string[]; password?: string[] }
 export function LoginPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  // Loose, so the page renders under a test router that is not this route.
+  const search = useSearch({ strict: false }) as { redirect?: string }
+  const destination = safeRedirect(search.redirect)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -50,7 +57,7 @@ export function LoginPage() {
         throw cause
       }
     },
-    onSuccess: () => router.navigate({ to: '/' }),
+    onSuccess: () => router.navigate({ href: destination }),
   })
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
