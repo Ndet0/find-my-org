@@ -6,11 +6,10 @@ import { z } from 'zod'
  * password the form accepts is rejected deeper in the stack, where the error
  * cannot be attached to the field.
  *
- * Six is short for an account that can read the whole directory. It is a
- * deliberate concession to demo convenience and is recorded as a
- * pre-production item in docs/sprint.md §24.
+ * Eight is the common floor. It was six until the Phase 17 security review,
+ * a demo concession; the seeded development password is well past either.
  */
-export const PASSWORD_MIN_LENGTH = 6
+export const PASSWORD_MIN_LENGTH = 8
 
 /** Better Auth's own default ceiling; restated so the form can report it. */
 export const PASSWORD_MAX_LENGTH = 128
