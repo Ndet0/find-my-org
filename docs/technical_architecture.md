@@ -1703,23 +1703,51 @@ A production deployment may follow:
 The web, API, and database are independently deployable. The decisions taken
 in Phase 18 (sprint §24), and what each one constrains:
 
-### One registrable domain
+### One registrable domain, and why a custom domain is mandatory
 
-The web app and the API are deployed as `app.<domain>` and `api.<domain>` on a
-managed platform (Railway or Render) with its Postgres alongside. The session
-cookie is `SameSite=Lax` (§33), which only works if the two share a
-registrable domain; a cross-site deployment would need `SameSite=None`, which
-Safari blocks by default. The choice of host is therefore not free — it has to
-allow a custom domain on both services.
+The web app and the API are deployed as `app.<domain>` and `api.<domain>` on
+Render, with its managed Postgres alongside — declared in
+[`render.yaml`](../render.yaml). The session cookie is `SameSite=Lax` (§33),
+which only works if the two share a registrable domain.
+
+Render's own subdomains do not satisfy that. `onrender.com` is on the Public
+Suffix List, so `opsflow-web.onrender.com` and `opsflow-api.onrender.com` are
+cross-site to each other, exactly as `example.co.uk` and `other.co.uk` are.
+A browser will not attach a `Lax` cookie to a cross-site request, so sign-in
+would return 200, store the cookie, and leave every request after it
+anonymous — a failure that looks like a session bug rather than a DNS
+decision. A custom domain on both services is therefore part of the
+deployment, not a finishing touch.
+
+What the cookie actually needs is not a custom domain but a single origin, and
+there are three ways to get one. A custom domain on both services is the
+architecture above. Render's static sites also allow a rewrite whose
+destination is a full URL, so `/api/*` on the web origin can be served from
+the API service — invisible to the browser, which then only ever talks to one
+host; that is what [`render.yaml`](../render.yaml) is currently set up for,
+with `VITE_API_URL` pointing at the static site's own URL rather than the
+API's. It is unverified: Render documents the rewrite but not whether non-GET
+methods, request cookies and `Set-Cookie` responses survive the proxy, and
+sign-in needs all three, so the first deploy has to test it (README).
+
+The third way is serving the built SPA from the Hono app, which is certain to
+work and needs no web code change — `apiFetch` and the auth client both build
+their URLs from `VITE_API_URL`, so pointing it at the one service's own origin
+is enough — at the cost of a static middleware, a web build stage in the API
+image, and the independent deployability this section rests on.
+
+`SameSite=None` was rejected outright: Safari's tracking protection blocks it
+by default (§33).
 
 ### Web
 
-A static Vite build: `dist/` served by any static host. Two consequences.
-`VITE_API_URL` is inlined at build time (§32), so pointing the app at a
-different API is a rebuild rather than a restart. And TanStack Router owns
-every path below `/`, so the host has to serve `index.html` for unknown paths;
-without that rewrite a deep link or a refresh on `/projects/:id` is the host's
-own 404.
+A static Vite build: `dist/` served by any static host — on Render a
+`runtime: static` service, no container. Two consequences. `VITE_API_URL` is
+inlined at build time (§32), so pointing the app at a different API is a
+rebuild rather than a restart. And TanStack Router owns every path below `/`,
+so the host has to serve `index.html` for unknown paths; without that rewrite
+a deep link or a refresh on `/projects/:id` is the host's own 404. The
+blueprint spells it as a `rewrite` route from `/*`.
 
 ### API
 
@@ -1728,6 +1756,24 @@ Bun serving the Hono app, bound to the port the platform assigns (§32).
 seconds and answers 503, so a database that accepts the connection and hangs
 fails the check instead of hanging it (§33).
 
+[`apps/api/Dockerfile`](../apps/api/Dockerfile) carries both runtimes: Bun
+runs the server, Node runs the Prisma CLI. Prisma 7's `prisma-client`
+generator emits plain TypeScript, so the server needs no build step and runs
+from source — but `prisma migrate deploy` still shells out to the
+schema-engine binary, which wants glibc and OpenSSL. That rules out Alpine and
+rules in Debian slim. Render runs the pre-deploy command and the start command
+in the same image, so the migration tooling cannot be confined to a build
+stage, which is also why the image keeps its development dependencies.
+
+The image is about 2 GB, most of it dependencies the API never loads.
+`packages/auth` depends on `@better-auth/expo` for the mobile session plugin,
+and pnpm installs that plugin's peers, so react-native, Hermes and Metro are
+part of the API's dependency closure — roughly 730 packages. `turbo prune`
+was tried and produces the identical set, because the cause is a real edge in
+the dependency graph rather than a workspace filtering problem. Splitting the
+Expo plugin behind its own entry point in `packages/auth` would fix it and is
+the obvious next move if image size starts to matter.
+
 ### Database
 
 Two roles, not one. Migrations run as the schema owner in a release step
@@ -1735,6 +1781,21 @@ Two roles, not one. Migrations run as the schema owner in a release step
 connects as a role with DML only — `SELECT`, `INSERT`, `UPDATE`, `DELETE` on
 the application schema and no DDL. The local compose database is a single
 owner account, which is fine for development and is not the production shape.
+
+In the blueprint that split is two variables. Render only exposes the owner's
+connection string, so it arrives as `MIGRATE_DATABASE_URL` and the API's own
+`DATABASE_URL` is entered by hand after the DML-only role is created. Because
+`prisma.config.ts` reads `DATABASE_URL`, the pre-deploy command passes the
+owner's URL under that name for the length of the migration and nowhere else:
+
+```text
+DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
+```
+
+Render's pre-deploy command may require a paid instance type. Where it is not
+available, the same command run once from a local shell against the production
+database is the equivalent; the first migration happens before the service is
+ever healthy either way.
 Backups are the managed provider's scheduled snapshots; the only application
 requirement is that a restore be tried once, because an untested backup is a
 hypothesis.
@@ -2094,3 +2155,5 @@ than only the outcome.
 | `pnpm audit --prod` in CI, advisory | The findings are in tooling-only paths; gating on a tool's transitive tree would block unrelated work, while running it keeps drift visible |
 | The API binds `PORT ?? API_PORT` | Railway and Render assign the port and inject it as `PORT`. Binding `API_PORT` in a deployment means the health check never answers |
 | `pnpm bootstrap:admin` provisions the first administrator from the environment | A fresh production database had no way in: signup is closed at the HTTP layer, `POST /api/users` needs an admin session, and the development seed refuses to run in production. It is a no-op once an administrator exists, so a release command can keep calling it. See §36 |
+| The API image is Debian slim carrying both Node and Bun, and runs the server from TypeScript source | Bun runs the server; Node runs the Prisma CLI, whose schema engine needs glibc. Render runs the pre-deploy migration and the server in one image, so a bundle-only image could not migrate. Prisma 7 emits plain TypeScript, so there is nothing to bundle anyway. See §36 |
+| Custom domains are a deployment requirement, not an option | `onrender.com` is on the Public Suffix List, so Render's own subdomains are cross-site to each other and a `SameSite=Lax` session cookie is never sent. Sign-in would appear to work and nothing after it would. See §36 |

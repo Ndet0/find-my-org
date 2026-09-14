@@ -1,0 +1,35 @@
+# Keeps the build context small and the image reproducible. Anything listed
+# here is either reinstalled, regenerated or has no business in an image.
+#
+# Note what is *not* here: the source of apps/web and apps/mobile. Neither is
+# installed or run, but `pnpm install --frozen-lockfile` reads every importer
+# in the lockfile, and dropping a workspace package fails the install. A few
+# megabytes of unused source is the cheaper trade.
+
+**/node_modules
+.pnpm-store
+
+# Rebuilt or regenerated in the image
+**/dist
+**/build
+packages/db/src/generated
+
+# Caches
+**/.turbo
+**/.tanstack
+**/.expo
+**/.vite
+coverage
+**/*.tsbuildinfo
+
+# Not part of the runtime
+.git
+.github
+docs
+README.md
+biome.json
+**/*.log
+
+# Secrets never enter an image; the platform supplies the environment.
+.env
+.env.*

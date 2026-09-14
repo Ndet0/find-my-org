@@ -109,6 +109,66 @@ It does nothing once an administrator exists, so it is safe in a release
 command. Change the password from the profile screen after signing in — there
 is no password reset.
 
+## Deployment
+
+The API is a container ([`apps/api/Dockerfile`](apps/api/Dockerfile)), the web
+app is a static build, and [`render.yaml`](render.yaml) declares both plus
+managed PostgreSQL. See
+[`docs/technical_architecture.md`](docs/technical_architecture.md) §36 for the
+decisions behind it.
+
+Exercise the image before a platform does:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+docker compose -f docker-compose.prod.yml exec api pnpm --filter @opsflow/db migrate:deploy
+docker compose -f docker-compose.prod.yml exec api pnpm --filter @opsflow/db run seed
+curl http://localhost:3001/api/health
+```
+
+It runs beside `pnpm dev` on its own ports and its own volume. A browser
+sign-in will not work there: `NODE_ENV=production` marks the session cookie
+`Secure`, and the stack is plain http.
+
+### The two services have to look like one origin
+
+`onrender.com` is on the Public Suffix List, so `opsflow-web.onrender.com` and
+`opsflow-api.onrender.com` are cross-site to each other and a browser will not
+send the `SameSite=Lax` session cookie from one to the other. Sign-in returns
+200 and every request after it is anonymous, so the app bounces back to the
+login page with nothing in the logs about cookies.
+
+Either put both services on one registrable domain (`app.<domain>` and
+`api.<domain>`), or use the `/api/*` rewrite in [`render.yaml`](render.yaml),
+which makes the API answer on the web app's own origin. The rewrite is
+unverified: Render documents rewrites to external URLs but not whether POST,
+request cookies and `Set-Cookie` survive them, and sign-in needs all three.
+
+Test it on the first deploy, against the *static site's* URL:
+
+```bash
+SITE=https://opsflow-web.onrender.com
+
+# 1. Does the proxy forward GET at all?
+curl -s $SITE/api/health
+
+# 2. Does it forward POST, and does a Set-Cookie come back?
+curl -si -X POST $SITE/api/auth/sign-in/email \
+  -H 'Content-Type: application/json' -H "Origin: $SITE" \
+  -d '{"email":"admin@example.com","password":"…"}' | rg -i "^HTTP|^set-cookie"
+
+# 3. Does the cookie work on the way back in?
+curl -s -c /tmp/j -X POST $SITE/api/auth/sign-in/email \
+  -H 'Content-Type: application/json' -H "Origin: $SITE" \
+  -d '{"email":"admin@example.com","password":"…"}' > /dev/null
+curl -s -b /tmp/j $SITE/api/me
+```
+
+Step 1 failing means rewrites do not proxy externally at all. Step 2 returning
+405 or an HTML page means GET only. Step 3 returning 401 means the cookie is
+not surviving the hop. Any of the three sends you to a custom domain, or to
+serving the built SPA from the Hono app so there is only one service.
+
 ## Mobile app
 
 ```bash

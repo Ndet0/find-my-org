@@ -1,0 +1,99 @@
+# OPSflow on Render: the API as a Docker service, the web app as a static
+# site, and managed PostgreSQL. See docs/technical_architecture.md §36.
+#
+# THE TWO SERVICES MUST LOOK LIKE ONE ORIGIN TO THE BROWSER. `onrender.com` is
+# on the Public Suffix List, so `opsflow-web.onrender.com` and
+# `opsflow-api.onrender.com` are cross-site to each other. The session cookie
+# is `SameSite=Lax` (packages/auth), which a browser never attaches to a
+# cross-site fetch: sign-in would return 200 and every request after it would
+# be anonymous, which reads as a session bug rather than a DNS one.
+#
+# Two ways to satisfy that, and this file is set up for the second:
+#
+#   1. Custom domains — `app.<domain>` and `api.<domain>`, one registrable
+#      domain. The architecture §36 assumes this and it needs no proxying.
+#   2. The `/api/*` rewrite on the static site below. Render rewrites are
+#      invisible to the browser, so the app calls its own origin and the
+#      cookie is first-party. UNVERIFIED: the rewrite documentation does not
+#      say whether non-GET methods, request cookies and Set-Cookie responses
+#      survive the proxy, and sign-in needs all three. Test it on the first
+#      deploy (the procedure is in README.md) before relying on it.
+#
+# Under option 2, VITE_API_URL is the *static site's own* URL, not the API's.
+# That is the whole trick: the browser only ever talks to one origin.
+#
+# The `sync: false` values are entered in the dashboard on first sync.
+
+services:
+  - type: web
+    name: opsflow-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    # Migrations run as the database owner, before the new instance starts.
+    # prisma.config.ts reads DATABASE_URL, so the owner's URL is passed under
+    # that name for the length of this command only; the server itself never
+    # holds a role that can change the schema.
+    preDeployCommand: DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
+    envVars:
+      # The image sets this too. Declared here so the dashboard shows what the
+      # service runs as, and so it survives someone editing the Dockerfile.
+      - key: NODE_ENV
+        value: production
+      # A base64-encoded 256-bit value: past the 32-character floor
+      # packages/auth enforces, and never seen by a person.
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # The API's own role: DML on the application schema, no DDL. Created by
+      # hand as the owner (docs/technical_architecture.md §36), because Render
+      # only exposes the owner's connection string.
+      - key: DATABASE_URL
+        sync: false
+      # The owner, used only by preDeployCommand above.
+      - key: MIGRATE_DATABASE_URL
+        fromDatabase:
+          name: opsflow-db
+          property: connectionString
+      # The origin the browser is on — the static site's URL under option 2
+      # (https://opsflow-web.onrender.com), or https://app.<domain> under
+      # option 1. It is the CORS allow-list and Better Auth's trusted origin,
+      # and the proxied request still carries the browser's Origin header, so
+      # it must name where the browser is, not where the request lands.
+      - key: WEB_URL
+        sync: false
+      # This service's own URL: https://opsflow-api.onrender.com, or
+      # https://api.<domain> under option 1.
+      - key: BETTER_AUTH_URL
+        sync: false
+
+  - type: web
+    name: opsflow-web
+    runtime: static
+    buildCommand: pnpm install --frozen-lockfile --filter @opsflow/web... && pnpm --filter @opsflow/web build
+    staticPublishPath: ./apps/web/dist
+    # Order matters: Render applies the first matching rule, and only when no
+    # file exists at that path.
+    routes:
+      # Makes the API answer on this origin, so the session cookie is
+      # first-party. Replace the host if the API service is renamed; a custom
+      # domain on both services would remove the need for this rule entirely.
+      - type: rewrite
+        source: /api/*
+        destination: https://opsflow-api.onrender.com/api/*
+      # TanStack Router owns every path below `/`, and the build is a single
+      # index.html. Without this rewrite, a refresh or a shared link on
+      # /projects/:id is Render's 404 rather than the app's route.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # This service's own URL, not the API's — see the header. Vite inlines
+      # it at build time, so changing it is a rebuild, not a restart.
+      - key: VITE_API_URL
+        sync: false
+
+databases:
+  - name: opsflow-db
+    databaseName: opsflow
+    postgresMajorVersion: '16'

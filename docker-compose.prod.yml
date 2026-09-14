@@ -1,0 +1,79 @@
+# A production-like run of the API image against a throwaway database, to
+# exercise the container before a deployment does.
+#
+#   docker compose -f docker-compose.prod.yml up --build -d
+#   docker compose -f docker-compose.prod.yml exec api pnpm --filter @opsflow/db migrate:deploy
+#   docker compose -f docker-compose.prod.yml exec api pnpm --filter @opsflow/db run seed
+#   docker compose -f docker-compose.prod.yml exec \
+#     -e ADMIN_NAME="Ada Admin" -e ADMIN_EMAIL="admin@example.com" -e ADMIN_PASSWORD="…" \
+#     api pnpm bootstrap:admin
+#   curl http://localhost:3001/api/health
+#
+# What this proves: the image builds, the server binds the injected port, the
+# migrations apply, the first administrator can be created, and the health
+# probe reports a live database.
+#
+# What it cannot prove: a browser sign-in. NODE_ENV=production sets `Secure`
+# on the session cookie, so a browser on plain http will not store it, and the
+# API is not reachable over https here. Use `pnpm dev` for the app itself.
+#
+# This is a separate stack from docker-compose.yml, on its own port and its own
+# volume, so it never touches the development database.
+
+name: opsflow-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opsflow
+      POSTGRES_PASSWORD: opsflow
+      POSTGRES_DB: opsflow
+    # 5434 is the development database (docker-compose.yml).
+    ports:
+      - "5435:5432"
+    volumes:
+      - opsflow-prod-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsflow -d opsflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      # Stands in for the port a platform assigns; the server prefers it over
+      # API_PORT, which is what a deployment relies on.
+      PORT: 3000
+      DATABASE_URL: postgresql://opsflow:opsflow@postgres:5432/opsflow?schema=public
+      # Throwaway stack, throwaway accounts: this only has to be 32+ characters
+      # and not the .env.example placeholder, which packages/auth refuses.
+      BETTER_AUTH_SECRET: local-production-like-value-not-a-secret-00
+      BETTER_AUTH_URL: http://localhost:3001
+      WEB_URL: http://localhost:5173
+    # 3000 is the development API (`pnpm dev`), so this stack can run beside it.
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Uses the Node in the image rather than adding curl for one line.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  opsflow-prod-pgdata:

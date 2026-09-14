@@ -2724,9 +2724,75 @@ chosen; the decisions are written into
   from its host or every deep link is the host's 404, `VITE_API_URL` and
   `EXPO_PUBLIC_API_URL` being build-time values, and `/api/health` as the
   platform probe. §32 gained `PORT` and the bootstrap variables
-- [ ] Dockerfile for the API, `.dockerignore`, and a production-like compose
-- [ ] Provision the host: database, both services, custom domain, `https`
-  `BETTER_AUTH_URL` and `WEB_URL`, the least-privilege role, a restore drill
+- [x] **The image.** [`apps/api/Dockerfile`](../apps/api/Dockerfile) on
+  `node:24-bookworm-slim` with Bun installed on top, and the server run from
+  TypeScript source — Prisma 7's generator emits plain TypeScript, so there is
+  nothing to bundle. Both runtimes are there because Bun serves and Node runs
+  the Prisma CLI, whose schema engine wants glibc; Render runs the pre-deploy
+  migration and the start command in the same image, so the migration tooling
+  cannot live in a build stage, and the development dependencies stay for the
+  same reason. `NODE_ENV=production` is set in the image, because `env.ts`
+  falls back to `development` and that fallback quietly disables `Secure`
+  cookies, the rate limiter and the production CORS allow-list. `USER node`
+  serves; nothing needs write access
+- [x] **Install cost, measured rather than assumed.** The first two builds
+  failed: 732 packages over a slow registry, timing out on the large binaries.
+  Two findings. `--filter @opsflow/api...` does select only the five API
+  projects, and `turbo prune` produces an identical set, so this is not a
+  workspace-filtering problem: `packages/auth` depends on `@better-auth/expo`
+  for the mobile session plugin, and pnpm installs that plugin's peers, so
+  react-native, Hermes and Metro are in an API image's closure. The install
+  now runs with a BuildKit cache mount for the pnpm store and raised fetch
+  retries and timeout, which is also what makes a rebuild cheap. The image is
+  about 2 GB; splitting the Expo plugin behind its own entry point in
+  `packages/auth` is the fix if that starts to matter, recorded under
+  "Known gaps"
+- [x] **The blueprint.** [`render.yaml`](../render.yaml): the API as
+  `runtime: docker` with `healthCheckPath: /api/health`, the web as
+  `runtime: static` with a `rewrite` from `/*` to `/index.html`, and managed
+  Postgres 16. `BETTER_AUTH_SECRET` is `generateValue: true` — a base64 256-bit
+  value, past the 32-character floor and never seen by a person. The two-role
+  database is two variables: the owner arrives as `MIGRATE_DATABASE_URL` and
+  the pre-deploy command passes it as `DATABASE_URL` for the length of the
+  migration only, so the server never holds a role that can change the schema
+- [x] **Custom domains are required, not optional.** The Phase 18 plan says
+  "Custom domain if applicable"; it is not optional. `onrender.com` is on the
+  Public Suffix List, so `opsflow-web.onrender.com` and
+  `opsflow-api.onrender.com` are cross-site to each other and a browser will
+  not attach the `SameSite=Lax` session cookie (Phase 17) to the web app's
+  requests. Sign-in would return 200 and every request after it would be
+  anonymous. `app.<domain>` and `api.<domain>` on one registrable domain are
+  part of the deployment
+- [x] **Verified in the container**, not by reading it. The image builds;
+  `docker compose -f docker-compose.prod.yml` brings up Postgres and the API
+  and both report healthy; `migrate deploy` applies all three migrations as
+  the `node` user, which is what the glibc argument was for; the reference
+  seed runs (and confirms the missing `.env` in the image is harmless — Bun
+  ignores `--env-file` when the file is absent and the container's variables
+  are read instead); `/api/health` reports a live database; a protected route
+  with no cookie is a 401 in the envelope and an unknown route a 404; the logs
+  carry method, path, status and time and nothing else
+- [x] **The workspace.** Render MCP connected (the plugin authenticates by
+  OAuth; the reload is what made its tools work, not an API key). One
+  workspace, `My Workspace` — two unrelated free services on it and no
+  Postgres, so `opsflow-api`, `opsflow-web` and `opsflow-db` all land clean.
+  Two consequences of the free plan: its Postgres expires after 30 days, and
+  `preDeployCommand` needs a paid instance, so the first `migrate deploy` runs
+  from a local shell — the fallback §36 already carries
+- [-] **One origin without a domain, under test.** No custom domain is
+  available, so the blueprint now carries a `/api/*` rewrite on the static
+  site to the API service. A Render rewrite is invisible to the browser, so
+  the app calls its own origin and the cookie is first-party;
+  `VITE_API_URL` is therefore the static site's own URL. Unverified, and the
+  documentation does not settle it: rewrites to an external URL are
+  documented, but not whether POST, the request cookie and `Set-Cookie`
+  survive the hop, and sign-in needs all three. The README carries the three
+  curl probes that decide it. If it fails, the fallback is serving the SPA
+  from Hono — no web code changes, because `apiFetch` and the auth client
+  both build from `VITE_API_URL`; it costs a static middleware, a web build
+  stage in the image, and independent deployability
+- [ ] Provision the host: database, both services, `https` `BETTER_AUTH_URL`
+  and `WEB_URL`, the least-privilege role, a restore drill
 - [ ] `expo-font`, then the Android build
 - [ ] Git hooks
 
@@ -2797,7 +2863,15 @@ chosen; the decisions are written into
   control can be opened; the client form was chosen for the form tests
   because it has none. `user-form.test.tsx` drives the user form through its
   text inputs only, which is enough to pin the diffed payload.
-- There is no Dockerfile and no git hooks yet (Phase 18). CI exists (Phase 16).
+- There are no git hooks yet (Phase 18). CI exists (Phase 16).
+- The API image is about 2 GB. `packages/auth` exports Better Auth configured
+  with the Expo plugin, so `@better-auth/expo` is a dependency of everything
+  that imports it, and pnpm installs the plugin's peers: react-native, Hermes
+  and Metro are in the API's dependency closure, roughly 730 packages for a
+  server that loads none of them. Moving the plugin behind its own entry point
+  (`@opsflow/auth/expo`, imported only where a mobile session is configured)
+  would separate them. Not done: it touches the auth package every client
+  shares, for a cost that is currently only build time.
 - The bootstrap administrator's password arrives as an environment variable and
   is never rotated by the tool that set it. Whoever runs the deployment should
   change it from the profile screen after the first sign-in, and there is no
@@ -2877,10 +2951,18 @@ environment. The API binds the port the platform injects. §36 of the
 architecture, still the pre-build diagram until now, carries the rest of the
 decisions.
 
+The API is now a container and the Render topology is a committed blueprint
+(§24), both exercised locally: the image builds, the stack comes up healthy,
+and `migrate deploy` runs inside it. One finding changes what the phase needs
+from the operator — `onrender.com` is on the Public Suffix List, so Render's
+own subdomains are cross-site to each other and the `SameSite=Lax` session
+cookie is never sent. A custom domain on both services is a requirement, and
+"Custom domain if applicable" in the Phase 18 plan above understates it.
+
 Next:
 
 ```text
-1. Phase 18 — Dockerfile for the API, then provision the host
+1. Phase 18 — provision the host: database, services, custom domain
 ```
 
 Phase 18's remaining inputs from Phase 17: the production database needs a
