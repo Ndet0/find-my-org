@@ -138,13 +138,15 @@ send the `SameSite=Lax` session cookie from one to the other. Sign-in returns
 200 and every request after it is anonymous, so the app bounces back to the
 login page with nothing in the logs about cookies.
 
-Either put both services on one registrable domain (`app.<domain>` and
-`api.<domain>`), or use the `/api/*` rewrite in [`render.yaml`](render.yaml),
-which makes the API answer on the web app's own origin. The rewrite is
-unverified: Render documents rewrites to external URLs but not whether POST,
-request cookies and `Set-Cookie` survive them, and sign-in needs all three.
+The deployment uses the `/api/*` rewrite in [`render.yaml`](render.yaml),
+which makes the API answer on the web app's own origin, so `VITE_API_URL` is
+the static site's URL. Render documents rewrites to external URLs but not
+whether POST, request cookies and `Set-Cookie` survive them; they do, as
+verified on the live site on 2026-09-15. A custom domain on both services
+(`app.<domain>` and `api.<domain>`) would make the rule unnecessary.
 
-Test it on the first deploy, against the *static site's* URL:
+Repeat these probes against the *static site's* URL after any change to the
+routes, or if sign-in starts bouncing back to the login page:
 
 ```bash
 SITE=https://opsflow-web-18mx.onrender.com
@@ -168,6 +170,12 @@ Step 1 failing means rewrites do not proxy externally at all. Step 2 returning
 405 or an HTML page means GET only. Step 3 returning 401 means the cookie is
 not surviving the hop. Any of the three sends you to a custom domain, or to
 serving the built SPA from the Hono app so there is only one service.
+
+The services are on Render's free tier: the API spins down after 15 idle
+minutes and the first request afterwards waits for the cold start. There is no
+pre-deploy command on free, so run `migrate deploy` against the External
+Database URL before deploying a commit that adds a migration (see "The first
+administrator" above for the seed steps).
 
 ## Mobile app
 

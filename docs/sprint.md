@@ -1299,7 +1299,7 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-13 — against the working tree, not from memory.
+**Last verified:** 2026-09-15 — against the working tree and the live Render deployment, not from memory.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -2687,14 +2687,15 @@ that only needed reading are recorded as reviewed.
 - [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` — 219 types,
   69 web, 49 mobile, 31 API = 368 pass
 
-## Phase 18 — Deployment (2026-09-14, in progress)
+## Phase 18 — Deployment (2026-09-14 → 2026-09-15, live; mobile build and hooks open)
 
-Target: Railway or Render — a container for the API, a static host for the web
-build, managed Postgres alongside — on one registrable domain
-(`app.<domain>`, `api.<domain>`), which is what `SameSite=Lax` requires
-(Phase 17). This slice is the part that does not depend on which of the two is
-chosen; the decisions are written into
-[`technical_architecture.md`](technical_architecture.md) §36.
+Host: Render — a container for the API, a static site for the web build,
+managed Postgres alongside. The two services present one origin to the
+browser through a `/api/*` rewrite on the static site, which is what
+`SameSite=Lax` requires (Phase 17); no custom domain is involved. The
+decisions are written into
+[`technical_architecture.md`](technical_architecture.md) §36. Live at
+`https://opsflow-web-18mx.onrender.com`.
 
 - [x] **The first administrator.** A fresh production database had no way in.
   Signup is blocked at the HTTP layer (`app.ts`), `POST /api/users` needs an
@@ -2755,14 +2756,14 @@ chosen; the decisions are written into
   database is two variables: the owner arrives as `MIGRATE_DATABASE_URL` and
   the pre-deploy command passes it as `DATABASE_URL` for the length of the
   migration only, so the server never holds a role that can change the schema
-- [x] **Custom domains are required, not optional.** The Phase 18 plan says
-  "Custom domain if applicable"; it is not optional. `onrender.com` is on the
-  Public Suffix List, so `opsflow-web.onrender.com` and
-  `opsflow-api.onrender.com` are cross-site to each other and a browser will
-  not attach the `SameSite=Lax` session cookie (Phase 17) to the web app's
-  requests. Sign-in would return 200 and every request after it would be
-  anonymous. `app.<domain>` and `api.<domain>` on one registrable domain are
-  part of the deployment
+- [x] **One origin is required, not optional.** The Phase 18 plan says
+  "Custom domain if applicable"; what is not optional is a single origin.
+  `onrender.com` is on the Public Suffix List, so `opsflow-web.onrender.com`
+  and `opsflow-api.onrender.com` are cross-site to each other and a browser
+  will not attach the `SameSite=Lax` session cookie (Phase 17) to the web
+  app's requests. Sign-in would return 200 and every request after it would
+  be anonymous. A custom domain (`app.<domain>` and `api.<domain>`) is one
+  way to get a single origin; the rewrite below is the one deployed
 - [x] **Verified in the container**, not by reading it. The image builds;
   `docker compose -f docker-compose.prod.yml` brings up Postgres and the API
   and both report healthy; `migrate deploy` applies all three migrations as
@@ -2795,29 +2796,55 @@ chosen; the decisions are written into
   owner credential sitting in the running container's environment with nothing
   to use it is exactly what the two-role split exists to prevent. Both are
   restored together if the service ever moves to a paid plan
-- [-] **One origin without a domain, under test.** No custom domain is
-  available, so the blueprint carries a `/api/*` rewrite on the static site
-  to `https://opsflow-api-hxy9.onrender.com/api/*`. A Render rewrite is
-  invisible to the browser, so the app calls its own origin and the cookie
-  is first-party; `VITE_API_URL` is therefore the static site's own URL
-  (`https://opsflow-web-18mx.onrender.com`). Unverified, and the
-  documentation does not settle it: rewrites to an external URL are
-  documented, but not whether POST, the request cookie and `Set-Cookie`
-  survive the hop, and sign-in needs all three. The README carries the three
-  curl probes that decide it. If it fails, the fallback is serving the SPA
-  from Hono — no web code changes, because `apiFetch` and the auth client
-  both build from `VITE_API_URL`; it costs a static middleware, a web build
-  stage in the image, and independent deployability
-- [ ] Seed production: `migrate deploy`, roles seed, and `bootstrap:admin`
-  against the External Database URL; then run the rewrite probes
-- [ ] `expo-font`, then the Android build
+- [x] **One origin without a domain, verified (2026-09-15).** No custom
+  domain is available, so the blueprint carries a `/api/*` rewrite on the
+  static site to `https://opsflow-api-hxy9.onrender.com/api/*`. A Render
+  rewrite is invisible to the browser, so the app calls its own origin and
+  the cookie is first-party; `VITE_API_URL` is therefore the static site's
+  own URL (`https://opsflow-web-18mx.onrender.com`). Render's documentation
+  does not say whether non-GET methods, request cookies and `Set-Cookie`
+  survive the proxy, so it was tested rather than assumed. Against the
+  static site's URL: `GET /api/health` answers the API's envelope with a
+  live database; `POST /api/auth/sign-in/email` with wrong credentials
+  answers the API's own JSON 401 with the browser's `Origin` still on the
+  request (the CORS reflection proves it), not Render's 405 or an HTML page;
+  `GET /api/me` with no cookie is the envelope's 401; and a deep link
+  (`/projects/:id`) is the SPA's `index.html`. Sign-in from a browser then
+  works end to end on the live site, which is the cookie surviving both
+  directions. The README keeps the three curl probes as the regression check
+  for any change to the routes. The fallback — serving the SPA from Hono —
+  was not needed and is recorded in §36 in case the proxy behaviour changes
+- [x] **Seeded.** `migrate deploy`, the roles-and-departments seed and
+  `bootstrap:admin` were run from a local shell against the External
+  Database URL, the procedure §36 carries for a free instance with no
+  pre-deploy command. The first administrator signs in on the live site
+- [ ] `expo-font`, then the Android build against
+  `EXPO_PUBLIC_API_URL=https://opsflow-api-hxy9.onrender.com` (the API's own
+  origin — a native app has no cookie-jar problem, so the rewrite is
+  irrelevant to it)
 - [ ] Git hooks
+- [ ] Try one restore of Render's database snapshot (§36: an untested backup
+  is a hypothesis)
 
 ## Known gaps in this plan
 
-- The session cookie is `SameSite=Lax`, chosen for a deployment where the web
-  app and the API share a registrable domain. A cross-site deployment needs
+- The session cookie is `SameSite=Lax`, so the web app and the API have to
+  present one origin to the browser. On Render that origin is produced by the
+  static site's `/api/*` rewrite (Phase 18), which is Render's proxy behaviour
+  rather than a documented contract: verified on 2026-09-15, and the README's
+  three curl probes are the check to repeat if sign-in ever starts bouncing
+  to the login page. A cross-site deployment would need
   `SameSite=None; Secure`, which Safari blocks by default (Phase 17).
+- The production instances are Render's free tier. The API spins down after
+  15 minutes idle, so the first request after a pause is a cold start of some
+  tens of seconds, and a browser sitting on the login page may see one failed
+  request before the service is up. The free database `opsflow-db` expires on
+  2026-10-14 unless upgraded or recreated (and re-seeded).
+- Migrations are a manual step in production. The free plan has no pre-deploy
+  command, so a deploy that includes a new migration must be preceded by
+  `migrate deploy` run from a local shell against the External Database URL,
+  or the new instance starts against the old schema. Nothing in CI or the
+  blueprint enforces the order.
 - The users table pages, but has no sortable columns. Sorting is a service-layer
   `orderBy` plus a search parameter; it was left out until a screen needs it.
   The product document (§29) also lists bulk actions; none exist.
@@ -2911,8 +2938,9 @@ chosen; the decisions are written into
 - [x] Phase 16 — Testing (closed 2026-09-14; rendered mobile screens deferred, see
   known gaps)
 - [x] Phase 17 — Security review (closed 2026-09-14; see above)
-- [-] Phase 18 — Deployment (started 2026-09-14; the host-independent
-  prerequisites are done, see above)
+- [-] Phase 18 — Deployment (started 2026-09-14; web, API and database live
+  on Render since 2026-09-15 and the acceptance criterion is met; the Android
+  build, git hooks and a backup restore remain, see above)
 - [ ] Phases 19-20 — Optional SaaS, demo
 
 ## Stack amendments
@@ -2959,33 +2987,39 @@ request bodies are bounded, the health probe times out, the cookie
 attributes and the rate-limit store are written down, and the dependency
 audit is recorded and repeated in CI. 368 tests.
 
-Phase 18 has started (§24), on Railway or Render: the part that does not
-depend on which one was done first. A fresh production database could not be
-signed in to at all — signup is closed, `POST /api/users` needs an admin
-session, and the development seed refuses production — so
-`pnpm bootstrap:admin` provisions the first administrator from the
-environment. The API binds the port the platform injects. §36 of the
-architecture, still the pre-build diagram until now, carries the rest of the
-decisions.
+Phase 18 is live (§24). OPSflow runs on Render: the API as a container
+(`apps/api/Dockerfile`) on the port the platform injects, the web app as a
+static site, managed Postgres 16 beside them, all declared in `render.yaml`.
+A fresh production database could not be signed in to at all — signup is
+closed, `POST /api/users` needs an admin session, and the development seed
+refuses production — so `pnpm bootstrap:admin` provisions the first
+administrator from the environment, and it has. §36 of the architecture
+carries the decisions.
 
-The API is now a container and the Render topology is a committed blueprint
-(§24), both exercised locally: the image builds, the stack comes up healthy,
-and `migrate deploy` runs inside it. One finding changes what the phase needs
-from the operator — `onrender.com` is on the Public Suffix List, so Render's
-own subdomains are cross-site to each other and the `SameSite=Lax` session
-cookie is never sent. A custom domain on both services is a requirement, and
-"Custom domain if applicable" in the Phase 18 plan above understates it.
+The finding that shaped the topology: `onrender.com` is on the Public Suffix
+List, so Render's own subdomains are cross-site to each other and the
+`SameSite=Lax` session cookie is never sent between them. Rather than a
+custom domain, the static site rewrites `/api/*` to the API service, so the
+browser only ever talks to one origin; that was unverified until 2026-09-15,
+when the curl probes in the README and a browser sign-in on the live site
+settled it. The acceptance criterion for the phase — accessible in a
+production-like environment — is met at
+`https://opsflow-web-18mx.onrender.com`.
 
 Next:
 
 ```text
-1. Phase 18 — provision the host: database, services, custom domain
+1. Phase 18 — the rest: expo-font and the Android build, git hooks,
+   one snapshot restore
+2. Phase 20 — demo preparation against the live site
+3. Phase 19 — optional SaaS / billing, only if there is time
 ```
 
-Phase 18's remaining inputs from Phase 17: the production database needs a
-least-privilege role for the API with `migrate deploy` run as the owner;
-`BETTER_AUTH_URL` and `WEB_URL` are `https`; `expo-font` is installed for the
-first development build. Add the `pg` deprecation warning the API tests print
+Operational notes for whoever deploys next: migrations are a manual
+`migrate deploy` against the External Database URL before the deploy, because
+the free plan has no pre-deploy command; the free database expires on
+2026-10-14; the API cold-starts after 15 idle minutes. All three are under
+"Known gaps". Add the `pg` deprecation warning the API tests print
 ("Calling client.query() when the client is already executing a query") to the
 `pg@9` upgrade note: it comes from Prisma's adapter, not the app.
 

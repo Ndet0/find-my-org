@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 3.2  
+**Version:** 3.3  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1499,7 +1499,7 @@ The variables the system actually reads:
 | `API_PORT`           | API          | Port the Hono server binds to locally            |
 | `PORT`               | API          | Port assigned by the platform; wins over the above |
 | `WEB_URL`            | API, Auth    | CORS allow-list and Better Auth trusted origin   |
-| `VITE_API_URL`       | Web (public) | API origin the browser calls                     |
+| `VITE_API_URL`       | Web (public) | Origin the browser calls for `/api`; on Render, the static site's own URL (§36) |
 
 
 `WEB_URL` has no default. It is both the CORS allow-list and Better Auth's
@@ -1540,7 +1540,7 @@ forms.
 ### Session cookie
 
 `SameSite=Lax`, `HttpOnly`, and `Secure` in production. The web app and the
-API deploy on one registrable domain; a cross-site deployment would need
+API present one origin to the browser (§36); a cross-site deployment would need
 `SameSite=None`, which Safari blocks by default. On a device there is no
 cookie jar: the Expo plugin keeps the cookie in SecureStore and the API
 client attaches it by hand (§6).
@@ -1703,38 +1703,44 @@ A production deployment may follow:
 The web, API, and database are independently deployable. The decisions taken
 in Phase 18 (sprint §24), and what each one constrains:
 
-### One registrable domain, and why a custom domain is mandatory
+### One origin, and how Render provides it
 
-The web app and the API are deployed as `app.<domain>` and `api.<domain>` on
-Render, with its managed Postgres alongside — declared in
+The web app and the API are two Render services — a static site and a Docker
+web service — with managed Postgres alongside, declared in
 [`render.yaml`](../render.yaml). The session cookie is `SameSite=Lax` (§33),
-which only works if the two share a registrable domain.
+which only works if the browser sees the two as one site.
 
-Render's own subdomains do not satisfy that. `onrender.com` is on the Public
-Suffix List, so `opsflow-web.onrender.com` and `opsflow-api.onrender.com` are
-cross-site to each other, exactly as `example.co.uk` and `other.co.uk` are.
-A browser will not attach a `Lax` cookie to a cross-site request, so sign-in
-would return 200, store the cookie, and leave every request after it
-anonymous — a failure that looks like a session bug rather than a DNS
-decision. A custom domain on both services is therefore part of the
-deployment, not a finishing touch.
+Render's own subdomains do not satisfy that on their own. `onrender.com` is on
+the Public Suffix List, so `opsflow-web-18mx.onrender.com` and
+`opsflow-api-hxy9.onrender.com` are cross-site to each other, exactly as
+`example.co.uk` and `other.co.uk` are. A browser will not attach a `Lax`
+cookie to a cross-site request, so sign-in would return 200, store the
+cookie, and leave every request after it anonymous — a failure that looks
+like a session bug rather than a DNS decision.
 
-What the cookie actually needs is not a custom domain but a single origin, and
-there are three ways to get one. A custom domain on both services is the
-architecture above. Render's static sites also allow a rewrite whose
-destination is a full URL, so `/api/*` on the web origin can be served from
-the API service — invisible to the browser, which then only ever talks to one
-host; that is what [`render.yaml`](../render.yaml) is currently set up for,
-with `VITE_API_URL` pointing at the static site's own URL rather than the
-API's. It is unverified: Render documents the rewrite but not whether non-GET
-methods, request cookies and `Set-Cookie` responses survive the proxy, and
-sign-in needs all three, so the first deploy has to test it (README).
+There are three ways to a single origin. The one deployed is a rewrite: a
+Render static site can rewrite a path to a full URL, so `/api/*` on the web
+origin is served by the API service, invisibly to the browser, which then
+only ever talks to one host. `VITE_API_URL` is therefore the static site's
+own URL, not the API's, and the session cookie is first-party. Render
+documents the rewrite but not whether non-GET methods, request cookies and
+`Set-Cookie` responses survive the proxy, and sign-in needs all three, so it
+was verified on the live site on 2026-09-15 rather than assumed: `POST`
+reaches the API with the browser's `Origin` intact and its JSON comes back,
+and a browser sign-in holds its session across requests. The README keeps
+the curl probes as the check to repeat if that ever regresses. Two
+consequences of the proxy: the API still sees the browser's `Origin`, so
+`WEB_URL` names the static site; and `BETTER_AUTH_URL` names the API service
+itself, where the request actually lands.
 
-The third way is serving the built SPA from the Hono app, which is certain to
-work and needs no web code change — `apiFetch` and the auth client both build
-their URLs from `VITE_API_URL`, so pointing it at the one service's own origin
-is enough — at the cost of a static middleware, a web build stage in the API
-image, and the independent deployability this section rests on.
+The second way is a custom domain on both services — `app.<domain>` and
+`api.<domain>` on one registrable domain — which needs no proxying and
+would remove the rewrite rule. The third is serving the built SPA from the
+Hono app, which needs no web code change — `apiFetch` and the auth client
+both build their URLs from `VITE_API_URL` — at the cost of a static
+middleware, a web build stage in the API image, and the independent
+deployability this section rests on. Either is a drop-in if the rewrite's
+behaviour changes.
 
 `SameSite=None` was rejected outright: Safari's tracking protection blocks it
 by default (§33).
@@ -1792,13 +1798,18 @@ owner's URL under that name for the length of the migration and nowhere else:
 DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
 ```
 
-Render's pre-deploy command may require a paid instance type. Where it is not
-available, the same command run once from a local shell against the production
-database is the equivalent; the first migration happens before the service is
-ever healthy either way.
+Render's pre-deploy command requires a paid instance type, and the deployed
+services are free, so the command is commented out in the blueprint and the
+same `migrate deploy` is run from a local shell against the database's
+External URL before any deploy that carries a migration. The seed and
+`bootstrap:admin` were run the same way. The order is the operator's to keep:
+nothing stops a deploy from starting against a schema its migration has not
+reached yet.
+
 Backups are the managed provider's scheduled snapshots; the only application
 requirement is that a restore be tried once, because an untested backup is a
-hypothesis.
+hypothesis. The free database instance also expires after 30 days
+(2026-10-14) unless upgraded.
 
 ### First administrator
 
@@ -2156,4 +2167,4 @@ than only the outcome.
 | The API binds `PORT ?? API_PORT` | Railway and Render assign the port and inject it as `PORT`. Binding `API_PORT` in a deployment means the health check never answers |
 | `pnpm bootstrap:admin` provisions the first administrator from the environment | A fresh production database had no way in: signup is closed at the HTTP layer, `POST /api/users` needs an admin session, and the development seed refuses to run in production. It is a no-op once an administrator exists, so a release command can keep calling it. See §36 |
 | The API image is Debian slim carrying both Node and Bun, and runs the server from TypeScript source | Bun runs the server; Node runs the Prisma CLI, whose schema engine needs glibc. Render runs the pre-deploy migration and the server in one image, so a bundle-only image could not migrate. Prisma 7 emits plain TypeScript, so there is nothing to bundle anyway. See §36 |
-| Custom domains are a deployment requirement, not an option | `onrender.com` is on the Public Suffix List, so Render's own subdomains are cross-site to each other and a `SameSite=Lax` session cookie is never sent. Sign-in would appear to work and nothing after it would. See §36 |
+| One origin is a deployment requirement; on Render it is a `/api/*` rewrite on the static site | `onrender.com` is on the Public Suffix List, so Render's own subdomains are cross-site to each other and a `SameSite=Lax` session cookie is never sent between them. Sign-in would appear to work and nothing after it would. The rewrite makes the API answer on the web app's origin; verified on the live site 2026-09-15. A custom domain on both services is the alternative. See §36 |

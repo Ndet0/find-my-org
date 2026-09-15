@@ -11,13 +11,14 @@
 # Two ways to satisfy that, and this file is set up for the second:
 #
 #   1. Custom domains — `app.<domain>` and `api.<domain>`, one registrable
-#      domain. The architecture §36 assumes this and it needs no proxying.
+#      domain. Needs no proxying; §36 records it as the alternative.
 #   2. The `/api/*` rewrite on the static site below. Render rewrites are
 #      invisible to the browser, so the app calls its own origin and the
-#      cookie is first-party. UNVERIFIED: the rewrite documentation does not
-#      say whether non-GET methods, request cookies and Set-Cookie responses
-#      survive the proxy, and sign-in needs all three. Test it on the first
-#      deploy (the procedure is in README.md) before relying on it.
+#      cookie is first-party. The rewrite documentation does not say whether
+#      non-GET methods, request cookies and Set-Cookie responses survive the
+#      proxy, and sign-in needs all three; verified on the live site on
+#      2026-09-15 (the probes are in README.md — repeat them after changing
+#      these routes).
 #
 # Under option 2, VITE_API_URL is the *static site's own* URL, not the API's.
 # That is the whole trick: the browser only ever talks to one origin.
