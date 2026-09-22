@@ -32,7 +32,7 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
       >
         Skip to content
       </a>
-      <aside className="flex shrink-0 flex-col border-b bg-sidebar md:w-60 md:border-r md:border-b-0">
+      <aside className="sticky top-0 z-40 flex max-h-svh shrink-0 flex-col border-b bg-sidebar md:h-svh md:w-60 md:border-r md:border-b-0">
         <div className="flex items-center justify-between gap-2 px-5 py-4 md:justify-start">
           <span className="font-semibold tracking-tight">OPSflow</span>
           <div className="flex items-center gap-2 md:hidden">
