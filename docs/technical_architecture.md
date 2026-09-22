@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 3.3  
+**Version:** 3.4  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -1826,9 +1826,51 @@ run under `NODE_ENV=production`.
 
 ### Mobile
 
+The Android app is built locally, not on EAS: `expo prebuild` generates the
+native project and Gradle builds it. `apps/mobile/android/` is gitignored
+(Continuous Native Generation) — `app.json` and `app.config.js` are the
+source, and `pnpm --filter @opsflow/mobile prebuild:android` regenerates the
+tree with `--clean`. Anything that has to survive regeneration is a config
+plugin, not a hand edit. iOS is declared (`ios.bundleIdentifier`) and not
+built; there is no macOS in the loop.
+
 `EXPO_PUBLIC_API_URL` is inlined at bundle time, so a release build is tied to
-the API origin it was built against. `expo-font` has to be installed before
-the first native build; inside Expo Go it is not needed.
+the API origin it was built against. The inlining happens inside Gradle's
+`createBundleReleaseJsAndAssets` (Expo's `export:embed`), not at prebuild, and
+`@expo/cli` reads `.env` from `apps/mobile`, not the repository root — so the
+variable has to be in Gradle's environment. `build:android` refuses to start
+without it; the root `.env` holds the development URL and is deliberately not
+loaded by that script. A release is built against the API's own origin
+(`https://opsflow-api-hxy9.onrender.com`): a native app has no cookie jar and
+presents `opsflow://` as its origin, so the static site's rewrite (above) is
+irrelevant to it.
+
+Signing is `apps/mobile/plugins/withReleaseSigning.js`. It patches the
+generated `app/build.gradle` with a `release` signing config read from four
+global Gradle properties — `OPSFLOW_UPLOAD_STORE_FILE`,
+`OPSFLOW_UPLOAD_STORE_PASSWORD`, `OPSFLOW_UPLOAD_KEY_ALIAS`,
+`OPSFLOW_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` — and falls
+back to the template's debug keystore when they are absent, so a fresh clone
+still builds. The plugin throws if the template text it patches has changed,
+because a silent no-op would ship a debug-signed release. The keystore lives
+outside the repository; an installed build can only be updated by an APK
+signed with the same key, so it is backed up, not regenerated.
+
+Two dependencies exist only because of pnpm's isolated layout. `@babel/core`
+and `@babel/plugin-transform-react-jsx` are direct dev dependencies of
+`apps/mobile` because `babel-preset-expo` names the JSX transform as a
+string, Babel resolves that name from the directory of `babel.config.js`,
+and nothing else links it into `apps/mobile/node_modules`; the release
+bundle failed on `expo-router/entry.js` before they were added, while Expo
+Go's development transform never asked for it. The same shape as
+`react-native-css-interop` (§43).
+
+Versioning is `version` and `android.versionCode` in `app.json`; the
+workspace `package.json` versions stay `0.0.0`. `expo-font` and
+`expo-system-ui` are direct dependencies because a native build autolinks
+only what the app declares — Expo Go bundled both, which is why the
+`userInterfaceStyle` dark-mode switch and the vector icons worked there
+without them.
 
 ---
 
@@ -2167,4 +2209,7 @@ than only the outcome.
 | The API binds `PORT ?? API_PORT` | Railway and Render assign the port and inject it as `PORT`. Binding `API_PORT` in a deployment means the health check never answers |
 | `pnpm bootstrap:admin` provisions the first administrator from the environment | A fresh production database had no way in: signup is closed at the HTTP layer, `POST /api/users` needs an admin session, and the development seed refuses to run in production. It is a no-op once an administrator exists, so a release command can keep calling it. See §36 |
 | The API image is Debian slim carrying both Node and Bun, and runs the server from TypeScript source | Bun runs the server; Node runs the Prisma CLI, whose schema engine needs glibc. Render runs the pre-deploy migration and the server in one image, so a bundle-only image could not migrate. Prisma 7 emits plain TypeScript, so there is nothing to bundle anyway. See §36 |
+| The Android app is built locally with Continuous Native Generation; `android/` is not committed and CI does not build it | `expo prebuild` regenerates the native project from `app.json`, so a checked-in tree would only drift. EAS was not needed: the SDK, NDK and JDK are on the build machine. See §36 |
+| Release signing is a config plugin reading global Gradle properties, with a debug-keystore fallback | Hand edits to a generated `build.gradle` do not survive `prebuild --clean`; the properties keep the keystore out of the repository, and the fallback keeps `build:android` runnable from a fresh clone. See §36 |
+| Application id `org.thegreengen.opsflow`; `app.json` `version` and `versionCode` are the mobile release numbers | The id is permanent once installed on a device, so it is the reverse of the owner's domain. The workspace `package.json` versions stay `0.0.0` |
 | One origin is a deployment requirement; on Render it is a `/api/*` rewrite on the static site | `onrender.com` is on the Public Suffix List, so Render's own subdomains are cross-site to each other and a `SameSite=Lax` session cookie is never sent between them. Sign-in would appear to work and nothing after it would. The rewrite makes the API answer on the web app's origin; verified on the live site 2026-09-15. A custom domain on both services is the alternative. See §36 |

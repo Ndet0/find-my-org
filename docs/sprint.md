@@ -3009,8 +3009,7 @@ production-like environment — is met at
 Next:
 
 ```text
-1. Phase 18 — the rest: expo-font and the Android build, git hooks,
-   one snapshot restore
+1. Phase 18 — the rest: git hooks, one snapshot restore
 2. Phase 20 — demo preparation against the live site
 3. Phase 19 — optional SaaS / billing, only if there is time
 ```
@@ -3027,11 +3026,12 @@ CI runs lint, typecheck, the API tests and the build on every push and pull
 request, so each commit from here is verified.
 
 Two `expo-doctor` notes are carried, not fixed: `typescript` 7 against the
-SDK's expected 6 (accepted in Phase 13, the typecheck passes) and
-`expo-font` as a direct dependency for `@expo/vector-icons`, which only
-matters for a native build outside Expo Go — install it with
-`npx expo install expo-font` when the first development build is made
-(Phase 18).
+SDK's expected 6 (accepted in Phase 13, the typecheck passes), and the patch
+versions of the Expo packages sitting one or two behind the SDK's current
+line, which are pinned and upgraded together. `expo-font` was the third and
+is closed by the Android build (§24). The doctor's "app.json is not used by
+app.config.js" check is a false positive: `app.config.js` requires
+`app.json` and spreads it.
 
 Do not begin building all remaining modules simultaneously.
 

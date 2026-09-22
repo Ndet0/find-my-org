@@ -194,6 +194,26 @@ The app icon, adaptive icon, splash image and favicon under `apps/mobile/assets`
 are drawn by `pnpm --filter @opsflow/mobile assets` from the palette in
 `packages/ui/src/palette.json`; re-run it after changing the palette.
 
+### Android release build
+
+Built locally with the Android SDK, not on EAS. `apps/mobile/android/` is
+generated and gitignored; `app.json` is the source.
+
+```bash
+export ANDROID_HOME=$HOME/Android/Sdk
+pnpm --filter @opsflow/mobile prebuild:android        # regenerate android/ (only after app.json or a plugin changes)
+EXPO_PUBLIC_API_URL=https://opsflow-api-hxy9.onrender.com \
+  pnpm --filter @opsflow/mobile build:android         # apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+`EXPO_PUBLIC_API_URL` is inlined during the Gradle build, so it is passed on
+the command line rather than read from `.env`, which holds the development
+URL; the script refuses to run without it. The APK is signed with the
+keystore named by `OPSFLOW_UPLOAD_STORE_FILE`, `OPSFLOW_UPLOAD_STORE_PASSWORD`,
+`OPSFLOW_UPLOAD_KEY_ALIAS` and `OPSFLOW_UPLOAD_KEY_PASSWORD` in
+`~/.gradle/gradle.properties`; without them the build falls back to the debug
+keystore, which installs but cannot update a release-signed install.
+
 ## Layout
 
 ```

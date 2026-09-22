@@ -9,6 +9,8 @@
     "ios": "bun --env-file=../../.env run expo start --ios",
     "web": "bun --env-file=../../.env run expo start --web",
     "export:web": "bun --env-file=../../.env run expo export --platform web",
+    "prebuild:android": "expo prebuild --platform android --clean --no-install",
+    "build:android": ": \"${EXPO_PUBLIC_API_URL:?set to the API origin the release is built against}\" && cd android && ./gradlew assembleRelease",
     "assets": "node scripts/make-assets.mjs",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
@@ -23,12 +25,14 @@
     "better-auth": "^1.7.2",
     "expo": "~57.0.20",
     "expo-constants": "~57.0.17",
+    "expo-font": "~57.0.4",
     "expo-linking": "~57.0.9",
     "expo-network": "~57.0.1",
     "expo-router": "~57.0.19",
     "expo-secure-store": "~57.0.3",
     "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
     "expo-web-browser": "~57.0.2",
     "nativewind": "^4.2.6",
     "react": "19.2.3",
@@ -44,6 +48,8 @@
     "zod": "4.5.2"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/plugin-transform-react-jsx": "^7.29.7",
     "@opsflow/config": "workspace:*",
     "@types/bun": "latest",
     "@types/react": "~19.2.2",
