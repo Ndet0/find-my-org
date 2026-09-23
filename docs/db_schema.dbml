@@ -133,7 +133,7 @@ Table users {
 // ============================================================
 // BETTER AUTH TABLES
 //
-// Better Auth owns the shape of these three tables and has
+// Better Auth owns the shape of these four tables and has
 // changed them between minor versions. After an upgrade, re-run
 // `pnpm dlx auth@latest generate --config packages/auth/src/index.ts`
 // and diff the result against the Prisma schema.

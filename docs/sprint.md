@@ -1274,6 +1274,10 @@ The MVP must demonstrate:
 - Mobile application
 - Responsive UI/UX
 
+Every item above is built (§24). Comment threads on tasks and projects were
+added on top of the MVP on 2026-09-22 (§24, "Comment threads") as the first
+step towards messaging.
+
 ---
 
 # 23. Post-MVP Features
@@ -1286,11 +1290,15 @@ These should not block the initial demonstration:
 - Polar integration
 - Advanced reporting
 - File attachments
-- Real-time updates
+- Real-time updates (comment threads are the first candidate; see §24
+  "Comment threads")
 - Email notifications
 - Push notifications
 - Advanced permissions
-- Audit log filtering
+- Audit log filtering — partly done: `GET /api/activity` filters by entity
+  type, entity id and search text and both clients expose the entity-type
+  filter (§24 Phase 10). What remains is a per-entity history view on the
+  detail pages (see "Known gaps")
 - Export to CSV/PDF
 - Calendar integration
 - Third-party integrations
@@ -1299,7 +1307,10 @@ These should not block the initial demonstration:
 
 # 24. Current Project Status
 
-**Last verified:** 2026-09-15 — against the working tree and the live Render deployment, not from memory.
+**Last verified:** 2026-09-23 — against the working tree (`pnpm lint`,
+`pnpm typecheck`, `pnpm test`: 391 pass), not from memory. The live Render
+deployment was verified on 2026-09-15 and predates the comments migration;
+see "Comment threads" below for the deploy step it needs.
 
 Status markers follow the legend in §3. Anything not marked `[x]` has
 **not** been built, regardless of how complete the surrounding plan reads.
@@ -1319,7 +1330,8 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 ## Phase 1 — Database
 
 - [x] Prisma configured in `packages/db`
-- [x] `schema.prisma` — 12 models, 6 enums, explicit delete behaviour
+- [x] `schema.prisma` — 14 models (the original 12, plus `RateLimit` from Phase 17
+  and `Comment` from 2026-09-22), 6 enums, explicit delete behaviour
 - [x] `prisma.config.ts` (required by Prisma 7)
 - [x] PostgreSQL driver adapter (`@prisma/adapter-pg`)
 - [x] Initial migration generated and applied
@@ -1338,9 +1350,11 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
 - [x] `packages/auth` — Better Auth configuration
 - [x] `packages/types` — response envelope, `Paginated<T>`, permission matrix,
   `CurrentUser`, user, department, client, project, task, activity,
-  notification and dashboard shapes, plus the matching Zod schemas. Exposed
-  as subpath exports (`/api`, `/auth`, `/permissions`, `/user`, `/department`,
-  `/client`, `/project`, `/task`, `/activity`, `/notification`, `/dashboard`)
+  notification, dashboard and comment shapes, the `changedFields` diff
+  helper, plus the matching Zod schemas. Exposed as thirteen subpath exports
+  (`/api`, `/auth`, `/permissions`, `/user`, `/department`, `/client`,
+  `/project`, `/task`, `/activity`, `/notification`, `/dashboard`,
+  `/changes`, `/comment`)
 - [x] `packages/ui` — design tokens: a JSON palette, the status → tone table and a
   generated Tailwind 4 `tokens.css`. See Phase 14 below
 
@@ -1379,7 +1393,10 @@ Status markers follow the legend in §3. Anything not marked `[x]` has
   error envelope as `VALIDATION_ERROR` with flattened field errors
 - [ ] Request logging beyond Hono's default
 - [x] Domain routes — `/users`, `/departments`, `/clients`, `/projects`,
-  `/tasks`, `/activity` and `/notifications` are complete
+  `/tasks`, `/activity`, `/notifications`, `/dashboard` and `/comments` are
+  complete, plus `/health` and `/me`. Comment threads hang off their parent
+  (`/tasks/:id/comments`, `/projects/:id/comments`); only the delete is
+  addressed directly (`DELETE /comments/:id`)
 
 ## Phase 4 — Authorization / RBAC
 
@@ -1512,8 +1529,9 @@ Progress is a writable integer. It is not calculated from task completion.
 - [x] Mutations write an `activity_logs` row in the same Prisma transaction.
   Notifications fire when someone else should know: task assigned, task
   completed (project manager), project created (manager), project status
-  (manager and members), member added or removed. The actor is never notified
-  of their own action
+  (manager and members), member added or removed, and — since 2026-09-22 — a
+  new comment (the task's assignee and creator, or the project's manager).
+  The actor is never notified of their own action
 - [x] `activity:read` and `notifications:read` on all three roles
 - [x] `apps/web` — activity feed with URL-backed filters and entity links;
   notifications list with mark-one and mark-all; unread badge on the nav.
@@ -1815,8 +1833,11 @@ create, edit and the status actions all shipped there.
 - [x] `apps/api/test/rules.test.ts` — the cross-record rules below, with the
   fixture rows removed again afterwards
 - [x] `.github/workflows/ci.yml` — GitHub Actions on every push to `main` and
-  every pull request: Biome, typecheck, the API tests against a seeded
-  `postgres:16-alpine` service, then a production build. The Prisma client is
+  every pull request: Prisma generate, the `tokens.css` drift check, Biome,
+  typecheck, an advisory `pnpm audit --prod` (Phase 17), `migrate deploy` and
+  the seed against a `postgres:16-alpine` service, `pnpm test` for every
+  package that has tests (types, web, mobile and the API in-process), then a
+  production build. The Prisma client is
   generated explicitly because `packages/db/src/generated` is gitignored and
   the `test` task never schedules the db package's generate task; migrations
   are applied with `migrate deploy`, not `migrate dev`. The same sequence
@@ -2196,6 +2217,10 @@ planning.
   and a dropdown for the theme control, which the three-state cycle makes
   unnecessary. Mobile list paging, the one thing mobile still does
   differently from the web, is a Phase 15 item (§25)
+
+- [x] The web sidebar is sticky (2026-09-22, `app-shell.tsx`: `sticky top-0`,
+  full viewport height from `md` up), so the navigation and the unread badge
+  stay in view while a long list or thread scrolls
 
 ## Phase 15 — Performance (2026-09-12 → 2026-09-13, complete)
 
@@ -2687,7 +2712,7 @@ that only needed reading are recorded as reviewed.
 - [x] Verified: `pnpm lint`, `pnpm typecheck` (8/8), `pnpm test` — 219 types,
   69 web, 49 mobile, 31 API = 368 pass
 
-## Phase 18 — Deployment (2026-09-14 → 2026-09-15, live; mobile build and hooks open)
+## Phase 18 — Deployment (2026-09-14 → 2026-09-15, live; Android build 2026-09-22; git hooks and restore open)
 
 Host: Render — a container for the API, a static site for the web build,
 managed Postgres alongside. The two services present one origin to the
@@ -2749,13 +2774,18 @@ decisions are written into
   `packages/auth` is the fix if that starts to matter, recorded under
   "Known gaps"
 - [x] **The blueprint.** [`render.yaml`](../render.yaml): the API as
-  `runtime: docker` with `healthCheckPath: /api/health`, the web as
-  `runtime: static` with a `rewrite` from `/*` to `/index.html`, and managed
-  Postgres 16. `BETTER_AUTH_SECRET` is `generateValue: true` — a base64 256-bit
-  value, past the 32-character floor and never seen by a person. The two-role
-  database is two variables: the owner arrives as `MIGRATE_DATABASE_URL` and
-  the pre-deploy command passes it as `DATABASE_URL` for the length of the
-  migration only, so the server never holds a role that can change the schema
+  `runtime: docker` with `healthCheckPath: /api/health` and the web as
+  `runtime: static` with a `rewrite` from `/*` to `/index.html`.
+  `BETTER_AUTH_SECRET` is `generateValue: true` — a base64 256-bit value, past
+  the 32-character floor and never seen by a person. The first draft also
+  declared managed Postgres 16 and the two-role split as two variables — the
+  owner arriving as `MIGRATE_DATABASE_URL` and the pre-deploy command passing
+  it as `DATABASE_URL` for the length of the migration only, so the server
+  never holds a role that can change the schema. Both were taken out again
+  (the `databases:` block and, with the pre-deploy command, the
+  `MIGRATE_DATABASE_URL` variable), for the reasons two bullets down; the
+  blueprint keeps the commented-out command as the record of the intended
+  shape
 - [x] **One origin is required, not optional.** The Phase 18 plan says
   "Custom domain if applicable"; what is not optional is a single origin.
   `onrender.com` is on the Public Suffix List, so `opsflow-web.onrender.com`
@@ -2766,7 +2796,8 @@ decisions are written into
   way to get a single origin; the rewrite below is the one deployed
 - [x] **Verified in the container**, not by reading it. The image builds;
   `docker compose -f docker-compose.prod.yml` brings up Postgres and the API
-  and both report healthy; `migrate deploy` applies all three migrations as
+  and both report healthy; `migrate deploy` applies every migration (three at
+  the time) as
   the `node` user, which is what the glibc argument was for; the reference
   seed runs (and confirms the missing `.env` in the image is harmless — Bun
   ignores `--env-file` when the file is absent and the container's variables
@@ -2818,10 +2849,29 @@ decisions are written into
   `bootstrap:admin` were run from a local shell against the External
   Database URL, the procedure §36 carries for a free instance with no
   pre-deploy command. The first administrator signs in on the live site
-- [ ] `expo-font`, then the Android build against
-  `EXPO_PUBLIC_API_URL=https://opsflow-api-hxy9.onrender.com` (the API's own
-  origin — a native app has no cookie-jar problem, so the rewrite is
-  irrelevant to it)
+- [x] **Android release build (2026-09-22).** Built locally with Continuous
+  Native Generation: `pnpm --filter @opsflow/mobile prebuild:android`
+  regenerates `android/` from `app.json` (`expo prebuild --clean`, so the
+  tree is gitignored along with `ios/` and `*.keystore`), and `build:android`
+  runs `gradlew assembleRelease`. The script refuses to run unless
+  `EXPO_PUBLIC_API_URL` is set, because the value is inlined during the Gradle
+  build and `.env` holds the development URL; the release is built against
+  `https://opsflow-api-hxy9.onrender.com` — the API's own origin, since a
+  native app has no cookie jar and the `/api/*` rewrite is irrelevant to it.
+  Signing is a config plugin, `plugins/withReleaseSigning.js`, registered in
+  `app.json`: it reads `OPSFLOW_UPLOAD_STORE_FILE`, `_STORE_PASSWORD`,
+  `_KEY_ALIAS` and `_KEY_PASSWORD` from `~/.gradle/gradle.properties`, so the
+  keystore never enters the repository and the patch survives
+  `prebuild --clean`; without the properties it falls back to the debug
+  keystore, which installs but cannot update a release-signed install. The
+  application id is `org.thegreengen.opsflow` (also the iOS bundle id;
+  permanent once installed), and `app.json`'s `version` 0.1.0 /
+  `versionCode` 1 are the mobile release numbers while the workspace
+  packages stay `0.0.0`. `expo-font` (the third `expo-doctor` note),
+  `expo-system-ui`, `@babel/core` and `@babel/plugin-transform-react-jsx`
+  were added for the native build. No EAS, and CI does not build it (known
+  gaps). iOS has never been built. The decisions are in
+  [`technical_architecture.md`](technical_architecture.md) §36 and §43
 - [ ] Git hooks
 - [ ] Try one restore of Render's database snapshot (§36: an untested backup
   is a hypothesis)
@@ -2869,8 +2919,8 @@ decisions are written into
 - The mobile app never refetches on resume. TanStack's `focusManager` is not
   wired to `AppState`, so `refetchOnWindowFocus` never fires and the 30-second
   polling continues while backgrounded. Wire `focusManager.setEventListener`
-  to `AppState` in the root layout; `expo-network` is already a dependency for
-  `onlineManager`.
+  to `AppState` in the root layout. `expo-network` is already a dependency,
+  but `onlineManager` is not wired to it either.
 - Departments are hard-deleted behind a 409 guard where the product document
   says archive. A deliberate simplification, recorded here.
 - Creating a user is two steps (Better Auth signup, then the profile patch).
@@ -2908,6 +2958,15 @@ decisions are written into
   because it has none. `user-form.test.tsx` drives the user form through its
   text inputs only, which is enough to pin the diffed payload.
 - There are no git hooks yet (Phase 18). CI exists (Phase 16).
+- CI does not build the Android app. The release APK is produced on one
+  machine with the SDK, NDK and JDK installed (Phase 18), and the upload
+  keystore exists only there, in `~/.gradle/gradle.properties`; losing that
+  machine means a new keystore, which cannot update existing installs. Back
+  the keystore up out of band, and add an EAS or a GitHub Actions build when
+  a second person needs to ship the app.
+- The mobile app has no comments UI (2026-09-22). The API is client-agnostic
+  and `canDeleteComment` is shared, so it is a `CommentsCard` per detail
+  screen; not started.
 - The API image is about 2 GB. `packages/auth` exports Better Auth configured
   with the Expo plugin, so `@better-auth/expo` is a dependency of everything
   that imports it, and pnpm installs the plugin's peers: react-native, Hermes
@@ -2935,14 +2994,19 @@ decisions are written into
 ## Comment threads (2026-09-22)
 
 The first step towards messaging: a discussion thread under every task and
-every project, over the existing REST and React Query polling pattern. No
-realtime yet.
+every project, over the existing REST and React Query pattern. Threads are
+not polled: the card refetches after the reader's own post or delete, and
+when stale on refocus, like every other detail query. No realtime yet.
+Migration `20260922201820_add_comments`; committed 2026-09-23.
 
 - [x] `comments` table with nullable `task_id` / `project_id`, exactly one set,
   enforced by a hand-written CHECK constraint in the migration
   (`comments_one_parent_check`; Prisma cannot express it and does not diff
   it). The author is `SET NULL` on user deletion so a thread keeps its shape;
-  the thread itself cascades with its parent
+  the thread itself cascades with its parent. Three indexes:
+  `(task_id, created_at)`, `(project_id, created_at)` and `user_id`. An
+  `updated_at` column is present for the editing step and is not yet written.
+  `db_schema.md` and `.dbml` were updated in the same commit
 - [x] `GET` / `POST /api/tasks/:id/comments`, `GET` / `POST
   /api/projects/:id/comments`, `DELETE /api/comments/:id`. Threads are read
   and written through their parent and inherit its read gate; deletion is
@@ -2954,20 +3018,26 @@ realtime yet.
   or manager, as `canDeleteComment()` in `@opsflow/types/comment`, shared by
   the API and the web card. No new permission string: both rules are
   row-level, which the matrix comment says belongs in the service
-- [x] Effects: `commented` / `comment_deleted` activity rows, logged against
-  the parent so its feed tells the whole story, with `metadata.commentId`.
-  Posting notifies the task's assignee and creator, or the project's
-  manager, minus the actor, as `New comment` of type `task` / `project`
+- [x] Effects: `commented` / `comment_deleted` added to `ACTIVITY_ACTIONS`
+  and logged against the parent so its feed tells the whole story, with
+  `metadata.commentId`. Posting notifies the task's assignee and creator, or
+  the project's manager, minus the actor, as `New comment` of type `task` /
+  `project`, carrying the first 120 characters of the body. Project members
+  are not notified of a project thread; that is a deliberate first cut,
+  revisit with the mobile screens
 - [x] Threads list oldest first, so appending keeps offset pages stable while
   people post. The web card asks for the maximum page (100) and shows a pager
   only when a thread outgrows it
 - [x] `CommentsCard` on both web detail pages: list, inline composer, confirm
-  dialog on delete, feedback through `sonner`
+  dialog on delete, feedback through `sonner`; the query and mutation
+  helpers live in `apps/web/src/lib/comments.ts`
 - [x] Tests: `packages/types/test/comment.test.ts` (schema and the delete
   predicate), six cases in `apps/api/test/rules.test.ts` (post, order and
   paging, hidden parent, validation, delete rules, project thread with
   notification), `apps/web/src/components/comments-card.test.tsx` (eight
   rendering and request cases)
+- [x] Verified 2026-09-23: `pnpm lint`, `pnpm typecheck`, `pnpm test` — 228
+  types, 77 web, 49 mobile, 37 API = 391 pass
 
 Not in this step: the mobile screens (the API is client-agnostic and
 `canDeleteComment` is shared, so it is a `CommentsCard` per detail screen),
@@ -2985,7 +3055,10 @@ external database URL first, as the README's deployment notes describe.
 - [x] Phase 17 — Security review (closed 2026-09-14; see above)
 - [-] Phase 18 — Deployment (started 2026-09-14; web, API and database live
   on Render since 2026-09-15 and the acceptance criterion is met; the Android
-  build, git hooks and a backup restore remain, see above)
+  release build shipped 2026-09-22; git hooks and a backup restore remain,
+  see above)
+- [-] Comment threads / messaging (web and API shipped 2026-09-22; the mobile
+  screens, editing a comment and live updates are open, see above)
 - [ ] Phases 19-20 — Optional SaaS, demo
 
 ## Stack amendments
@@ -2993,18 +3066,20 @@ external database URL first, as the README's deployment notes describe.
 The stack decisions taken during implementation now live in
 [`technical_architecture.md`](technical_architecture.md) §43, alongside the
 sections they changed, rather than being tracked separately here. That document
-is at v2.5 to reflect them.
+is at v3.5 to reflect them; the product document is at v2.1, rewritten on
+2026-09-23 to describe what is built rather than what was planned.
 
 ---
 
 # 25. Immediate Next Steps
 
-The application is complete through Phase 14: every web module is a full
-vertical slice — authentication, RBAC, service layer, Prisma, reads and writes
-(§24) — navigation is loader-driven, the dashboard leads with what needs
-attention, the mobile app reaches every module the web does, and both
-clients read one palette, in light and dark, with the same status colours,
-one card, one error line, and a keyboard path through every dialog.
+The application is complete through Phase 18, and comment threads shipped
+on top of it on 2026-09-22: every web module is a full vertical slice —
+authentication, RBAC, service layer, Prisma, reads and writes (§24) —
+navigation is loader-driven, the dashboard leads with what needs attention,
+the mobile app reaches every module the web does except the comment threads,
+and both clients read one palette, in light and dark, with the same status
+colours, one card, one error line, and a keyboard path through every dialog.
 
 Phase 15 is closed (§24). The mobile lists page as the reader scrolls, and
 the queries have been measured rather than inspected: on a bench volume of
@@ -3015,7 +3090,7 @@ deep offset pages and the `ILIKE` search counts — are recorded with their
 numbers and their trigger under "Known gaps". `pnpm db:bench` and
 `pnpm db:explain` regenerate the evidence after any query or schema change.
 
-Phase 16 is closed (§24): 356 tests across four packages under one
+Phase 16 is closed (§24): 356 tests at the time across four packages under one
 `pnpm test` — the API in-process on the seeded database, the types package's
 matrices and schemas, the web's forms, guard, login flow, dialog and feedback
 components rendered with Testing Library on happy-dom, and the mobile logic
@@ -3030,11 +3105,14 @@ anywhere ends the session on both clients, the login page returns to the
 page that was asked for and nowhere else, the password minimum is eight,
 request bodies are bounded, the health probe times out, the cookie
 attributes and the rate-limit store are written down, and the dependency
-audit is recorded and repeated in CI. 368 tests.
+audit is recorded and repeated in CI. 368 tests at the close of Phase 17; 391
+after the comment threads (§24).
 
 Phase 18 is live (§24). OPSflow runs on Render: the API as a container
-(`apps/api/Dockerfile`) on the port the platform injects, the web app as a
-static site, managed Postgres 16 beside them, all declared in `render.yaml`.
+(`apps/api/Dockerfile`) on the port the platform injects and the web app as a
+static site, both declared in `render.yaml`, with managed Postgres 16 beside
+them, created in the dashboard rather than the blueprint. The Android release
+APK is built locally from the same tree (§24).
 A fresh production database could not be signed in to at all — signup is
 closed, `POST /api/users` needs an admin session, and the development seed
 refuses production — so `pnpm bootstrap:admin` provisions the first
@@ -3054,9 +3132,13 @@ production-like environment — is met at
 Next:
 
 ```text
-1. Phase 18 — the rest: git hooks, one snapshot restore
-2. Phase 20 — demo preparation against the live site
-3. Phase 19 — optional SaaS / billing, only if there is time
+1. Deploy the comments migration: `migrate deploy` against the External
+   Database URL, then a deploy of the current commit
+2. Comment threads — the rest: a `CommentsCard` per mobile detail screen,
+   editing a comment, live updates (Server-Sent Events)
+3. Phase 18 — the rest: git hooks, one snapshot restore
+4. Phase 20 — demo preparation against the live site
+5. Phase 19 — optional SaaS / billing, only if there is time
 ```
 
 Operational notes for whoever deploys next: migrations are a manual
@@ -3067,14 +3149,15 @@ the free plan has no pre-deploy command; the free database expires on
 ("Calling client.query() when the client is already executing a query") to the
 `pg@9` upgrade note: it comes from Prisma's adapter, not the app.
 
-CI runs lint, typecheck, the API tests and the build on every push and pull
-request, so each commit from here is verified.
+CI runs the generate step, the token drift check, lint, typecheck, the
+advisory audit, every package's tests against a seeded database and the
+build on every push and pull request, so each commit from here is verified.
 
 Two `expo-doctor` notes are carried, not fixed: `typescript` 7 against the
 SDK's expected 6 (accepted in Phase 13, the typecheck passes), and the patch
 versions of the Expo packages sitting one or two behind the SDK's current
 line, which are pinned and upgraded together. `expo-font` was the third and
-is closed by the Android build (§24). The doctor's "app.json is not used by
+is closed by the Android release build (§24, Phase 18). The doctor's "app.json is not used by
 app.config.js" check is a false positive: `app.config.js` requires
 `app.json` and spreads it.
 

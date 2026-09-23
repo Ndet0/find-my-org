@@ -765,10 +765,16 @@ Project Members deleted
 Tasks deleted
 Comments deleted (the project's, and each task's)
 
+Task deleted
+       ↓
+Comments deleted
+
 User deleted
        ↓
 Sessions deleted
 Accounts deleted
+Notifications deleted
+Project Memberships deleted
 
 ```
 
@@ -776,17 +782,30 @@ Accounts deleted
 
 Used when historical data should remain available.
 
-Example:
-
 ```text
 User deleted
        ↓
-Activity Log remains
-Comments remain
+Activity Log remains        (activity_logs.user_id = NULL)
+Comments remain             (comments.user_id = NULL, shown as "Former user")
+Projects remain             (projects.manager_id = NULL)
+Tasks remain                (tasks.assigned_to / created_by = NULL)
+
+Client deleted
        ↓
-user_id = NULL
+Projects remain             (projects.client_id = NULL)
+
+Department deleted
+       ↓
+Users remain                (users.department_id = NULL)
 
 ```
+
+These rules are what the schema guarantees; the application reaches fewer of
+them. Users, clients and projects are never deleted through the API (they
+change status, or a project is cancelled), and a department delete is
+refused with `DEPARTMENT_HAS_MEMBERS` while anyone is in it, so the
+`SET NULL` on `users.department_id` is never taken through the app. The
+rules stay so that a direct database operation cannot leave orphans.
 
 ### `RESTRICT`
 
@@ -816,6 +835,7 @@ Indexes are created on frequently queried fields.
 - `users.email`
 - `sessions.token`
 - `accounts.issuer + account_id`
+- `rate_limits.key`
 - `project_members.project_id + user_id`
 
 ### Secondary indexes
@@ -845,21 +865,31 @@ Indexes are created on frequently queried fields.
 - `comments.project_id + created_at`
 - `comments.user_id`
 
-Two of these are composites rather than the separate indexes a first pass might
-suggest:
+Six of these are composites rather than the separate indexes a first pass
+might suggest:
 
 - `project_members` needs no standalone `project_id` index. The
   `(project_id, user_id)` unique constraint is a B-tree with `project_id` as its
   leading column, so it already serves lookups by project.
 - `notifications` uses `(user_id, is_read)` rather than two single-column
   indexes, because the hot query is always "unread notifications for one user".
+- `activity_logs (entity_type, entity_id)` serves the per-entity filter of the
+  activity feed; neither column is useful alone.
+- `accounts (issuer, account_id)` is the unique key Better Auth looks an
+  account up by.
+- `comments (task_id, created_at)` and `(project_id, created_at)` each walk one
+  thread in posting order and stop after a page, which is the only way a
+  thread is read.
 
 The purpose is to keep common dashboard, filtering, and lookup queries performant as the database grows.
 
 This list was measured, not only reasoned about. On a bench volume of 8 000
 tasks, 60 000 activity rows and 15 000 notifications (`pnpm db:bench`), every
-list endpoint and dashboard count runs on one of these indexes for every role
-(`pnpm db:explain`; technical architecture §21.2). The composites a first pass
+list endpoint and dashboard count that existed on 2026-09-13 runs on one of
+these indexes for every role (`pnpm db:explain`; technical architecture
+§21.2). The comment threads were added on 2026-09-22 and are not yet in the
+bench or the explain script; their two composite indexes are reasoned, not
+measured. The composites a first pass
 might add for the time-ordered lists — `(user_id, created_at, id)` on
 `notifications` and `activity_logs`, `(assigned_to, due_date)` on `tasks` —
 were considered and declined: the single-column time index already walks the
@@ -873,7 +903,11 @@ this volume; the numbers are in the sprint plan's known gaps.
 
 The dashboard does not require its own database table in the MVP.
 
-Instead, dashboard metrics are derived from existing entities.
+Instead, dashboard metrics are derived from existing entities. The queries
+below are illustrative; the real ones in `dashboard.service.ts` add the
+caller's visibility scope (an employee's project and task counts are their
+own), and also count overdue projects, blocked tasks, departments and the
+users holding the employee role.
 
 ### Example
 
@@ -1041,6 +1075,7 @@ project_members
 tasks
 activity_logs
 notifications
+comments
 
 ```
 
@@ -1064,6 +1099,7 @@ This is enough to demonstrate:
 - Dashboard analytics
 - Audit logging
 - Notifications
+- Discussion threads on projects and tasks
 - Business workflows
 
 ---
@@ -1083,9 +1119,13 @@ CLIENT
         │
         ├── TEAM MEMBERS
         │
+        ├── COMMENTS
+        │
         └── TASKS
               │
-              └── ASSIGNEE
+              ├── ASSIGNEE
+              │
+              └── COMMENTS
 
 ```
 

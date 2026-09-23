@@ -1,6 +1,6 @@
 # OPSflow — Product Architecture
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Status:** Active  
 **Product Type:** Operations & Project Management Platform  
 **Platforms:** Web + Mobile  
@@ -135,13 +135,14 @@ The administrator manages the organization and system.
 
 ### Responsibilities
 
-- Manage users
+- Manage users, assigning each one of the three fixed roles
 - Manage departments
-- Manage roles
 - Manage clients
 - Manage projects
 - Monitor organization activity
-- Configure system-level settings
+
+There is no role editor and no system settings screen: the roles are a fixed
+list and everything configurable is an environment value.
 
 ### Primary Need
 
@@ -191,13 +192,10 @@ Employees are responsible for completing assigned work.
 # 5. Role Hierarchy
 
 ```text
-                    ADMIN
-                      │
-          ┌───────────┴───────────┐
-          │                       │
-       MANAGER                  SYSTEM
-          │
-          │
+       ADMIN
+         │
+      MANAGER
+         │
       EMPLOYEE
 
 ```
@@ -224,8 +222,8 @@ OPSflow
 ├── Tasks
 ├── Activity
 ├── Notifications
-├── Profile
-└── Settings
+├── Comment threads (on projects and tasks)
+└── Profile
 
 ```
 
@@ -257,7 +255,8 @@ Load Dashboard
 - Login
 - Logout
 - Session management
-- Password management
+- Changing your own password (there is no forgotten-password flow; an
+  administrator sets a new one)
 - Protected application
 - Role identification
 
@@ -277,7 +276,7 @@ Its purpose is to answer:
 
 ## 8.1 Dashboard Metrics
 
-Potential metrics include:
+The metrics, as `GET /api/dashboard` computes them:
 
 ### Projects
 
@@ -285,24 +284,29 @@ Potential metrics include:
 - Active projects
 - Completed projects
 - Delayed projects
+- Overdue projects (deadline passed, not completed or cancelled)
 
 ### Tasks
 
 - Total tasks
 - Pending tasks
 - In-progress tasks
+- Blocked tasks
 - Completed tasks
 - Overdue tasks
 
-### Team
+### Organization (administrators and managers only)
 
-- Total employees
-- Active employees
+- Users: total and active
+- Employees: users holding the employee role
+- Departments
+- Clients: total and active
 
-### Clients
-
-- Total clients
-- Active clients
+Project and task counts are scoped like the lists, so an employee's dashboard
+counts only their own work. Beside the counts, the dashboard shows an
+"attention" card (overdue and blocked tasks, delayed and overdue projects),
+upcoming deadlines, project progress, recent activity, recent notifications
+and quick actions for whatever the role may create.
 
 ---
 
@@ -312,43 +316,25 @@ The dashboard should adapt to the user's role.
 
 ---
 
-## Administrator Dashboard
+## Administrator and Manager Dashboard
 
-Focus:
+Administrators and managers see the same organization dashboard:
 
 ```text
-Organization Health
+Active Projects
         +
-Users
+Open Tasks / In Progress
         +
-Departments
+Team (employee count)
         +
-Projects
+Active Clients
         +
-Clients
-        +
-System Activity
+Attention, Deadlines, Progress, Activity, Notifications
 
 ```
 
----
-
-## Manager Dashboard
-
-Focus:
-
-```text
-Project Health
-        +
-Team Workload
-        +
-Tasks
-        +
-Deadlines
-        +
-Clients
-
-```
+The organization counts are withheld from employees by the API, not hidden
+by the client.
 
 ---
 
@@ -382,9 +368,13 @@ The user management module allows administrators to manage organization members.
 - Edit users
 - Assign roles
 - Assign departments
-- Activate users
-- Deactivate users
-- View user activity
+- Activate, deactivate and suspend users
+- Edit your own profile and password
+
+Users are never deleted; their status changes. A person who manages an open
+project or holds an open task cannot be suspended, deactivated or demoted
+until that work is handed over. There is no per-user activity view yet; the
+activity feed filters by entity, not by actor.
 
 ### User Information
 
@@ -422,8 +412,8 @@ Finance
 
 - Create department
 - Edit department
-- Archive department
-- View department members
+- Delete department (refused while it still has members)
+- View department members (the count links to the filtered people list)
 - Assign users to departments
 
 ---
@@ -451,8 +441,8 @@ Notes
 - View client
 - Edit client
 - Search client
-- Filter clients
-- Archive client
+- Filter clients by status
+- Archive client (a status change; clients are never deleted)
 
 ---
 
@@ -492,6 +482,7 @@ Priority
 Progress
 Start Date
 Deadline
+Comment thread
 
 ```
 
@@ -510,22 +501,22 @@ Completed
 
 ```
 
-Projects may also enter:
+The full transition table, `PROJECT_TRANSITIONS` in the shared types, is
+enforced by the API and mirrored by the status controls on both clients,
+which offer only the reachable moves:
 
 ```text
-Active
-  ↓
-On Hold
-
-Active
-  ↓
-Delayed
-
-Planning
-  ↓
-Cancelled
+Planning   → Active, Cancelled
+Active     → On Hold, Delayed, Completed, Cancelled
+On Hold    → Active, Cancelled
+Delayed    → Active, Cancelled
+Completed  → Active (reopen)
+Cancelled  → (terminal)
 
 ```
+
+Completed and cancelled projects refuse new tasks; their existing tasks stay
+editable so history can be tidied.
 
 ---
 
@@ -582,7 +573,10 @@ Website Redesign
 
 ```
 
-Project progress can eventually be calculated automatically based on task completion.
+Progress is set by hand by whoever edits the project. Marking a project
+completed forces it to 100%; its tasks are left as they are, because
+auto-completing them would invent completion times for work nobody
+finished. Deriving progress from task completion remains a later option.
 
 ---
 
@@ -641,6 +635,7 @@ Status
 Priority
 Due Date
 Completion Date
+Comment thread
 
 ```
 
@@ -659,12 +654,14 @@ Completed
 
 ```
 
-A task may also become:
+The full transition table, `TASK_TRANSITIONS` in the shared types, enforced
+by the API and mirrored by both clients:
 
 ```text
-In Progress
-      ↓
-   Blocked
+Pending      → In Progress
+In Progress  → Pending, Blocked, Completed
+Blocked      → In Progress
+Completed    → In Progress (reopen)
 
 ```
 
@@ -682,6 +679,8 @@ Can:
 - Change priority
 - Change deadlines
 - Monitor status
+- Delete tasks
+- Comment on any task they can see, and delete any comment
 
 ### Employee
 
@@ -691,6 +690,7 @@ Can:
 - Update status
 - Mark tasks complete
 - View deadlines
+- Comment on their tasks and projects, and delete their own comments
 
 ---
 
@@ -706,8 +706,13 @@ Mary assigned a task to David
 David completed "API Integration"
 Admin created a new employee
 Manager updated project priority
+David commented on "API Integration"
+Mary deleted a comment on "Website Redesign"
 
 ```
+
+A comment is recorded against the task or project it was posted on, so the
+parent's history tells the whole story.
 
 ---
 
@@ -739,18 +744,28 @@ Notifications alert users to important events.
 
 Examples:
 
+Every notification is raised by someone else's direct action; the actor is
+never told about their own. The seven that exist:
+
 ```text
-You have been assigned a task.
+Task assigned              you were given a task
 
-Project "Website Redesign" is delayed.
+Task completed             a task on your project was completed (manager)
 
-Your task is due tomorrow.
+Project created            you were made its manager
 
-A new employee has been added to your project.
+Project status changed     a project you manage or are on changed status
 
-Your task has been marked complete.
+Added to project           you joined a project's team
+
+Removed from project       you were taken off a project's team
+
+New comment                someone posted on your task, or on a project
+                           you manage, with the first line of the comment
 
 ```
+
+There is no scheduler, so nothing is sent for an approaching deadline.
 
 ---
 
@@ -763,44 +778,33 @@ Notification Created
  ↓
 Unread
  ↓
-User Opens
+User Opens (or marks all as read)
  ↓
 Read
 
 ```
 
+Both clients show the unread count — on the web navigation and the mobile
+inbox tab — and offer mark-one and mark-all-read.
+
 ---
 
 # 27. Search
 
-Search should be available throughout the platform.
-
-Potential searchable entities:
-
-```text
-Users
-Clients
-Projects
-Tasks
-
-```
-
-Example:
+Every web list searches itself: a search field above the users, clients,
+projects, tasks, activity and notifications lists filters that list by name,
+title or description, case-insensitively, together with its filters, and the
+search is kept in the URL so a filtered page can be shared.
 
 ```text
-Search: "Website"
+Projects   Search: "Website"
 
-Results:
-
-Projects
 → Website Redesign
-
-Tasks
-→ Website homepage
-→ Website API
-→ Website testing
+→ Website Migration
 
 ```
+
+There is no global search across entities; it is on the later list.
 
 ---
 
@@ -808,35 +812,32 @@ Tasks
 
 CRUD screens should provide useful filtering.
 
-### Projects
+The filters each list accepts, on the web and, as chips, on mobile:
 
-Filter by:
+### Projects
 
 ```text
 Status
 Priority
 Manager
 Client
-Deadline
+Overdue
 
 ```
 
 ### Tasks
-
-Filter by:
 
 ```text
 Status
 Priority
 Assignee
 Project
-Due Date
+Overdue
+Open (every status but completed)
 
 ```
 
 ### Users
-
-Filter by:
 
 ```text
 Role
@@ -844,6 +845,18 @@ Department
 Status
 
 ```
+
+### Clients, Activity, Notifications
+
+```text
+Clients        Status
+Activity       Entity type, entity
+Notifications  Unread
+
+```
+
+The dashboard tiles deep-link into these filters ("3 overdue tasks" opens the
+task list with `overdue` set). There is no date-range filter.
 
 ---
 
@@ -866,13 +879,15 @@ PROJECTS
 
 ```
 
-Tables should support:
+Tables support:
 
 - Search
 - Filtering
-- Sorting
-- Pagination
-- Bulk actions where appropriate
+- Pagination (25 rows a page, up to 100)
+
+Each list has a fixed server order — tasks by due date, projects and users by
+name, activity and notifications newest first. Sortable columns and bulk
+actions are not built; they are on the later list.
 
 ---
 
@@ -893,6 +908,11 @@ Notifications
 Profile
 
 ```
+
+Those are the tabs. From the profile tab the roles that may manage also
+reach people, clients, departments and the activity trail, with the same
+create, edit and status controls as the web. Comment threads are not on the
+phone yet.
 
 ---
 
@@ -947,25 +967,25 @@ Review Progress
 # 33. Web vs Mobile
 
 
-| Capability     | Web | Mobile  |
-| -------------- | --- | ------- |
-| Authentication | ✓   | ✓       |
-| Dashboard      | ✓   | ✓       |
-| Users          | ✓   | ✓       |
-| Departments    | ✓   | Limited |
-| Clients        | ✓   | ✓       |
-| Projects       | ✓   | ✓       |
-| Tasks          | ✓   | ✓       |
-| Activity       | ✓   | View    |
-| Notifications  | ✓   | ✓       |
-| Administration | ✓   | Limited |
-| Reporting      | ✓   | Limited |
+| Capability      | Web | Mobile  |
+| --------------- | --- | ------- |
+| Authentication  | ✓   | ✓       |
+| Dashboard       | ✓   | ✓       |
+| Users           | ✓   | ✓       |
+| Departments     | ✓   | ✓       |
+| Clients         | ✓   | ✓       |
+| Projects        | ✓   | ✓       |
+| Tasks           | ✓   | ✓       |
+| Comment threads | ✓   | Not yet |
+| Activity        | ✓   | View    |
+| Notifications   | ✓   | ✓       |
+| Profile, theme  | ✓   | ✓       |
+| Search          | ✓   | Chips   |
 
 
 Every mobile list is ordered by the server and loads a page at a time as it
-is scrolled, filtered with chips rather than searched. The searchable,
-sortable tables that jump to a page — and reporting — remain the web's,
-which is what "Limited" means in the rows above.
+is scrolled, filtered with chips rather than searched. The searchable tables
+that jump to a page remain the web's.
 
 The web application remains the primary administrative platform.
 
@@ -1053,29 +1073,23 @@ Mobile browser
 The main navigation should be structured around user workflows.
 
 ```text
-OPSflow
-│
-├── Dashboard
-│
-├── Projects
-│
-├── Tasks
-│
-├── Clients
-│
-├── Team
-│   ├── Users
-│   └── Departments
-│
-├── Activity
-│
-├── Notifications
-│
-└── Settings
+Web (sidebar)              Mobile (tabs)
+│                          │
+├── Dashboard              ├── Home
+├── Projects               ├── My tasks
+├── Tasks                  ├── Projects
+├── Clients                ├── Inbox
+├── Team                   └── Profile
+├── Departments                 ├── People
+├── Activity                    ├── Clients
+├── Notifications               ├── Departments
+└── (profile, from the avatar)  └── Activity
 
 ```
 
-The exact navigation should adapt according to role.
+The navigation adapts to the role: the web hides entries the role may not
+read and redirects a typed URL away; mobile hides the entry point instead.
+Departments is one page with dialogs rather than a section.
 
 ---
 
@@ -1096,16 +1110,21 @@ DELETE / ARCHIVE
 
 ```
 
-Primary CRUD entities:
+Primary CRUD entities, and how each one ends:
 
 ```text
-Users
-Departments
-Clients
-Projects
-Tasks
+Users          status change (active, inactive, suspended); never deleted
+Departments    deleted, refused while it has members
+Clients        status change (archived); never deleted
+Projects       cancelled; never deleted
+Tasks          deleted
+Comments       deleted, by the author or a manager
 
 ```
+
+Status and priority have their own controls with a confirmation dialog, so a
+status move is a deliberate act rather than an edit-form side effect, and
+project members are added and removed one at a time.
 
 ---
 
@@ -1163,6 +1182,8 @@ OPSflow's product model can be represented as:
                      │                   │
                      ▼                   ▼
                   Members              Tasks
+                     │                   │
+                     └── Comments ───────┘
                                          │
                                          ▼
                                       Activity
@@ -1171,6 +1192,8 @@ OPSflow's product model can be represented as:
                                    Notifications
 
 ```
+
+A comment thread hangs off every project and every task.
 
 ---
 
@@ -1466,25 +1489,36 @@ Activity Logs
 Notifications
 Web Application
 Mobile Application
-
-```
-
-### Should Have
-
-```text
-Search
+Per-list Search
 Filtering
 Pagination
 Responsive Design
 Good Empty States
 Good Error Handling
 Mobile Task Workflow
+Comment Threads (web)
+
+```
+
+Everything above is built.
+
+### Should Have
+
+```text
+Comment Threads on Mobile
+Editing a Comment
 
 ```
 
 ### Later
 
 ```text
+Global Search
+Sortable Columns and Bulk Actions
+Per-user and Per-entity Activity Views
+Deadline Reminders
+Password Reset
+Settings Screen
 Advanced Analytics
 Real-time Updates
 Email Notifications
@@ -1632,6 +1666,9 @@ The product is organized around five major layers:
                                        │
                                        ▼
                                      TASKS
+                                       │
+                                       ▼
+                                  DISCUSSION
                                        │
                                        ▼
                                    ACTIVITY

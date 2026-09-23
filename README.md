@@ -2,7 +2,8 @@
 
 Operations and project management platform — web + mobile.
 Manage people, departments, clients, projects and tasks from one place,
-with activity logging, notifications and role-based dashboards.
+with comment threads, activity logging, notifications and role-based
+dashboards.
 
 See [`docs/product_architecture.md`](docs/product_architecture.md) for what
 it does, [`docs/technical_architecture.md`](docs/technical_architecture.md)
@@ -18,7 +19,7 @@ current, verified build status.
 | API | Hono on Bun |
 | Database | PostgreSQL 16 + Prisma 7 |
 | Auth | Better Auth |
-| Web | React + Vite + TanStack Router/Query + Tailwind + shadcn/ui |
+| Web | React + Vite + TanStack Router/Query/Form + Tailwind + shadcn/ui |
 | Mobile | Expo + Expo Router + NativeWind |
 | Validation | Zod, shared between API and clients |
 | Tooling | Biome |
@@ -80,18 +81,21 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm typecheck` | Type-check the workspace |
 | `pnpm test` | Run every package's tests (the API's need the local database) |
 | `pnpm lint` / `pnpm lint:fix` | Biome check / autofix |
+| `pnpm format` | Biome format |
 | `pnpm db:up` / `pnpm db:down` | Start / stop local PostgreSQL |
 | `pnpm db:migrate` | Create and apply a migration |
 | `pnpm db:seed` | Seed roles, departments and development users |
 | `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:studio` | Open Prisma Studio |
-| `pnpm db:reset` | Drop, re-migrate and re-seed |
+| `pnpm db:reset` | Drop, re-migrate and re-seed roles and departments only; run `pnpm db:seed` afterwards for the development accounts |
 | `pnpm bootstrap:admin` | Create the first administrator on a database that has none |
 | `pnpm db:bench` / `pnpm db:bench --clean` | Insert / remove a bench volume for measuring query plans |
 | `pnpm db:explain` | Run every list endpoint under `EXPLAIN ANALYZE` into `docs/perf/` |
 
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, the API tests and the
-build on every push to `main` and every pull request.
+CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull
+request: Prisma generate, a check that `tokens.css` matches the palette,
+lint, typecheck, an advisory `pnpm audit --prod`, `migrate deploy` and the
+seed against a PostgreSQL service, every package's tests, then the build.
 
 ## The first administrator
 
@@ -112,8 +116,9 @@ is no password reset.
 ## Deployment
 
 The API is a container ([`apps/api/Dockerfile`](apps/api/Dockerfile)), the web
-app is a static build, and [`render.yaml`](render.yaml) declares both plus
-managed PostgreSQL. See
+app is a static build, and [`render.yaml`](render.yaml) declares both. The
+managed PostgreSQL instance was created in the Render dashboard, not in the
+blueprint, and its URL is a dashboard value. See
 [`docs/technical_architecture.md`](docs/technical_architecture.md) §36 for the
 decisions behind it.
 
@@ -123,6 +128,9 @@ Exercise the image before a platform does:
 docker compose -f docker-compose.prod.yml up --build -d
 docker compose -f docker-compose.prod.yml exec api pnpm --filter @opsflow/db migrate:deploy
 docker compose -f docker-compose.prod.yml exec api pnpm --filter @opsflow/db run seed
+docker compose -f docker-compose.prod.yml exec \
+  -e ADMIN_NAME="Ada Admin" -e ADMIN_EMAIL="admin@example.com" -e ADMIN_PASSWORD="…" \
+  api pnpm bootstrap:admin
 curl http://localhost:3001/api/health
 ```
 
@@ -180,15 +188,18 @@ administrator" above for the seed steps).
 ## Mobile app
 
 ```bash
-pnpm --filter @opsflow/mobile dev     # Expo dev server; scan the QR code with Expo Go
-pnpm --filter @opsflow/mobile web     # the same app in a browser on :8081
+pnpm --filter @opsflow/mobile dev         # Expo dev server; scan the QR code with Expo Go
+pnpm --filter @opsflow/mobile android     # the same, opening an Android emulator or device
+pnpm --filter @opsflow/mobile ios         # the same, opening the iOS simulator
+pnpm --filter @opsflow/mobile web         # the same app in a browser on :8081
+pnpm --filter @opsflow/mobile export:web  # static web export
 ```
 
-The app reads `EXPO_PUBLIC_API_URL` from the root `.env`. A physical device
-cannot reach `localhost`, so set it to this machine's LAN address (and
-`BETTER_AUTH_URL` to match) when testing on a phone. The API trusts
-`opsflow://`, Expo Go's `exp://` and the web dev server on `:8081` outside
-production.
+The app reads `EXPO_PUBLIC_API_URL` from the root `.env`. In development the
+host part is replaced with the Expo dev server's address
+(`apps/mobile/src/lib/api-url.ts`), so a phone on the same network reaches
+the API without editing `.env`. The API trusts `opsflow://`, Expo Go's
+`exp://` and the web dev server on `:8081` outside production.
 
 The app icon, adaptive icon, splash image and favicon under `apps/mobile/assets`
 are drawn by `pnpm --filter @opsflow/mobile assets` from the palette in
@@ -197,7 +208,8 @@ are drawn by `pnpm --filter @opsflow/mobile assets` from the palette in
 ### Android release build
 
 Built locally with the Android SDK, not on EAS. `apps/mobile/android/` is
-generated and gitignored; `app.json` is the source.
+generated and gitignored; `app.json` is the source, and `app.config.js` adds
+the two palette colours on top of it. CI does not build the app.
 
 ```bash
 export ANDROID_HOME=$HOME/Android/Sdk
@@ -218,17 +230,24 @@ keystore, which installs but cannot update a release-signed install.
 
 ```
 apps/
-  api/       Hono API (Bun)
-  web/       React + Vite SPA         — login and the protected app shell
-  mobile/    Expo app                 — login, dashboard, tasks, projects, inbox, profile; managers and
-                                         admins also manage tasks, projects, clients and departments
+  api/       Hono API (Bun)            — routes, services, validators; Dockerfile for Render
+  web/       React + Vite SPA          — dashboard, projects, tasks, clients, team, departments,
+                                          activity, notifications, profile, comment threads
+  mobile/    Expo app                  — login, dashboard, tasks, projects, inbox, profile; managers
+                                          and admins also manage tasks, projects, clients and
+                                          departments, admins manage people, and everyone reads
+                                          the activity trail
 packages/
   config/    Shared TypeScript configs
-  db/        Prisma schema, migrations, client
-  auth/      Better Auth configuration
+  db/        Prisma schema, migrations, client, seed and bench scripts
+  auth/      Better Auth configuration, user seed, bootstrap-admin script
   types/     Shared types and Zod schemas
-  ui/        Design tokens                 — palette, status tones, generated Tailwind CSS
-docs/        Product, technical and database documentation
+  ui/        Design tokens             — palette, status tones, generated Tailwind CSS
+docs/        Product, technical and database documentation; measured query plans under perf/
+.github/     CI workflow
+render.yaml              Render blueprint (API container + static site)
+docker-compose.yml       Local PostgreSQL
+docker-compose.prod.yml  The API image beside a database, for rehearsing a deploy
 ```
 
 ## Conventions

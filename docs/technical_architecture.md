@@ -1,6 +1,6 @@
 # OPSflow — Technical Architecture
 
-**Version:** 3.4  
+**Version:** 3.5  
 **Status:** Active  
 **Architecture:** TypeScript Monorepo / Full-Stack Web + Mobile  
 **Primary Runtime:** Bun  
@@ -178,6 +178,8 @@ The web application provides the primary desktop/tablet interface for OPSflow.
 - Department management
 - Notifications
 - Activity logs
+- Comment threads on every project and task detail page (web only so far)
+- Profile and password self-service, light and dark theme
 - Authentication screens
 - Administrative interfaces
 
@@ -266,6 +268,10 @@ a page at a time as the reader scrolls rather than jumping to a page (§21.1),
 filtered with chips rather than searched — the searchable, jump-to-page
 tables stay on the web.
 
+The comment threads added on 2026-09-22 are not on the phone yet. The API is
+client-agnostic and `canDeleteComment` is shared, so the remaining work is a
+card per detail screen; it is recorded as open in the sprint plan.
+
 ---
 
 # 7. API Application
@@ -304,20 +310,17 @@ Example API structure:
 ```text
 /api
 │
-├── /auth
-│
+├── /health          liveness, with a two-second database probe
+├── /auth            Better Auth's handler
+├── /me              the caller's profile
+├── /dashboard
 ├── /users
-│
 ├── /departments
-│
 ├── /clients
-│
-├── /projects
-│
-├── /tasks
-│
+├── /projects        …/:id/members, …/:id/comments
+├── /tasks           …/:id/comments
+├── /comments        DELETE /:id only
 ├── /notifications
-│
 └── /activity
 
 ```
@@ -363,9 +366,21 @@ GET    /api/projects
 GET    /api/projects/:id
 POST   /api/projects
 PATCH  /api/projects/:id
-DELETE /api/projects/:id
+PATCH  /api/projects/:id/status
+POST   /api/projects/:id/members
+DELETE /api/projects/:id/members/:userId
+GET    /api/projects/:id/comments
+POST   /api/projects/:id/comments
 
 ```
+
+Not every entity has a `DELETE`. Tasks, departments, project memberships and
+comments are deleted; users and clients change status; a project is closed
+by cancelling it. A comment thread is read and written through its parent,
+so the nested routes inherit the parent's `projects:read` / `tasks:read`
+gate and its row scoping. `DELETE /api/comments/:id` is addressed directly,
+because a list item carries only its own id; it needs a session and the
+service applies `canDeleteComment` (author, or any admin or manager).
 
 Routes should remain relatively thin.
 
@@ -380,12 +395,18 @@ Business logic should be isolated from HTTP routes.
 Example:
 
 ```text
-projects/
-├── project.routes.ts
-├── project.service.ts
-└── project.validation.ts
+apps/api/src/
+├── routes/projects.ts          HTTP surface
+├── services/project.service.ts business rules and Prisma
+├── validators/project.validator.ts
+├── middleware/                 auth, permission, error
+└── lib/                        env, envelope, actor, dates, errors
 
 ```
+
+The code is organised by layer rather than by feature folder: every entity
+has one file in each of `routes/`, `services/` and `validators/`
+(`comment.*` is the newest set).
 
 The service layer handles operations such as:
 
@@ -468,41 +489,53 @@ EMPLOYEE
 
 Example permissions:
 
+The matrix in `packages/types/src/permissions.ts` is thirteen strings, `read`
+and `write` per module plus three read-only ones:
+
 ### Admin
 
 ```text
-Users       → CRUD
-Departments → CRUD
-Clients     → CRUD
-Projects    → CRUD
-Tasks       → CRUD
-Dashboard   → Read
-Reports     → Read
-System      → Manage
+Users         → read, write
+Departments   → read, write
+Clients       → read, write
+Projects      → read, write
+Tasks         → read, write
+Activity      → read
+Notifications → read
+Dashboard     → read
 
 ```
 
 ### Manager
 
 ```text
-Clients  → CRUD
-Projects → CRUD
-Tasks    → CRUD
-Users    → Read
-Dashboard → Read
-Reports  → Read
+Clients       → read, write
+Projects      → read, write
+Tasks         → read, write
+Users         → read
+Departments   → read
+Activity      → read
+Notifications → read
+Dashboard     → read
 
 ```
 
 ### Employee
 
 ```text
-Projects → Assigned projects
-Tasks    → Assigned tasks
-Dashboard → Own scope
-Profile  → Own profile
+Projects      → read   (scoped to projects they are on)
+Tasks         → read   (scoped to tasks assigned to them)
+Activity      → read   (scoped to their own actions)
+Notifications → read
+Dashboard     → read   (own scope)
 
 ```
+
+There is no `delete` permission and no reports or settings module: `write`
+covers the deletes that exist (§8.1), and everything row-level — an employee's
+scope, the last-admin rule, who may delete a comment (its author, or any
+admin or manager, `canDeleteComment` in `@opsflow/types/comment`) — is decided
+in the service layer, not by a permission string.
 
 Authorization should be enforced at the API level.
 
@@ -603,8 +636,12 @@ ProjectMember
 Task
 ActivityLog
 Notification
+Comment
 
 ```
+
+plus the four Better Auth models beside `User`: `Session`, `Account`,
+`Verification` and `RateLimit`.
 
 Relationships:
 
@@ -616,6 +653,8 @@ Role
        ├── Projects
        │
        ├── Tasks
+       │
+       ├── Comments
        │
        ├── Activity Logs
        │
@@ -633,9 +672,17 @@ Project
  │
  ├── Project Members
  │
- └── Tasks
+ ├── Tasks
+ │     │
+ │     └── Comments
+ │
+ └── Comments
 
 ```
+
+A comment belongs to exactly one task or one project (a CHECK constraint in
+the migration enforces it) and cascades with that parent; its author is set
+to null when the user is deleted so the thread keeps its shape.
 
 ---
 
@@ -687,20 +734,26 @@ API
 
 ```
 
-Examples:
+The package is thirteen subpath exports, one per contract:
 
 ```text
-User
-Role
-Project
-Task
-Client
-Notification
-ProjectStatus
-TaskStatus
-PriorityLevel
+@opsflow/types/api            the response envelope, Paginated<T>
+@opsflow/types/auth           PASSWORD_MIN_LENGTH, the auth schemas
+@opsflow/types/permissions    ROLE_NAMES, PERMISSIONS, can()
+@opsflow/types/user           CurrentUser and the user shapes; likewise
+                              /department, /client, /project, /task
+@opsflow/types/activity       ACTIVITY_ACTIONS, ACTIVITY_ENTITY_TYPES
+@opsflow/types/notification
+@opsflow/types/dashboard
+@opsflow/types/changes        changedFields() for PATCH bodies (§20)
+@opsflow/types/comment        COMMENT_BODY_MAX (5000), canDeleteComment()
 
 ```
+
+Each module carries the TypeScript shape, the status and transition tables
+where the entity has them (`PROJECT_TRANSITIONS`, `TASK_TRANSITIONS`), and
+the Zod schemas the API validates with and the forms validate against before
+sending.
 
 The goal is to reduce inconsistencies such as:
 
@@ -842,19 +895,27 @@ Example route structure:
 ```text
 /
 ├── login
-├── dashboard
+├── /                     the dashboard (index of the _authed layout)
 ├── projects
 │   ├── /
 │   ├── /new
-│   └── /:projectId
-├── tasks
-├── clients
-├── users
-├── departments
+│   ├── /$projectId       detail, with the comment thread
+│   └── /$projectId/edit
+├── tasks                 same four routes
+├── clients               same four routes
+├── users                 same four routes
+├── departments           one page; create, edit and delete are dialogs
+├── activity
 ├── notifications
-└── settings
+├── profile
+│   ├── /edit
+│   └── /password
+└── (no settings route)
 
 ```
+
+Everything but `/login` sits under the `_authed` layout route, whose guard
+reads `/api/me`.
 
 Protected routes should verify authentication before displaying protected application content.
 
@@ -1173,8 +1234,15 @@ Manager assigned task
 Employee completed task
 Admin created user
 Client updated
+Member commented on task        (action `commented`)
+Manager deleted a comment       (action `comment_deleted`)
 
 ```
+
+The action vocabulary is `ACTIVITY_ACTIONS` in `@opsflow/types/activity`. A
+comment is logged against its parent task or project, with the comment's id
+in `metadata`, so the parent's feed tells the whole story; there is no
+`comment` entity type.
 
 Activity records contain:
 
@@ -1200,14 +1268,21 @@ Notifications are associated with users.
 Examples:
 
 ```text
-Task assigned
-Task deadline approaching
-Project status changed
-User added to project
-Task completed
-System announcement
+Task assigned              to the assignee
+Task completed             to the project's manager
+Project created            to its manager
+Project status changed     to the manager and the members
+Added to project           to the new member
+Removed from project       to the removed member
+New comment                to the task's assignee and creator, or the
+                           project's manager, with a 120-character preview
 
 ```
+
+Those seven are the whole list. Every one is raised by a direct action and
+never to the actor; there is no scheduler, so nothing is sent for an
+approaching deadline. Both clients show an unread count and offer
+mark-one and mark-all-read.
 
 Notification lifecycle:
 
@@ -1394,22 +1469,27 @@ Code consistency
 
 ### Testing
 
-`bun test` in every package, one root `pnpm test` (Turborepo runs each
-package's `test` script), one assertion API across the repo. No second
-runner.
+`bun test` in the four packages that have tests, one root `pnpm test`
+(Turborepo runs each package's `test` script), one assertion API across the
+repo. No second runner. 391 tests on 2026-09-23.
 
 ```text
-apps/api          in-process against the seeded database (app.request());
-                  fails early, with a fix, if a seeded account cannot sign in
-packages/types    the permission matrix, both state machines, every list-query
-                  and form schema — tables restated as literals in the tests
-apps/web          the API client and the theme store as units; the forms,
-                  the session guard and login flow, the status dialog and the
-                  route feedback rendered with Testing Library on happy-dom
-                  (test/render.tsx, test/api-mock.ts)
-apps/mobile       the paging helpers, the query-string builder, the error
-                  shapes, the dev-server host swap and the date rules — every
-                  module that react-native never reaches
+apps/api          37 — in-process against the seeded database (app.request()):
+                  api.test.ts for the session, origin and one decision per
+                  role, rules.test.ts for the cross-record rules and the
+                  comment threads; fails early, with a fix, if a seeded
+                  account cannot sign in
+packages/types    228 — the permission matrix, both state machines, every
+                  list-query and form schema, changedFields, the comment
+                  schema and delete predicate — tables restated as literals
+apps/web          77 — the API client, the theme store, the current-user and
+                  nav-item helpers as units; the forms, the session guard and
+                  login flow, the status dialog, the route feedback, the
+                  search field and the comments card rendered with Testing
+                  Library on happy-dom (test/render.tsx, test/api-mock.ts)
+apps/mobile       49 — the paging helpers, the query-string builder, the
+                  error shapes, the dev-server host swap, the date rules and
+                  clearSession — every module that react-native never reaches
 ```
 
 `pnpm test` is the entrypoint: Turborepo runs each package's script in its
@@ -1438,8 +1518,7 @@ Two more rules keep the client tests cheap. On the web, a test that mocks
 registrator replaces Bun's for the process. On mobile, a module under test must not
 import `react-native` — Bun cannot load it outside Metro — which is why the
 pure paging helpers live in `paging.ts` and the TanStack wiring that imports
-the API client lives in `paged.ts`. Component and flow tests are the next
-layer; they will add `@testing-library/react` on top of the same setup.
+the API client lives in `paged.ts`.
 
 ---
 
@@ -1465,13 +1544,15 @@ pnpm build
       ▼
    Turborepo
       │
- ┌────┼────┐
- ▼    ▼    ▼
-Web  API  Mobile
+   ┌──┴──┐
+   ▼     ▼
+  Web   API
 
 ```
 
-Shared packages should be built or type-checked according to dependency relationships.
+Only the web (`vite build`) and the API (`bun build`) have a `build` script;
+the packages are consumed as TypeScript source and only type-checked, and the
+mobile app is built natively (§36), outside Turborepo.
 
 ---
 
@@ -1482,11 +1563,14 @@ Environment variables should never be committed to source control.
 Example:
 
 ```text
-.env
-.env.local
+.env            one file at the repository root, read by every app
 .env.example
 
 ```
+
+Vite's `envDir` is the root and the API and mobile scripts pass
+`--env-file=../../.env`, so there is exactly one place to set a value; no
+per-app `.env` is read.
 
 The variables the system actually reads:
 
@@ -1500,6 +1584,12 @@ The variables the system actually reads:
 | `PORT`               | API          | Port assigned by the platform; wins over the above |
 | `WEB_URL`            | API, Auth    | CORS allow-list and Better Auth trusted origin   |
 | `VITE_API_URL`       | Web (public) | Origin the browser calls for `/api`; on Render, the static site's own URL (§36) |
+| `EXPO_PUBLIC_API_URL` | Mobile (public) | The API origin the phone calls; inlined at build time. In development the host is replaced by the Expo dev server's address (`src/lib/api-url.ts`), so a phone on the LAN needs no edit |
+| `NODE_ENV`           | API, Auth    | `production` turns on `Secure` cookies, the rate limiter and the production CORS list; the image sets it |
+| `SEED_USER_PASSWORD` | Seeds, tests | Password of the development accounts; also read by the API tests and `db:explain` |
+| `PRISMA_LOG_QUERIES` | Prisma       | Echo every query, for reading plans locally (§21.2) |
+| `BENCH_SCALE`        | `db:bench`   | Multiplier for the bench volume |
+| `MIGRATE_DATABASE_URL` | Release step | The schema owner's connection string; only for the pre-deploy migration, and currently not set (§36) |
 
 
 `WEB_URL` has no default. It is both the CORS allow-list and Better Auth's
@@ -1706,8 +1796,10 @@ in Phase 18 (sprint §24), and what each one constrains:
 ### One origin, and how Render provides it
 
 The web app and the API are two Render services — a static site and a Docker
-web service — with managed Postgres alongside, declared in
-[`render.yaml`](../render.yaml). The session cookie is `SameSite=Lax` (§33),
+web service — declared in [`render.yaml`](../render.yaml), with managed
+Postgres alongside, created in the dashboard rather than the blueprint (a
+Blueprint that names an existing instance tries to create a second one). The
+session cookie is `SameSite=Lax` (§33),
 which only works if the browser sees the two as one site.
 
 Render's own subdomains do not satisfy that on their own. `onrender.com` is on
@@ -1789,22 +1881,26 @@ the application schema and no DDL. The local compose database is a single
 owner account, which is fine for development and is not the production shape.
 
 In the blueprint that split is two variables. Render only exposes the owner's
-connection string, so it arrives as `MIGRATE_DATABASE_URL` and the API's own
-`DATABASE_URL` is entered by hand after the DML-only role is created. Because
-`prisma.config.ts` reads `DATABASE_URL`, the pre-deploy command passes the
-owner's URL under that name for the length of the migration and nowhere else:
+connection string, so it would arrive as `MIGRATE_DATABASE_URL` and the API's
+own `DATABASE_URL` is entered by hand after the DML-only role is created.
+Because `prisma.config.ts` reads `DATABASE_URL`, the pre-deploy command
+passes the owner's URL under that name for the length of the migration and
+nowhere else:
 
 ```text
 DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
 ```
 
 Render's pre-deploy command requires a paid instance type, and the deployed
-services are free, so the command is commented out in the blueprint and the
-same `migrate deploy` is run from a local shell against the database's
-External URL before any deploy that carries a migration. The seed and
-`bootstrap:admin` were run the same way. The order is the operator's to keep:
-nothing stops a deploy from starting against a schema its migration has not
-reached yet.
+services are free, so the command is commented out in the blueprint — and
+`MIGRATE_DATABASE_URL` with it, because an owner credential sitting in the
+running container's environment with nothing to use it is what the split
+exists to prevent. The same `migrate deploy` is run from a local shell
+against the database's External URL before any deploy that carries a
+migration; the seed and `bootstrap:admin` were run the same way. The order is
+the operator's to keep: nothing stops a deploy from starting against a schema
+its migration has not reached yet. The comments migration of 2026-09-22 is
+the first to need this step since the site went live.
 
 Backups are the managed provider's scheduled snapshots; the only application
 requirement is that a restore be tried once, because an untested backup is a
@@ -1942,60 +2038,82 @@ OPSflow/
 │   │
 │   ├── api/
 │   │   ├── src/
-│   │   │   ├── routes/
-│   │   │   ├── middleware/
+│   │   │   ├── routes/          one file per entity, plus health and me
+│   │   │   ├── middleware/      auth, permission, error
 │   │   │   ├── services/
 │   │   │   ├── validators/
-│   │   │   └── index.ts
+│   │   │   ├── lib/             env, envelope, actor, dates, errors, roles
+│   │   │   ├── app.ts           the Hono app, exported for the tests
+│   │   │   └── index.ts         serves it
+│   │   ├── test/                api.test.ts, rules.test.ts, helpers
+│   │   ├── scripts/explain.ts   pnpm db:explain
+│   │   ├── Dockerfile
 │   │   └── package.json
 │   │
 │   ├── web/
 │   │   ├── src/
-│   │   │   ├── components/
-│   │   │   ├── routes/
-│   │   │   ├── features/
-│   │   │   ├── hooks/
-│   │   │   └── lib/
+│   │   │   ├── components/      shadcn/ui under ui/, app components beside
+│   │   │   ├── routes/          TanStack Router file routes
+│   │   │   ├── lib/             api client, query helpers per entity, theme
+│   │   │   ├── styles/
+│   │   │   ├── main.tsx
+│   │   │   └── routeTree.gen.ts
+│   │   ├── test/                render.tsx, api-mock.ts, setup.ts
 │   │   ├── public/
 │   │   └── package.json
 │   │
 │   └── mobile/
-│       ├── app/
+│       ├── app/                 Expo Router screens
 │       ├── src/
 │       │   ├── components/
-│       │   ├── features/
-│       │   ├── hooks/
+│       │   ├── forms/
 │       │   └── lib/
+│       ├── plugins/             withReleaseSigning.js
+│       ├── scripts/             make-assets.mjs
+│       ├── assets/              generated icons and splash
+│       ├── app.json             the native config; android/ and ios/ are generated
+│       ├── app.config.js
+│       ├── tailwind.config.js
 │       └── package.json
 │
 ├── packages/
 │   │
 │   ├── auth/
-│   │   └── src/
+│   │   ├── src/
+│   │   └── scripts/             seed-users.ts, create-admin.ts
 │   │
-│   ├── config/
+│   ├── config/                  tsconfig.base / bun / react / expo
 │   │
 │   ├── db/
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma
-│   │   │   └── migrations/
+│   │   │   ├── migrations/
+│   │   │   ├── seed.ts          roles and departments
+│   │   │   └── bench.ts         pnpm db:bench
 │   │   ├── prisma.config.ts
 │   │   └── src/
 │   │
 │   ├── types/
-│   │   └── src/
+│   │   ├── src/
+│   │   └── test/
 │   │
 │   └── ui/
-│       └── src/
+│       ├── src/                 palette.json, tones.ts, tokens.css
+│       └── scripts/             generate-css.ts
 │
 ├── docs/
 │   ├── db_schema.dbml
 │   ├── db_schema.md
+│   ├── perf/                    measured query plans
 │   ├── product_architecture.md
 │   ├── sprint.md
 │   └── technical_architecture.md
 │
-├── docker-compose.yml
+├── .github/workflows/ci.yml
+├── docker-compose.yml           local PostgreSQL
+├── docker-compose.prod.yml      the API image beside a database, for rehearsal
+├── render.yaml
+├── .dockerignore
 ├── .env.example
 ├── package.json
 ├── pnpm-workspace.yaml
@@ -2006,9 +2124,9 @@ OPSflow/
 
 There is deliberately no root `tsconfig.json`. The shared TypeScript
 configurations live in `packages/config` (`tsconfig.base.json`,
-`tsconfig.bun.json`, `tsconfig.react.json`) and each application extends the one
-that matches its runtime, so the root stays free of a config that no single
-target could satisfy.
+`tsconfig.bun.json`, `tsconfig.react.json`, `tsconfig.expo.json`) and each
+application extends the one that matches its runtime, so the root stays free
+of a config that no single target could satisfy.
 
 ---
 
@@ -2076,6 +2194,9 @@ would have meant a second server for no capability OPSflow needs.
 | Database           | PostgreSQL 16         |
 | Authentication     | Better Auth           |
 | Formatting/Linting | Biome                 |
+| Testing            | bun test; happy-dom + Testing Library on the web |
+| CI                 | GitHub Actions        |
+| Deployment         | Docker image and static site on Render; Android APK built locally |
 | Type System        | TypeScript            |
 | Billing            | Polar (post-MVP)      |
 | API Clients        | Web + Mobile          |
@@ -2142,8 +2263,8 @@ This architecture allows OPSflow to demonstrate not only CRUD implementation, bu
 # 43. Changes Since v2.0
 
 Version 2.0 of this document was written before implementation began. The
-following decisions were taken while building Phases 0 to 3 and are reflected in
-the sections above. They are recorded here so the reasoning survives, rather
+following decisions were taken while building, from Phase 0 through the
+deployment and the comment threads, and are reflected in the sections above. They are recorded here so the reasoning survives, rather
 than only the outcome.
 
 
@@ -2213,3 +2334,10 @@ than only the outcome.
 | Release signing is a config plugin reading global Gradle properties, with a debug-keystore fallback | Hand edits to a generated `build.gradle` do not survive `prebuild --clean`; the properties keep the keystore out of the repository, and the fallback keeps `build:android` runnable from a fresh clone. See §36 |
 | Application id `org.thegreengen.opsflow`; `app.json` `version` and `versionCode` are the mobile release numbers | The id is permanent once installed on a device, so it is the reverse of the owner's domain. The workspace `package.json` versions stay `0.0.0` |
 | One origin is a deployment requirement; on Render it is a `/api/*` rewrite on the static site | `onrender.com` is on the Public Suffix List, so Render's own subdomains are cross-site to each other and a `SameSite=Lax` session cookie is never sent between them. Sign-in would appear to work and nothing after it would. The rewrite makes the API answer on the web app's origin; verified on the live site 2026-09-15. A custom domain on both services is the alternative. See §36 |
+| A comment has exactly one parent — nullable `task_id` and `project_id` with a hand-written CHECK constraint in the migration | One table serves both threads and one service reads them; Prisma cannot express the constraint, so the migration carries it and the schema comment points at it |
+| Comments are logged against the parent (`commented`, `comment_deleted`), not as a `comment` entity | The parent's activity feed should tell the whole story; a comment has no page of its own to link to |
+| A comment's author is `SET NULL` on user deletion; the thread cascades with its parent | A thread keeps its shape when a person leaves ("Former user"), and has no meaning without the task or project it was under |
+| Deleting a comment is for its author or any admin or manager, as `canDeleteComment` in `@opsflow/types/comment`, with no new permission string | Both rules are row-level, which the matrix comment says belongs in the service; sharing the predicate lets the web card hide the control on the same rule the API enforces |
+| Completed tasks and closed projects still accept comments | A thread is where the closing discussion happens; refusing it would push that conversation elsewhere |
+| Threads list oldest first and the web card asks for the maximum page | Appending keeps offset pages stable while people post; a pager appears only when a thread outgrows 100 |
+| Comment threads are web only for now, and not polled | The API is client-agnostic and the predicate is shared, so the mobile card is a follow-up; live updates are a Server-Sent Events step, not a polling interval |
