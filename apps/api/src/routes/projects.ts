@@ -4,6 +4,7 @@ import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requirePermission } from '../middleware/permission.js'
+import { createComment, listComments } from '../services/comment.service.js'
 import {
   addProjectMember,
   createProject,
@@ -14,6 +15,7 @@ import {
   setProjectStatus,
   updateProject,
 } from '../services/project.service.js'
+import { validateCommentListQuery, validateCreateComment } from '../validators/comment.validator.js'
 import {
   validateAddProjectMember,
   validateCreateProject,
@@ -45,6 +47,17 @@ projectRoutes.get('/:id', validateProjectIdParam, async (c) => {
     c,
     await getProject(c.req.valid('param').id, { id: c.get('user').id, role: c.get('role') }),
   )
+})
+
+// Comment threads share the project's read gate; the service applies row scoping.
+projectRoutes.get('/:id/comments', validateProjectIdParam, validateCommentListQuery, async (c) => {
+  const target = { kind: 'project', id: c.req.valid('param').id } as const
+  return ok(c, await listComments(target, c.req.valid('query'), eventActor(c)))
+})
+
+projectRoutes.post('/:id/comments', validateProjectIdParam, validateCreateComment, async (c) => {
+  const target = { kind: 'project', id: c.req.valid('param').id } as const
+  return ok(c, await createComment(target, c.req.valid('json'), eventActor(c)), 201)
 })
 
 projectRoutes.patch(

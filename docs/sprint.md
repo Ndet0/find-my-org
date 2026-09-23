@@ -2932,6 +2932,51 @@ decisions are written into
   organisation out. The last-admin check stays so a future permission change
   cannot create that hole.
 
+## Comment threads (2026-09-22)
+
+The first step towards messaging: a discussion thread under every task and
+every project, over the existing REST and React Query polling pattern. No
+realtime yet.
+
+- [x] `comments` table with nullable `task_id` / `project_id`, exactly one set,
+  enforced by a hand-written CHECK constraint in the migration
+  (`comments_one_parent_check`; Prisma cannot express it and does not diff
+  it). The author is `SET NULL` on user deletion so a thread keeps its shape;
+  the thread itself cascades with its parent
+- [x] `GET` / `POST /api/tasks/:id/comments`, `GET` / `POST
+  /api/projects/:id/comments`, `DELETE /api/comments/:id`. Threads are read
+  and written through their parent and inherit its read gate; deletion is
+  addressed directly because a list item carries only its own id
+- [x] Scoping: a comment is as visible as its parent, through the existing
+  `taskVisibilityWhere` / `projectVisibilityWhere`. A hidden parent is a 404
+  on the thread too. Anyone who can see the parent may post, including on a
+  completed task or a closed project; deletion is for the author or any admin
+  or manager, as `canDeleteComment()` in `@opsflow/types/comment`, shared by
+  the API and the web card. No new permission string: both rules are
+  row-level, which the matrix comment says belongs in the service
+- [x] Effects: `commented` / `comment_deleted` activity rows, logged against
+  the parent so its feed tells the whole story, with `metadata.commentId`.
+  Posting notifies the task's assignee and creator, or the project's
+  manager, minus the actor, as `New comment` of type `task` / `project`
+- [x] Threads list oldest first, so appending keeps offset pages stable while
+  people post. The web card asks for the maximum page (100) and shows a pager
+  only when a thread outgrows it
+- [x] `CommentsCard` on both web detail pages: list, inline composer, confirm
+  dialog on delete, feedback through `sonner`
+- [x] Tests: `packages/types/test/comment.test.ts` (schema and the delete
+  predicate), six cases in `apps/api/test/rules.test.ts` (post, order and
+  paging, hidden parent, validation, delete rules, project thread with
+  notification), `apps/web/src/components/comments-card.test.tsx` (eight
+  rendering and request cases)
+
+Not in this step: the mobile screens (the API is client-agnostic and
+`canDeleteComment` is shared, so it is a `CommentsCard` per detail screen),
+editing a comment, live updates (Server-Sent Events are the pragmatic next
+move on Render), and threads over 100 comments on one page.
+
+Deploying this commit needs `prisma migrate deploy` against the Render
+external database URL first, as the README's deployment notes describe.
+
 ## Not started
 
 - [x] Phase 15 — Performance (closed 2026-09-13; see above)

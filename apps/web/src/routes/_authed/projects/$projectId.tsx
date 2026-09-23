@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tansta
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { CommentsCard } from '@/components/comments-card'
 import { ProgressBar } from '@/components/progress-bar'
 import { ProjectStatusDialog } from '@/components/project-status-dialog'
 import { DetailPending } from '@/components/route-feedback'
@@ -155,6 +156,11 @@ function ProjectDetailPage() {
       />
 
       <TasksCard projectId={project.id} canWrite={canWriteTasks} />
+
+      <CommentsCard
+        target={{ kind: 'project', id: project.id }}
+        actor={{ id: actor.id, role: actor.role.name }}
+      />
 
       <ProjectStatusDialog
         projectId={project.id}

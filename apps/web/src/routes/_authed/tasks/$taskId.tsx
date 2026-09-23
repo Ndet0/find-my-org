@@ -5,6 +5,7 @@ import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-q
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { CommentsCard } from '@/components/comments-card'
 import { DetailPending } from '@/components/route-feedback'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { TaskStatusDialog } from '@/components/task-status-dialog'
@@ -128,6 +129,11 @@ function TaskDetailPage() {
           </Button>
         ) : null}
       </div>
+
+      <CommentsCard
+        target={{ kind: 'task', id: task.id }}
+        actor={{ id: actor.id, role: actor.role.name }}
+      />
 
       <TaskStatusDialog
         taskId={task.id}

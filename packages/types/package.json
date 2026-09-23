@@ -9,6 +9,7 @@
     "./auth": "./src/auth.ts",
     "./changes": "./src/changes.ts",
     "./client": "./src/client.ts",
+    "./comment": "./src/comment.ts",
     "./dashboard": "./src/dashboard.ts",
     "./notification": "./src/notification.ts",
     "./department": "./src/department.ts",

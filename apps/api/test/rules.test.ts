@@ -65,7 +65,12 @@ const created = {
   openWorkProjectId: '',
   serviceProjectId: '',
   serviceUserId: '',
+  commentProjectId: '',
+  commentHiddenProjectId: '',
 }
+
+/** Marks the bodies the comment tests post, so their notifications can be found and removed. */
+const commentMarker = `thread-${Date.now()}`
 
 /** Notifications inserted straight through Prisma by the paging test. */
 let tiedNotificationIds: string[] = []
@@ -109,6 +114,16 @@ afterAll(async () => {
     await prisma.task.deleteMany({ where: { projectId: created.serviceProjectId } })
     await prisma.project.delete({ where: { id: created.serviceProjectId } }).catch(() => undefined)
   }
+  for (const id of [created.commentProjectId, created.commentHiddenProjectId]) {
+    if (id) {
+      // Comments cascade with their task or project.
+      await prisma.task.deleteMany({ where: { projectId: id } })
+      await prisma.project.delete({ where: { id } }).catch(() => undefined)
+    }
+  }
+  await prisma.notification
+    .deleteMany({ where: { title: 'New comment', message: { contains: commentMarker } } })
+    .catch(() => undefined)
   if (created.serviceUserId) {
     // Sessions, accounts and notifications cascade; activity rows keep a null actor.
     await prisma.user.delete({ where: { id: created.serviceUserId } }).catch(() => undefined)
@@ -672,5 +687,188 @@ describe('list paging', () => {
     // In the order the tiebreaker defines. uuid(7) strings sort as the database
     // compares the column, so a string sort is the expected order.
     expect(walked).toEqual([...tiedNotificationIds].sort().reverse())
+  })
+})
+
+describe('comment threads', () => {
+  let manager = ''
+  let employee = ''
+  let employeeId = ''
+  let managerId = ''
+  let assignedTaskId = ''
+  let unassignedTaskId = ''
+  let employeeCommentId = ''
+  let managerCommentId = ''
+
+  beforeAll(async () => {
+    manager = await signIn('manager@opsflow.local')
+    employee = await signIn('employee@opsflow.local')
+    employeeId = (
+      await prisma.user.findUniqueOrThrow({
+        where: { email: 'employee@opsflow.local' },
+        select: { id: true },
+      })
+    ).id
+    managerId = (
+      await prisma.user.findUniqueOrThrow({
+        where: { email: 'manager@opsflow.local' },
+        select: { id: true },
+      })
+    ).id
+
+    const project = await call('POST', '/api/projects', manager, {
+      name: 'Comment thread fixture',
+      priority: 'low',
+      managerId,
+    })
+    expect(project.status).toBe(201)
+    created.commentProjectId = project.data?.id as string
+
+    const added = await call('POST', `/api/projects/${created.commentProjectId}/members`, manager, {
+      userId: employeeId,
+    })
+    expect(added.status).toBe(201)
+
+    const assigned = await call('POST', '/api/tasks', manager, {
+      title: 'Discussed task',
+      projectId: created.commentProjectId,
+      assignedTo: employeeId,
+    })
+    expect(assigned.status).toBe(201)
+    assignedTaskId = assigned.data?.id as string
+
+    const unassigned = await call('POST', '/api/tasks', manager, {
+      title: 'Task the employee cannot see',
+      projectId: created.commentProjectId,
+    })
+    expect(unassigned.status).toBe(201)
+    unassignedTaskId = unassigned.data?.id as string
+
+    const hidden = await call('POST', '/api/projects', manager, {
+      name: 'Project the employee cannot see',
+      priority: 'low',
+    })
+    expect(hidden.status).toBe(201)
+    created.commentHiddenProjectId = hidden.data?.id as string
+  })
+
+  test('the assignee can post on their task; it is logged and the creator is told', async () => {
+    const posted = await call('POST', `/api/tasks/${assignedTaskId}/comments`, employee, {
+      body: `  first ${commentMarker}  `,
+    })
+    expect(posted.status).toBe(201)
+    employeeCommentId = posted.data?.id as string
+    expect(posted.data?.body).toBe(`first ${commentMarker}`)
+    expect((posted.data?.author as { id: string } | undefined)?.id).toBe(employeeId)
+    expect(posted.data?.target).toEqual({ kind: 'task', id: assignedTaskId })
+
+    const activity = await call(
+      'GET',
+      `/api/activity?entityType=task&entityId=${assignedTaskId}`,
+      manager,
+    )
+    expect(activity.status).toBe(200)
+    const actions = ((activity.data?.items ?? []) as { action: string }[]).map((i) => i.action)
+    expect(actions).toContain('commented')
+
+    // The manager created the task; the employee is the actor and is skipped.
+    const inbox = await call('GET', `/api/notifications?q=${commentMarker}`, manager)
+    expect(inbox.status).toBe(200)
+    const items = (inbox.data?.items ?? []) as { title: string; type: string }[]
+    expect(items).toHaveLength(1)
+    expect(items[0]?.title).toBe('New comment')
+    expect(items[0]?.type).toBe('task')
+  })
+
+  test('a thread lists oldest first and pages by offset', async () => {
+    const posted = await call('POST', `/api/tasks/${assignedTaskId}/comments`, manager, {
+      body: `second ${commentMarker}`,
+    })
+    expect(posted.status).toBe(201)
+    managerCommentId = posted.data?.id as string
+
+    const thread = await call('GET', `/api/tasks/${assignedTaskId}/comments`, employee)
+    expect(thread.status).toBe(200)
+    expect(ids(thread.data)).toEqual([employeeCommentId, managerCommentId])
+    expect(thread.data?.total).toBe(2)
+
+    const second = await call(
+      'GET',
+      `/api/tasks/${assignedTaskId}/comments?pageSize=1&page=2`,
+      employee,
+    )
+    expect(ids(second.data)).toEqual([managerCommentId])
+  })
+
+  test('a thread is as hidden as its parent', async () => {
+    const list = await call('GET', `/api/tasks/${unassignedTaskId}/comments`, employee)
+    expect(list.status).toBe(404)
+    expect(list.error?.code).toBe('TASK_NOT_FOUND')
+
+    const post = await call('POST', `/api/tasks/${unassignedTaskId}/comments`, employee, {
+      body: `sneaky ${commentMarker}`,
+    })
+    expect(post.status).toBe(404)
+
+    const project = await call(
+      'GET',
+      `/api/projects/${created.commentHiddenProjectId}/comments`,
+      employee,
+    )
+    expect(project.status).toBe(404)
+    expect(project.error?.code).toBe('PROJECT_NOT_FOUND')
+  })
+
+  test('a blank or oversized comment is refused', async () => {
+    const blank = await call('POST', `/api/tasks/${assignedTaskId}/comments`, employee, {
+      body: '   ',
+    })
+    expect(blank.status).toBe(422)
+    expect(blank.error?.code).toBe('VALIDATION_ERROR')
+
+    const long = await call('POST', `/api/tasks/${assignedTaskId}/comments`, employee, {
+      body: 'x'.repeat(5001),
+    })
+    expect(long.status).toBe(422)
+  })
+
+  test('an employee deletes only their own comment; a manager deletes any', async () => {
+    const refused = await call('DELETE', `/api/comments/${managerCommentId}`, employee)
+    expect(refused.status).toBe(403)
+    expect(refused.error?.code).toBe('FORBIDDEN')
+
+    const own = await call('DELETE', `/api/comments/${employeeCommentId}`, employee)
+    expect(own.status).toBe(200)
+
+    const moderated = await call('DELETE', `/api/comments/${managerCommentId}`, manager)
+    expect(moderated.status).toBe(200)
+
+    const again = await call('DELETE', `/api/comments/${managerCommentId}`, manager)
+    expect(again.status).toBe(404)
+    expect(again.error?.code).toBe('COMMENT_NOT_FOUND')
+
+    const activity = await call(
+      'GET',
+      `/api/activity?entityType=task&entityId=${assignedTaskId}`,
+      manager,
+    )
+    const actions = ((activity.data?.items ?? []) as { action: string }[]).map((i) => i.action)
+    expect(actions).toContain('comment_deleted')
+  })
+
+  test('a member can post on the project and the manager is told', async () => {
+    const posted = await call(
+      'POST',
+      `/api/projects/${created.commentProjectId}/comments`,
+      employee,
+      { body: `project note ${commentMarker}` },
+    )
+    expect(posted.status).toBe(201)
+    expect(posted.data?.target).toEqual({ kind: 'project', id: created.commentProjectId })
+
+    const inbox = await call('GET', `/api/notifications?q=project note ${commentMarker}`, manager)
+    const items = (inbox.data?.items ?? []) as { type: string }[]
+    expect(items).toHaveLength(1)
+    expect(items[0]?.type).toBe('project')
   })
 })

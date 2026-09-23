@@ -4,6 +4,7 @@ import type { AppEnv } from '../lib/context.js'
 import { ok } from '../lib/response.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requirePermission } from '../middleware/permission.js'
+import { createComment, listComments } from '../services/comment.service.js'
 import {
   createTask,
   deleteTask,
@@ -13,6 +14,7 @@ import {
   setTaskStatus,
   updateTask,
 } from '../services/task.service.js'
+import { validateCommentListQuery, validateCreateComment } from '../validators/comment.validator.js'
 import {
   validateCreateTask,
   validateTaskIdParam,
@@ -36,6 +38,17 @@ taskRoutes.post('/', requirePermission('tasks:write'), validateCreateTask, async
 
 taskRoutes.get('/:id', validateTaskIdParam, async (c) => {
   return ok(c, await getTask(c.req.valid('param').id, eventActor(c)))
+})
+
+// Comment threads share the task's read gate; the service applies row scoping.
+taskRoutes.get('/:id/comments', validateTaskIdParam, validateCommentListQuery, async (c) => {
+  const target = { kind: 'task', id: c.req.valid('param').id } as const
+  return ok(c, await listComments(target, c.req.valid('query'), eventActor(c)))
+})
+
+taskRoutes.post('/:id/comments', validateTaskIdParam, validateCreateComment, async (c) => {
+  const target = { kind: 'task', id: c.req.valid('param').id } as const
+  return ok(c, await createComment(target, c.req.valid('json'), eventActor(c)), 201)
 })
 
 taskRoutes.patch('/:id/status', validateTaskIdParam, validateUpdateTaskStatus, async (c) => {

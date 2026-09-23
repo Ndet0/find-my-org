@@ -9,6 +9,7 @@ import { forbidden } from './lib/errors.js'
 import { onError, onNotFound } from './middleware/error.js'
 import { activityRoutes } from './routes/activity.js'
 import { clientRoutes } from './routes/clients.js'
+import { commentRoutes } from './routes/comments.js'
 import { dashboardRoutes } from './routes/dashboard.js'
 import { departmentRoutes } from './routes/departments.js'
 import { healthRoutes } from './routes/health.js'
@@ -86,6 +87,7 @@ api.route('/departments', departmentRoutes)
 api.route('/clients', clientRoutes)
 api.route('/projects', projectRoutes)
 api.route('/tasks', taskRoutes)
+api.route('/comments', commentRoutes)
 api.route('/activity', activityRoutes)
 api.route('/notifications', notificationRoutes)
 api.route('/dashboard', dashboardRoutes)

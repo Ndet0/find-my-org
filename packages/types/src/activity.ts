@@ -26,6 +26,8 @@ export const ACTIVITY_ACTIONS = [
   'deleted',
   'member_added',
   'member_removed',
+  'commented',
+  'comment_deleted',
 ] as const
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]

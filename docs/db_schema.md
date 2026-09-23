@@ -122,6 +122,14 @@ erDiagram
         boolean is_read
     }
 
+    comments {
+        uuid id PK
+        uuid task_id FK
+        uuid project_id FK
+        uuid user_id FK
+        text body
+    }
+
     roles           ||--o{ users           : "grants"
     departments     |o--o{ users           : "groups"
     users           ||--o{ sessions        : "signs in with"
@@ -135,12 +143,17 @@ erDiagram
     users           |o--o{ tasks           : "created"
     users           |o--o{ activity_logs   : "performs"
     users           ||--o{ notifications   : "receives"
+    tasks           |o--o{ comments        : "discussed in"
+    projects        |o--o{ comments        : "discussed in"
+    users           |o--o{ comments        : "writes"
 ```
 
 `||` marks a required parent and `|o` an optional one, matching the nullability
 of each foreign key. A user must have a role but need not have a department; a
 project may exist without a client or a manager; and a task outlives both its
-assignee and its creator.
+assignee and its creator. A comment hangs off exactly one of a task or a
+project, which is why both of its parent keys are drawn optional; a CHECK
+constraint makes the pair exclusive.
 
 `verifications` has no foreign keys. Better Auth uses it for email and
 password-reset tokens, which are keyed by an identifier string rather than a
@@ -608,6 +621,46 @@ You were assigned to Project Alpha.
 
 ---
 
+## 13. `comments`
+
+The discussion thread under a task or a project.
+
+### Columns
+
+
+| Column     | Type        | Nullable | Description                              |
+| ---------- | ----------- | -------- | ---------------------------------------- |
+| id         | UUID        | No       | Primary key                              |
+| task_id    | UUID        | Yes      | The task discussed, if any               |
+| project_id | UUID        | Yes      | The project discussed, if any            |
+| user_id    | UUID        | Yes      | Author; null once their account is gone  |
+| body       | TEXT        | No       | Comment text, at most 5 000 characters   |
+| created_at | TIMESTAMPTZ | No       | Creation timestamp                       |
+| updated_at | TIMESTAMPTZ | No       | Last update timestamp                    |
+
+
+### Constraints
+
+- `comments_one_parent_check`: `num_nonnulls(task_id, project_id) = 1`.
+  Exactly one parent is set. Prisma cannot express this, so the constraint
+  is written by hand in the migration (`20260922201820_add_comments`) rather
+  than generated from the schema; Prisma does not diff CHECK constraints, so
+  later migrations leave it alone.
+
+### Relationships
+
+- A comment goes with its task or project (`CASCADE`).
+- A comment outlives its author (`SET NULL`); the thread keeps its shape
+  and the row reads as "Former user".
+
+Who may read a thread is decided by the parent: a comment is visible when the
+task or project is. Posting needs only that visibility; deleting is for the
+author, or for any admin or manager. There is no `comments:*` permission for
+the same reason there is no row-level permission anywhere else — the matrix
+answers "may this role try", the service applies the `where`.
+
+---
+
 # Enumerations
 
 ## User Status
@@ -688,6 +741,9 @@ system
 | User → Tasks              | One-to-Many  |
 | User → Activity Logs      | One-to-Many  |
 | User → Notifications      | One-to-Many  |
+| Task → Comments           | One-to-Many  |
+| Project → Comments        | One-to-Many  |
+| User → Comments           | One-to-Many  |
 
 
 ---
@@ -707,6 +763,7 @@ Project deleted
        ↓
 Project Members deleted
 Tasks deleted
+Comments deleted (the project's, and each task's)
 
 User deleted
        ↓
@@ -725,6 +782,7 @@ Example:
 User deleted
        ↓
 Activity Log remains
+Comments remain
        ↓
 user_id = NULL
 
@@ -783,6 +841,9 @@ Indexes are created on frequently queried fields.
 - `activity_logs.created_at`
 - `notifications.user_id + is_read`
 - `notifications.created_at`
+- `comments.task_id + created_at`
+- `comments.project_id + created_at`
+- `comments.user_id`
 
 Two of these are composites rather than the separate indexes a first pass might
 suggest:
@@ -938,7 +999,6 @@ Potential additions include:
 
 ```text
 documents
-comments
 timesheets
 expenses
 invoices

@@ -164,6 +164,7 @@ model User {
   createdTasks    Task[]          @relation("TaskCreator")
   activityLogs    ActivityLog[]
   notifications   Notification[]
+  comments        Comment[]
 
   @@index([roleId])
   @@index([departmentId])
@@ -292,8 +293,9 @@ model Project {
   client  Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   manager User?   @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
 
-  members ProjectMember[]
-  tasks   Task[]
+  members  ProjectMember[]
+  tasks    Task[]
+  comments Comment[]
 
   @@index([clientId])
   @@index([managerId])
@@ -336,6 +338,8 @@ model Task {
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignee User?   @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
   creator  User?   @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  comments Comment[]
 
   @@index([projectId])
   @@index([assignedTo])
@@ -384,4 +388,34 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ============================================================
+// COMMENTS
+// ============================================================
+
+// A discussion thread hangs off exactly one parent: a task or a project.
+// Prisma cannot express "exactly one of two columns", so the migration adds
+// a CHECK constraint (`comments_one_parent_check`) by hand.
+model Comment {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  taskId    String? @map("task_id") @db.Uuid
+  projectId String? @map("project_id") @db.Uuid
+  userId    String? @map("user_id") @db.Uuid
+  body      String
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // A thread belongs to its parent and goes with it; it outlives the person
+  // who wrote in it, so the author is detached rather than the comment lost.
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Composite indexes serve the hot query: one thread, oldest first.
+  @@index([taskId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([userId])
+  @@map("comments")
 }
