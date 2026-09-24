@@ -1,17 +1,22 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery } from '@tanstack/react-query'
 import { Tabs } from 'expo-router'
+import { dmUnreadCountQueryOptions } from '@/lib/dm'
 import { unreadCountQueryOptions } from '@/lib/notifications'
 
 /**
  * The five mobile priorities from product §30 — dashboard, tasks, projects,
- * notifications, profile — as tabs. The inbox badge is the same polled
- * count the web nav shows; it disappears at zero rather than showing "0".
+ * notifications, profile — as tabs, plus messages. The inbox and messages
+ * badges are the same polled counts the web nav shows; they disappear at
+ * zero rather than showing "0".
  * The tab bar's colours come from the navigation theme (`lib/navigation-theme.ts`).
  */
 export default function TabsLayout() {
   const unread = useQuery(unreadCountQueryOptions())
+  const unreadMessages = useQuery(dmUnreadCountQueryOptions())
   const badge = unread.data && unread.data.count > 0 ? unread.data.count : undefined
+  const messagesBadge =
+    unreadMessages.data && unreadMessages.data.count > 0 ? unreadMessages.data.count : undefined
 
   return (
     <Tabs screenOptions={{ headerShown: false }}>
@@ -49,6 +54,16 @@ export default function TabsLayout() {
           tabBarBadge: badge,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="notifications-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarBadge: messagesBadge,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles-outline" size={size} color={color} />
           ),
         }}
       />

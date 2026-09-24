@@ -12,11 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedMessagesRouteImport } from './routes/_authed/messages'
 import { Route as AuthedActivityIndexRouteImport } from './routes/_authed/activity/index'
 import { Route as AuthedClientsIndexRouteImport } from './routes/_authed/clients/index'
 import { Route as AuthedClientsClientIdRouteImport } from './routes/_authed/clients/$clientId'
 import { Route as AuthedClientsNewRouteImport } from './routes/_authed/clients/new'
 import { Route as AuthedDepartmentsIndexRouteImport } from './routes/_authed/departments/index'
+import { Route as AuthedMessagesIndexRouteImport } from './routes/_authed/messages/index'
+import { Route as AuthedMessagesConversationIdRouteImport } from './routes/_authed/messages/$conversationId'
 import { Route as AuthedNotificationsIndexRouteImport } from './routes/_authed/notifications/index'
 import { Route as AuthedProfileIndexRouteImport } from './routes/_authed/profile/index'
 import { Route as AuthedProfileEditRouteImport } from './routes/_authed/profile/edit'
@@ -49,6 +52,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMessagesRoute = AuthedMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedActivityIndexRoute = AuthedActivityIndexRouteImport.update({
   id: '/activity/',
   path: '/activity/',
@@ -74,6 +82,17 @@ const AuthedDepartmentsIndexRoute = AuthedDepartmentsIndexRouteImport.update({
   path: '/departments/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMessagesIndexRoute = AuthedMessagesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedMessagesRoute,
+} as any)
+const AuthedMessagesConversationIdRoute =
+  AuthedMessagesConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AuthedMessagesRoute,
+  } as any)
 const AuthedNotificationsIndexRoute =
   AuthedNotificationsIndexRouteImport.update({
     id: '/notifications/',
@@ -166,8 +185,10 @@ const AuthedUsersUserIdEditRoute = AuthedUsersUserIdEditRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/messages': typeof AuthedMessagesRouteWithChildren
   '/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/clients/new': typeof AuthedClientsNewRoute
+  '/messages/$conversationId': typeof AuthedMessagesConversationIdRoute
   '/profile/edit': typeof AuthedProfileEditRoute
   '/profile/password': typeof AuthedProfilePasswordRoute
   '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
@@ -179,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/activity/': typeof AuthedActivityIndexRoute
   '/clients/': typeof AuthedClientsIndexRoute
   '/departments/': typeof AuthedDepartmentsIndexRoute
+  '/messages/': typeof AuthedMessagesIndexRoute
   '/notifications/': typeof AuthedNotificationsIndexRoute
   '/profile/': typeof AuthedProfileIndexRoute
   '/projects/': typeof AuthedProjectsIndexRoute
@@ -194,6 +216,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/clients/new': typeof AuthedClientsNewRoute
+  '/messages/$conversationId': typeof AuthedMessagesConversationIdRoute
   '/profile/edit': typeof AuthedProfileEditRoute
   '/profile/password': typeof AuthedProfilePasswordRoute
   '/projects/$projectId': typeof AuthedProjectsProjectIdRoute
@@ -205,6 +228,7 @@ export interface FileRoutesByTo {
   '/activity': typeof AuthedActivityIndexRoute
   '/clients': typeof AuthedClientsIndexRoute
   '/departments': typeof AuthedDepartmentsIndexRoute
+  '/messages': typeof AuthedMessagesIndexRoute
   '/notifications': typeof AuthedNotificationsIndexRoute
   '/profile': typeof AuthedProfileIndexRoute
   '/projects': typeof AuthedProjectsIndexRoute
@@ -219,9 +243,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/messages': typeof AuthedMessagesRouteWithChildren
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/clients/$clientId': typeof AuthedClientsClientIdRoute
   '/_authed/clients/new': typeof AuthedClientsNewRoute
+  '/_authed/messages/$conversationId': typeof AuthedMessagesConversationIdRoute
   '/_authed/profile/edit': typeof AuthedProfileEditRoute
   '/_authed/profile/password': typeof AuthedProfilePasswordRoute
   '/_authed/projects/$projectId': typeof AuthedProjectsProjectIdRoute
@@ -233,6 +259,7 @@ export interface FileRoutesById {
   '/_authed/activity/': typeof AuthedActivityIndexRoute
   '/_authed/clients/': typeof AuthedClientsIndexRoute
   '/_authed/departments/': typeof AuthedDepartmentsIndexRoute
+  '/_authed/messages/': typeof AuthedMessagesIndexRoute
   '/_authed/notifications/': typeof AuthedNotificationsIndexRoute
   '/_authed/profile/': typeof AuthedProfileIndexRoute
   '/_authed/projects/': typeof AuthedProjectsIndexRoute
@@ -248,8 +275,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/messages'
     | '/clients/$clientId'
     | '/clients/new'
+    | '/messages/$conversationId'
     | '/profile/edit'
     | '/profile/password'
     | '/projects/$projectId'
@@ -261,6 +290,7 @@ export interface FileRouteTypes {
     | '/activity/'
     | '/clients/'
     | '/departments/'
+    | '/messages/'
     | '/notifications/'
     | '/profile/'
     | '/projects/'
@@ -276,6 +306,7 @@ export interface FileRouteTypes {
     | '/'
     | '/clients/$clientId'
     | '/clients/new'
+    | '/messages/$conversationId'
     | '/profile/edit'
     | '/profile/password'
     | '/projects/$projectId'
@@ -287,6 +318,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/clients'
     | '/departments'
+    | '/messages'
     | '/notifications'
     | '/profile'
     | '/projects'
@@ -300,9 +332,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/messages'
     | '/_authed/'
     | '/_authed/clients/$clientId'
     | '/_authed/clients/new'
+    | '/_authed/messages/$conversationId'
     | '/_authed/profile/edit'
     | '/_authed/profile/password'
     | '/_authed/projects/$projectId'
@@ -314,6 +348,7 @@ export interface FileRouteTypes {
     | '/_authed/activity/'
     | '/_authed/clients/'
     | '/_authed/departments/'
+    | '/_authed/messages/'
     | '/_authed/notifications/'
     | '/_authed/profile/'
     | '/_authed/projects/'
@@ -353,6 +388,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/messages': {
+      id: '/_authed/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof AuthedMessagesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/activity/': {
       id: '/_authed/activity/'
       path: '/activity'
@@ -387,6 +429,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/departments/'
       preLoaderRoute: typeof AuthedDepartmentsIndexRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/_authed/messages/': {
+      id: '/_authed/messages/'
+      path: '/'
+      fullPath: '/messages/'
+      preLoaderRoute: typeof AuthedMessagesIndexRouteImport
+      parentRoute: typeof AuthedMessagesRoute
+    }
+    '/_authed/messages/$conversationId': {
+      id: '/_authed/messages/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/messages/$conversationId'
+      preLoaderRoute: typeof AuthedMessagesConversationIdRouteImport
+      parentRoute: typeof AuthedMessagesRoute
     }
     '/_authed/notifications/': {
       id: '/_authed/notifications/'
@@ -510,7 +566,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthedMessagesRouteChildren {
+  AuthedMessagesConversationIdRoute: typeof AuthedMessagesConversationIdRoute
+  AuthedMessagesIndexRoute: typeof AuthedMessagesIndexRoute
+}
+
+const AuthedMessagesRouteChildren: AuthedMessagesRouteChildren = {
+  AuthedMessagesConversationIdRoute: AuthedMessagesConversationIdRoute,
+  AuthedMessagesIndexRoute: AuthedMessagesIndexRoute,
+}
+
+const AuthedMessagesRouteWithChildren = AuthedMessagesRoute._addFileChildren(
+  AuthedMessagesRouteChildren,
+)
+
 interface AuthedRouteChildren {
+  AuthedMessagesRoute: typeof AuthedMessagesRouteWithChildren
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedClientsClientIdRoute: typeof AuthedClientsClientIdRoute
   AuthedClientsNewRoute: typeof AuthedClientsNewRoute
@@ -537,6 +608,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedMessagesRoute: AuthedMessagesRouteWithChildren,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedClientsClientIdRoute: AuthedClientsClientIdRoute,
   AuthedClientsNewRoute: AuthedClientsNewRoute,

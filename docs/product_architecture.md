@@ -223,6 +223,7 @@ OPSflow
 ├── Activity
 ├── Notifications
 ├── Comment threads (on projects and tasks)
+├── Direct messages (end-to-end encrypted)
 └── Profile
 
 ```
@@ -745,7 +746,7 @@ Notifications alert users to important events.
 Examples:
 
 Every notification is raised by someone else's direct action; the actor is
-never told about their own. The seven that exist:
+never told about their own. The eight that exist:
 
 ```text
 Task assigned              you were given a task
@@ -762,6 +763,9 @@ Removed from project       you were taken off a project's team
 
 New comment                someone posted on your task, or on a project
                            you manage, with the first line of the comment
+
+New message                someone sent you a direct message; who, but
+                           never what — the text is encrypted end to end
 
 ```
 
@@ -786,6 +790,51 @@ Read
 
 Both clients show the unread count — on the web navigation and the mobile
 inbox tab — and offer mark-one and mark-all-read.
+
+---
+
+# 26a. Direct Messages
+
+Two people can write to each other privately, on the web and on the phone.
+Messages are end-to-end encrypted: they are sealed on the sender's device
+and opened on the recipient's, and OPSflow's own server stores only
+ciphertext it cannot read. Nobody who runs the platform — not an
+administrator, not whoever has the database — can read a conversation.
+
+### Who may write to whom
+
+```text
+Manager        ↔  anyone
+Employee       ↔  employees and managers
+Administrator  ↔  administrators and managers
+
+```
+
+An employee cannot reach an administrator, and an administrator cannot open
+a conversation with an employee either — a conversation is two-way, and the
+rule is that the only way to an administrator's inbox is through a manager.
+The picker lists only the people the reader may write to.
+
+### How it works for a person
+
+- Signing in sets up secure messaging silently. The first sign-in creates a
+  key on the device and keeps a backup of it that only the person's password
+  can open; later sign-ins, on any device, restore it from that backup.
+- The Messages page or tab shows conversations, most recent first, with an
+  unread count in the navigation. Opening one shows the thread and a
+  composer; new messages appear within a few seconds.
+- Someone who has not signed in since the feature arrived cannot be written
+  to yet. The picker shows them greyed out and says why.
+- Changing your password keeps your messages: the backup is re-sealed under
+  the new password. Forgetting your password does lose them — nobody else
+  can recover the key, which is the point of end-to-end encryption.
+- Signing out removes the key from that device; signing in brings it back.
+
+### What it is not, yet
+
+No group threads, attachments, editing or deleting; and no live push, so a
+thread that is open refreshes itself every few seconds rather than
+instantly. Those are the follow-ups, in that order.
 
 ---
 

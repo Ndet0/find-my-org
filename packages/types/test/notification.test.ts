@@ -8,7 +8,7 @@ describe('notificationListQuerySchema', () => {
     expect(notificationListQuerySchema.safeParse({ unread: 'false' }).success).toBe(false)
   })
 
-  test('the four notification types are the ones the badge knows', () => {
-    expect(NOTIFICATION_TYPES).toEqual(['task', 'project', 'user', 'system'])
+  test('the five notification types are the ones the badge knows', () => {
+    expect(NOTIFICATION_TYPES).toEqual(['task', 'project', 'user', 'system', 'message'])
   })
 })

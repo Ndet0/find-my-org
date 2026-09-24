@@ -12,6 +12,7 @@ import { clientRoutes } from './routes/clients.js'
 import { commentRoutes } from './routes/comments.js'
 import { dashboardRoutes } from './routes/dashboard.js'
 import { departmentRoutes } from './routes/departments.js'
+import { dmRoutes } from './routes/dm.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
 import { notificationRoutes } from './routes/notifications.js'
@@ -88,6 +89,7 @@ api.route('/clients', clientRoutes)
 api.route('/projects', projectRoutes)
 api.route('/tasks', taskRoutes)
 api.route('/comments', commentRoutes)
+api.route('/dm', dmRoutes)
 api.route('/activity', activityRoutes)
 api.route('/notifications', notificationRoutes)
 api.route('/dashboard', dashboardRoutes)

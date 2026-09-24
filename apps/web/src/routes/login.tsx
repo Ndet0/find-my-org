@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, isSignedIn, safeRedirect } from '@/lib/current-user'
+import { identityQueryOptions, unlockMessaging } from '@/lib/dm-identity'
 
 /** `?redirect=` is the page the guard turned away; see `safeRedirect`. */
 const loginSearchSchema = z.object({ redirect: z.string().optional() })
@@ -57,7 +58,18 @@ export function LoginPage() {
         throw cause
       }
     },
-    onSuccess: () => router.navigate({ href: destination }),
+    onSuccess: (user, credentials) => {
+      // The password is in hand exactly here, so this is where the messaging
+      // key is generated or restored from its backup. Not awaited: it costs
+      // a key derivation, and a failure only means the Messages page asks
+      // for the password again. The result is written into the cache the
+      // Messages page reads, so a page opened before the derivation finished
+      // picks the key up rather than asking for the password it already had.
+      void unlockMessaging(user.id, credentials.password)
+        .then((pair) => queryClient.setQueryData(identityQueryOptions(user.id).queryKey, pair))
+        .catch(() => undefined)
+      void router.navigate({ href: destination })
+    },
   })
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

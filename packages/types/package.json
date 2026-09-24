@@ -13,6 +13,7 @@
     "./dashboard": "./src/dashboard.ts",
     "./notification": "./src/notification.ts",
     "./department": "./src/department.ts",
+    "./dm": "./src/dm.ts",
     "./permissions": "./src/permissions.ts",
     "./project": "./src/project.ts",
     "./task": "./src/task.ts",

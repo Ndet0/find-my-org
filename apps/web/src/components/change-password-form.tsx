@@ -1,6 +1,6 @@
 import { type ChangePasswordInput, changePasswordSchema } from '@opsflow/types/auth'
 import { useForm } from '@tanstack/react-form'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type FieldErrorMap, fieldErrorsFrom, formErrorMessage } from '@/lib/api'
 import { authClient } from '@/lib/auth-client'
+import { currentUserQueryOptions } from '@/lib/current-user'
+import { markBackupStale, rewrapMessaging } from '@/lib/dm-identity'
 
 /**
  * Better Auth's code for a current password that does not match. It is the one
@@ -49,6 +51,7 @@ class ChangePasswordError extends Error {
  */
 export function ChangePasswordForm() {
   const router = useRouter()
+  const user = useQuery(currentUserQueryOptions).data
   const [serverErrors, setServerErrors] = useState<FieldErrorMap>({})
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -74,6 +77,20 @@ export function ChangePasswordForm() {
               currentPassword: ['That is not your current password'],
             })
           : new ChangePasswordError(error.message ?? 'The password could not be changed')
+      }
+
+      // The messaging key's backup is sealed under the password, so it is
+      // re-sealed under the new one; otherwise the next device could not
+      // unlock it. The password has already changed, so a failure here is a
+      // warning rather than a refusal — but one that is remembered: the
+      // Messages page sees the mark and asks for the password to retry.
+      if (user) {
+        await rewrapMessaging(user.id, parsed.currentPassword, parsed.newPassword).catch(() => {
+          markBackupStale(user.id)
+          toast.warning(
+            'Your password was changed, but your secure-messaging backup could not be updated. Open Messages on this device to retry; until then, other devices cannot unlock your messages.',
+          )
+        })
       }
     },
     onSuccess: async () => {

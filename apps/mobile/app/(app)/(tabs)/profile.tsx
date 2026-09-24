@@ -10,6 +10,7 @@ import { ErrorText } from '@/components/error-text'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, useCan, useCurrentUser } from '@/lib/current-user'
+import { forgetMessagingSecret } from '@/lib/dm-identity'
 import { clearSession } from '@/lib/session'
 
 export default function ProfileScreen() {
@@ -23,7 +24,11 @@ export default function ProfileScreen() {
 
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
-    onSuccess: () => {
+    onSuccess: async () => {
+      // The messaging secret goes with the session; sign-in restores it. It
+      // is removed once the sign-out has gone through, so a refused sign-out
+      // does not leave a live session with no key.
+      await forgetMessagingSecret(user?.id)
       // The current user is set rather than removed so the root guard sees
       // "signed out" immediately instead of refetching first.
       clearSession(queryClient)

@@ -41,6 +41,22 @@ const SIGN_OUT = 'POST /api/auth/sign-out'
 
 let api: ReturnType<typeof mockApi> | undefined
 
+/**
+ * A successful sign-in also sets up the messaging key in the background —
+ * `GET /api/dm/key`, then a `PUT` if there was none. It is not awaited by
+ * the page, so those calls may or may not have happened by the time an
+ * assertion runs; they are answered so nothing is left unmocked, and left
+ * out of the call lists.
+ */
+const MESSAGING_KEY = {
+  'GET /api/dm/key': ok(null),
+  'PUT /api/dm/key': ok({}),
+}
+
+function pathsExceptMessaging(calls: { path: string }[]): string[] {
+  return calls.map((call) => call.path).filter((path) => !path.startsWith('/api/dm/'))
+}
+
 afterEach(() => api?.restore())
 afterEach(cleanup)
 
@@ -91,6 +107,7 @@ describe('LoginPage', () => {
     api = mockApi({
       [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },
       'GET /api/me': ok(user),
+      ...MESSAGING_KEY,
     })
     const { router } = await renderWithProviders(<LoginPage />)
 
@@ -99,7 +116,7 @@ describe('LoginPage', () => {
     submit()
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
-    expect(api.calls.map((call) => call.path)).toEqual(['/api/auth/sign-in/email', '/api/me'])
+    expect(pathsExceptMessaging(api.calls)).toEqual(['/api/auth/sign-in/email', '/api/me'])
     expect(api.calls[0]?.body).toMatchObject({ email: 'employee@opsflow.local' })
   })
 
@@ -107,6 +124,7 @@ describe('LoginPage', () => {
     api = mockApi({
       [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },
       'GET /api/me': ok(user),
+      ...MESSAGING_KEY,
     })
     const { router } = await renderWithProviders(<LoginPage />, {
       initialPath: '/?redirect=%2Ftasks%3Fstatus%3Dblocked',
@@ -124,6 +142,7 @@ describe('LoginPage', () => {
     api = mockApi({
       [SIGN_IN]: { status: 200, body: { user: { id: 'u1' }, token: 't' } },
       'GET /api/me': ok(user),
+      ...MESSAGING_KEY,
     })
     const external = await renderWithProviders(<LoginPage />, {
       initialPath: '/?redirect=%2F%2Fevil.example',

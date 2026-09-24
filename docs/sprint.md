@@ -3047,6 +3047,105 @@ move on Render), and threads over 100 comments on one page.
 Deploying this commit needs `prisma migrate deploy` against the Render
 external database URL first, as the README's deployment notes describe.
 
+## Direct messages (2026-09-23)
+
+One-to-one messages between colleagues, end-to-end encrypted, on both
+clients. The server relays and stores ciphertext and never holds a key that
+opens it; the design is technical architecture §26.2. Migration
+`20260923094525_add_direct_messages`.
+
+- [x] `packages/crypto` (`@opsflow/crypto`): X25519 identity keys, the
+  password-wrapped backup (scrypt 2^15 + XChaCha20-Poly1305, user id as
+  associated data), HKDF conversation keys, and message sealing with the
+  conversation id and sender bound in. `@opsflow/crypto/identity` is the
+  device-side lifecycle — first-time generation, restore from backup,
+  re-wrap on password change — with storage and API calls injected so the
+  web app, the phone and the tests run the same code. On `@noble/curves`,
+  `@noble/ciphers` and `@noble/hashes`, the last two already in the tree
+  under Better Auth. Pure-JS base64 so the browser, Bun and Hermes agree
+- [x] `@opsflow/types/dm`: the wire shapes, the Zod schemas (key record,
+  message, cursor query, contact search), `canDirectMessage()` and
+  `mergeMessages()`. `NOTIFICATION_TYPES` gains `message`
+- [x] Three tables: `dm_keys` (one per person, public key immutable once
+  set), `dm_conversations` (one per pair, stored in id order under a
+  hand-written CHECK, with a kept unread counter per party) and
+  `dm_messages` (ciphertext, nonce, sender; paged newest first on the
+  UUIDv7 id). All cascade with their users; `db_schema.md` and `.dbml`
+  updated in the same commit
+- [x] `/api/dm`: `GET`/`PUT /key` (a first upload is an insert, so two at
+  once keep one key; a re-wrap needs `currentPassword` and keeps the public
+  key; a different public key is `DM_KEY_EXISTS`), `GET /contacts?q=` (the people the caller may write to,
+  with their public keys, not gated by `users:read`), `GET`/`POST
+  /conversations` (get-or-create by pair; `DM_PEER_NOT_READY` and
+  `DM_KEY_MISSING` until both sides have keys, `DM_PEER_INACTIVE`), `GET
+  /conversations/:id`, `GET`/`POST /conversations/:id/messages` (`?before=`
+  cursor, 50 per page), `POST /conversations/:id/read`, `GET /unread-count`.
+  Authenticated, not permission-gated; nothing logged to the activity trail
+- [x] The rule: an administrator and an employee cannot message each other
+  in either direction — a conversation is two-way, so the only way to an
+  administrator's inbox is through a manager. Enforced by the service where
+  a pair is formed and again on every send, mirrored by the contact list,
+  and used by both pickers
+- [x] Sending increments the peer's unread counter and clears the sender's;
+  the peer is notified (`New message`, type `message`, sender's name only)
+  once per run of unread messages rather than per line, with the counter
+  read inside the transaction. Opening a thread clears the reader's
+  counter, and once nothing is unread anywhere the message notifications
+  are marked read with it; the badge is one aggregate
+- [x] Web: `/messages` (list beside the open thread, New-message dialog with
+  search), `/messages/$conversationId` (thread polled every four seconds,
+  older pages on demand, Enter to send), `Messages` in the navigation with
+  an unread badge for every role. `MessagingGate` holds the key and asks
+  for the password when this browser has no secret; sign-in restores or
+  creates the key in the background and hands it to the gate; the password
+  form re-wraps the backup, and a failed re-wrap is remembered so the gate
+  can retry it with the current password; sign-out and an expired session
+  both forget the secret and the opened messages
+- [x] Mobile: a `Messages` tab with the same badge, `messages/new` and
+  `messages/[conversationId]` (inverted list, older pages as the top is
+  reached, keyboard-aware composer), the same gate, the same sign-in,
+  password and sign-out hooks; the secret lives in SecureStore. Hermes has
+  no WebCrypto, so the root layout installs `expo-crypto`'s
+  `getRandomValues` on `globalThis.crypto`; `expo-crypto` is a new native
+  dependency, so the next Android release needs `prebuild` again
+- [x] Tests: `packages/crypto` (35: base64, keys, wrap/unwrap, wrong
+  password, swapped public key, replay across sender and thread, tamper,
+  and the identity lifecycle on a memory store — two unlocks at once, a
+  lost first-upload race, a local key that disagrees with the backup, a
+  damaged entry, the re-wrap retry), `packages/types/test/dm.test.ts`
+  (the rule, the schemas including exact base64 padding, the merge),
+  `apps/api/test/dm.test.ts` (17: keys including two uploads at once and
+  the password a re-wrap needs, the rule both ways and in the contact
+  list, self and guessed ids, readiness, both sides opening at once, an
+  outsider reading and writing, a message sealed by the manager and opened
+  by the employee with the stored bytes checked for plaintext, unread and
+  notification counts, cursor paging, limits), `apps/web/src/lib/dm-identity.test.ts`
+  (storage and upload wiring at the real KDF cost, the stale-backup mark)
+  and `dm.test.ts` (the caches around opening messages), the login test
+  extended for the background key setup
+- [x] Reviewed 2026-09-23 after shipping, and fixed: the API image did not
+  copy `packages/crypto/package.json` and would not have built; the
+  conversation-key cache was keyed by peer alone and survived a session
+  ending, so the next person to sign in on the device would have read
+  nothing and sealed to the wrong key; the secret outlived a 401; a
+  re-wrap that failed after a password change promised a retry that did
+  not exist; two first key uploads could overwrite each other, and a
+  stolen session could overwrite the wrapped half; two simultaneous opens
+  of one pair were a 500; lenient base64 let truncated ciphertext be
+  stored; the role rule was checked only at open; `dm_messages.sender_id`
+  had no index (`20260923150000_index_dm_message_sender`)
+- [x] Verified 2026-09-23: `pnpm lint`, `pnpm typecheck`, `pnpm test` — 240
+  types, 35 crypto, 87 web, 49 mobile, 54 API = 465 pass
+
+Not in this step: forward secrecy (one static key per conversation), a key
+per device (the backup is what stands in for it), push delivery (the open
+thread polls), group threads, attachments, editing or deleting a message,
+and a way back for a person who forgets their password — by design, nobody
+else can open their key.
+
+Deploying this commit needs `prisma migrate deploy` against the Render
+external database URL first, as the README's deployment notes describe.
+
 ## Not started
 
 - [x] Phase 15 — Performance (closed 2026-09-13; see above)
@@ -3057,8 +3156,10 @@ external database URL first, as the README's deployment notes describe.
   on Render since 2026-09-15 and the acceptance criterion is met; the Android
   release build shipped 2026-09-22; git hooks and a backup restore remain,
   see above)
-- [-] Comment threads / messaging (web and API shipped 2026-09-22; the mobile
-  screens, editing a comment and live updates are open, see above)
+- [-] Comment threads (web and API shipped 2026-09-22; the mobile screens,
+  editing a comment and live updates are open, see above)
+- [-] Direct messages (web, mobile and API shipped 2026-09-23, end-to-end
+  encrypted; push, groups, attachments and deletion are open, see above)
 - [ ] Phases 19-20 — Optional SaaS, demo
 
 ## Stack amendments

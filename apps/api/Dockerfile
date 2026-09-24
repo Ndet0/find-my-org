@@ -20,13 +20,14 @@ WORKDIR /app
 
 # Manifests before source, so editing a route does not re-run the install.
 # pnpm resolves `--frozen-lockfile` against every importer in the lockfile, so
-# all eight manifests have to be here even though most are not installed.
+# all nine manifests have to be here even though most are not installed.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/mobile/package.json ./apps/mobile/
 COPY apps/web/package.json ./apps/web/
 COPY packages/auth/package.json ./packages/auth/
 COPY packages/config/package.json ./packages/config/
+COPY packages/crypto/package.json ./packages/crypto/
 COPY packages/db/package.json ./packages/db/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/

@@ -1,20 +1,45 @@
 import '../global.css'
 
-import { QueryClientProvider, useQuery } from '@tanstack/react-query'
+import { focusManager, QueryClientProvider, useQuery } from '@tanstack/react-query'
+import * as Crypto from 'expo-crypto'
 import { Stack, ThemeProvider } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useColorScheme } from 'nativewind'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, View } from 'react-native'
+import { ActivityIndicator, AppState, Platform, View } from 'react-native'
 import { Message } from '@/components/message'
 import { currentUserQueryOptions } from '@/lib/current-user'
 import { useNavigationTheme } from '@/lib/navigation-theme'
 import { queryClient } from '@/lib/query-client'
 import { loadTheme } from '@/lib/theme'
 
+// Hermes has no WebCrypto. `@opsflow/crypto` draws its randomness — key
+// pairs, nonces, salts — from `globalThis.crypto.getRandomValues`, so the
+// native implementation is installed there before any screen can ask for it.
+// The web build already has the browser's.
+if (typeof globalThis.crypto?.getRandomValues !== 'function') {
+  Object.defineProperty(globalThis, 'crypto', {
+    value: { getRandomValues: Crypto.getRandomValues },
+    configurable: true,
+  })
+}
+
 export default function RootLayout() {
   const { colorScheme } = useColorScheme()
   const navigationTheme = useNavigationTheme()
+
+  // Query only knows about window focus in a browser. Telling it when the
+  // app goes to the background pauses the polled queries — the open thread,
+  // the inbox, the badges — and refetches them when the app comes back,
+  // which is what the web gets from the tab's visibility for free.
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+
+    const subscription = AppState.addEventListener('change', (status) => {
+      focusManager.setFocused(status === 'active')
+    })
+    return () => subscription.remove()
+  }, [])
 
   return (
     <QueryClientProvider client={queryClient}>

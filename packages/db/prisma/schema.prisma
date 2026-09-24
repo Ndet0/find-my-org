@@ -78,6 +78,7 @@ enum NotificationType {
   project
   user
   system
+  message
 
   @@map("notification_type")
 }
@@ -165,6 +166,11 @@ model User {
   activityLogs    ActivityLog[]
   notifications   Notification[]
   comments        Comment[]
+
+  dmKey            DmKey?
+  dmConversationsA DmConversation[] @relation("DmConversationUserA")
+  dmConversationsB DmConversation[] @relation("DmConversationUserB")
+  dmMessages       DmMessage[]
 
   @@index([roleId])
   @@index([departmentId])
@@ -418,4 +424,81 @@ model Comment {
   @@index([projectId, createdAt])
   @@index([userId])
   @@map("comments")
+}
+
+// ============================================================
+// DIRECT MESSAGES
+//
+// End-to-end encrypted, one-to-one. The database holds public keys,
+// password-wrapped secret keys and ciphertext; nothing here can be read
+// by the server. The scheme is documented in packages/crypto.
+// ============================================================
+
+// One identity key per person. The secret half is sealed under the owner's
+// password on their device (`wrapped_secret_key`, XChaCha20-Poly1305 under a
+// scrypt-derived key) so a second device can unlock it; the server cannot.
+model DmKey {
+  userId           String @id @map("user_id") @db.Uuid
+  publicKey        Bytes  @map("public_key")
+  wrappedSecretKey Bytes  @map("wrapped_secret_key")
+  wrapNonce        Bytes  @map("wrap_nonce")
+  kdfSalt          Bytes  @map("kdf_salt")
+  kdfParams        Json   @map("kdf_params")
+  version          Int    @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dm_keys")
+}
+
+// The two parties are stored in id order (`user_a_id < user_b_id`, a
+// hand-written CHECK in the migration) so one row serves both directions
+// and the unique constraint finds it whoever asks. The unread counters are
+// kept here rather than computed, so the inbox badge is one aggregate.
+model DmConversation {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  userAId       String    @map("user_a_id") @db.Uuid
+  userBId       String    @map("user_b_id") @db.Uuid
+  userAUnread   Int       @default(0) @map("user_a_unread")
+  userBUnread   Int       @default(0) @map("user_b_unread")
+  lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // A conversation has no meaning without both people in it.
+  userA User @relation("DmConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("DmConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  messages DmMessage[]
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@index([lastMessageAt])
+  @@map("dm_conversations")
+}
+
+// Ciphertext only. The sender is bound into the ciphertext's associated
+// data, so a message cannot be re-attributed; it goes with its conversation.
+model DmMessage {
+  id             String @id @default(uuid(7)) @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  senderId       String @map("sender_id") @db.Uuid
+  ciphertext     Bytes
+  nonce          Bytes
+  version        Int    @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User           @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  // The hot query: one thread, newest first, before a cursor id.
+  @@index([conversationId, id])
+  // For the cascade when a user is deleted, like every other user FK.
+  @@index([senderId])
+  @@map("dm_messages")
 }

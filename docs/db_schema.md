@@ -130,6 +130,27 @@ erDiagram
         text body
     }
 
+    dm_keys {
+        uuid user_id PK
+        bytea public_key
+        bytea wrapped_secret_key
+    }
+
+    dm_conversations {
+        uuid id PK
+        uuid user_a_id FK
+        uuid user_b_id FK
+        int user_a_unread
+        int user_b_unread
+    }
+
+    dm_messages {
+        uuid id PK
+        uuid conversation_id FK
+        uuid sender_id FK
+        bytea ciphertext
+    }
+
     roles           ||--o{ users           : "grants"
     departments     |o--o{ users           : "groups"
     users           ||--o{ sessions        : "signs in with"
@@ -146,6 +167,10 @@ erDiagram
     tasks           |o--o{ comments        : "discussed in"
     projects        |o--o{ comments        : "discussed in"
     users           |o--o{ comments        : "writes"
+    users           ||--o| dm_keys         : "owns"
+    users           ||--o{ dm_conversations : "party to"
+    dm_conversations ||--o{ dm_messages    : "carries"
+    users           ||--o{ dm_messages     : "sends"
 ```
 
 `||` marks a required parent and `|o` an optional one, matching the nullability
@@ -661,6 +686,111 @@ answers "may this role try", the service applies the `where`.
 
 ---
 
+## 14. `dm_keys`
+
+One person's messaging identity, for end-to-end encrypted direct messages.
+The public half is what others seal messages to; the secret half is stored
+only as a blob sealed under the owner's password on their own device
+(`packages/crypto`), so the server can back it up but never open it.
+
+### Columns
+
+
+| Column             | Type        | Nullable | Description                                                    |
+| ------------------ | ----------- | -------- | -------------------------------------------------------------- |
+| user_id            | UUID        | No       | Primary key and foreign key to `users`; one key per person     |
+| public_key         | BYTEA       | No       | X25519 public key, 32 bytes                                    |
+| wrapped_secret_key | BYTEA       | No       | The secret key sealed with XChaCha20-Poly1305, 48 bytes        |
+| wrap_nonce         | BYTEA       | No       | Nonce for the seal, 24 bytes                                   |
+| kdf_salt           | BYTEA       | No       | Salt for the password-derived wrapping key, 16 bytes           |
+| kdf_params         | JSONB       | No       | `{ name: "scrypt", n, r, p }`, stored so they can be raised    |
+| version            | INTEGER     | No       | Scheme version, 1                                              |
+| created_at         | TIMESTAMPTZ | No       | Creation timestamp                                             |
+| updated_at         | TIMESTAMPTZ | No       | Last re-wrap, which happens on a password change               |
+
+
+The public key may not change once set: every message ever sent to this
+person was sealed to it. The API refuses a `PUT` that carries a different one
+(`DM_KEY_EXISTS`); a re-wrap under a new password keeps it. The first
+registration is a plain insert, so two devices signing in at once cannot
+each register a different key. Replacing the wrapped half needs the account
+password in the request (`currentPassword`, verified against Better Auth's
+hash and never stored): the backup is the one copy that lets a new device
+in, and a session cookie alone may not overwrite it.
+
+---
+
+## 15. `dm_conversations`
+
+One row per pair of people who have opened a thread.
+
+### Columns
+
+
+| Column          | Type        | Nullable | Description                                                   |
+| --------------- | ----------- | -------- | ------------------------------------------------------------- |
+| id              | UUID        | No       | Primary key                                                   |
+| user_a_id       | UUID        | No       | The party with the smaller id                                 |
+| user_b_id       | UUID        | No       | The party with the larger id                                  |
+| user_a_unread   | INTEGER     | No       | Messages from B that A has not opened the thread since        |
+| user_b_unread   | INTEGER     | No       | The reverse                                                   |
+| last_message_at | TIMESTAMPTZ | Yes      | When the newest message arrived; null until one does          |
+| created_at      | TIMESTAMPTZ | No       | Creation timestamp                                            |
+| updated_at      | TIMESTAMPTZ | No       | Last update timestamp                                         |
+
+
+### Constraints
+
+- `(user_a_id, user_b_id)` is unique: one thread per pair.
+- `dm_conversations_ordered_pair_check`: `user_a_id < user_b_id`. The pair is
+  stored in id order so one row serves both directions and the unique
+  constraint finds it whoever asks. Hand-written in the migration
+  (`20260923094525_add_direct_messages`), as the comments CHECK is.
+
+The unread counters are kept rather than computed, so the badge on both
+clients is one aggregate over the caller's rows. Sending increments the
+peer's counter and clears the sender's; opening the thread clears the
+reader's.
+
+Who may be paired is decided in the service by `canDirectMessage` in
+`@opsflow/types/dm`: an administrator and an employee may not reach each
+other in either direction, so the only way to an administrator is through a
+manager. There is no `dm:*` permission string, for the same reason there is
+none for comments.
+
+---
+
+## 16. `dm_messages`
+
+Ciphertext only. The server stores and forwards; it never holds a key.
+
+### Columns
+
+
+| Column          | Type        | Nullable | Description                                                  |
+| --------------- | ----------- | -------- | ------------------------------------------------------------ |
+| id              | UUID        | No       | Primary key, UUIDv7 — the thread is ordered and paged on it  |
+| conversation_id | UUID        | No       | The thread                                                   |
+| sender_id       | UUID        | No       | Who sealed it; bound into the ciphertext as associated data  |
+| ciphertext      | BYTEA       | No       | XChaCha20-Poly1305 output, at most 5 000 characters of text  |
+| nonce           | BYTEA       | No       | 24 bytes, fresh per message                                  |
+| version         | INTEGER     | No       | Scheme version, 1                                            |
+| created_at      | TIMESTAMPTZ | No       | Creation timestamp                                           |
+
+
+The conversation id and the sender id are bound into every seal, so a
+message copied into another thread, or re-attributed to the other party,
+fails to open. There is no editing and no deletion in the first version.
+
+### Indexes
+
+- `(conversation_id, id)`: the hot query — one thread, newest first, before
+  a cursor id.
+- `(sender_id)`: for the cascade when a user is deleted, as on every other
+  user foreign key (`20260923150000_index_dm_message_sender`).
+
+---
+
 # Enumerations
 
 ## User Status
@@ -720,6 +850,7 @@ task
 project
 user
 system
+message
 
 ```
 
@@ -744,6 +875,10 @@ system
 | Task → Comments           | One-to-Many  |
 | Project → Comments        | One-to-Many  |
 | User → Comments           | One-to-Many  |
+| User → DM Key             | One-to-One   |
+| User ↔ DM Conversations   | Many-to-Many |
+| DM Conversation → Messages | One-to-Many |
+| User → DM Messages        | One-to-Many  |
 
 
 ---
@@ -775,6 +910,8 @@ Sessions deleted
 Accounts deleted
 Notifications deleted
 Project Memberships deleted
+Messaging key deleted
+Direct-message conversations deleted (and their messages)
 
 ```
 
@@ -864,8 +1001,11 @@ Indexes are created on frequently queried fields.
 - `comments.task_id + created_at`
 - `comments.project_id + created_at`
 - `comments.user_id`
+- `dm_conversations.user_b_id` (the unique `(user_a_id, user_b_id)` serves `user_a_id`)
+- `dm_conversations.last_message_at`
+- `dm_messages.conversation_id + id`
 
-Six of these are composites rather than the separate indexes a first pass
+Seven of these are composites rather than the separate indexes a first pass
 might suggest:
 
 - `project_members` needs no standalone `project_id` index. The
@@ -880,6 +1020,9 @@ might suggest:
 - `comments (task_id, created_at)` and `(project_id, created_at)` each walk one
   thread in posting order and stop after a page, which is the only way a
   thread is read.
+- `dm_messages (conversation_id, id)` walks one thread newest first from a
+  cursor id, which is the only way a thread is read; ids are UUIDv7, so the
+  index is in time order.
 
 The purpose is to keep common dashboard, filtering, and lookup queries performant as the database grows.
 
@@ -887,9 +1030,9 @@ This list was measured, not only reasoned about. On a bench volume of 8 000
 tasks, 60 000 activity rows and 15 000 notifications (`pnpm db:bench`), every
 list endpoint and dashboard count that existed on 2026-09-13 runs on one of
 these indexes for every role (`pnpm db:explain`; technical architecture
-§21.2). The comment threads were added on 2026-09-22 and are not yet in the
-bench or the explain script; their two composite indexes are reasoned, not
-measured. The composites a first pass
+§21.2). The comment threads (2026-09-22) and direct messages (2026-09-23) are not
+yet in the bench or the explain script; their composite indexes are reasoned,
+not measured. The composites a first pass
 might add for the time-ordered lists — `(user_id, created_at, id)` on
 `notifications` and `activity_logs`, `(assigned_to, due_date)` on `tasks` —
 were considered and declined: the single-column time index already walks the
@@ -1076,6 +1219,9 @@ tasks
 activity_logs
 notifications
 comments
+dm_keys
+dm_conversations
+dm_messages
 
 ```
 
@@ -1100,6 +1246,7 @@ This is enough to demonstrate:
 - Audit logging
 - Notifications
 - Discussion threads on projects and tasks
+- End-to-end encrypted direct messages
 - Business workflows
 
 ---

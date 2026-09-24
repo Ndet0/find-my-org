@@ -15,6 +15,7 @@ const ALL = [
   'Departments',
   'Activity',
   'Notifications',
+  'Messages',
 ]
 
 describe('visibleNavItems', () => {
@@ -30,7 +31,13 @@ describe('visibleNavItems', () => {
       'Tasks',
       'Activity',
       'Notifications',
+      'Messages',
     ])
+  })
+
+  test('messages need no permission: every role may write to a colleague', () => {
+    const messages = visibleNavItems('employee').find((item) => item.to === '/messages')
+    expect(messages?.permission).toBeUndefined()
   })
 
   test('the dashboard needs no permission', () => {

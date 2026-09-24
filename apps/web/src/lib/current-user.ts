@@ -2,6 +2,7 @@ import type { CurrentUser, UpdateProfileInput } from '@opsflow/types/user'
 import { type QueryClient, queryOptions } from '@tanstack/react-query'
 import { redirect } from '@tanstack/react-router'
 import { ApiRequestError, apiFetch } from '@/lib/api'
+import { forgetMessagingSecrets } from '@/lib/dm-identity'
 
 /**
  * `/api/me` is the client's single source of truth for authentication.
@@ -69,9 +70,12 @@ export function safeRedirect(target: string | undefined): string {
  * What every 401 outside the guard means: the session ended underneath the
  * app. The cached profile is what the `/_authed` guard trusts, so it is
  * dropped before handing over to the login page; otherwise the guard would
- * let the person straight back in on stale data.
+ * let the person straight back in on stale data. The messaging secret goes
+ * with it, as on sign-out: whoever signs in next on this browser must not
+ * find the previous person's key.
  */
 export function endSession(queryClient: QueryClient, navigate: (to: '/login') => unknown): void {
+  forgetMessagingSecrets()
   queryClient.removeQueries({ queryKey: currentUserQueryOptions.queryKey })
   void navigate('/login')
 }

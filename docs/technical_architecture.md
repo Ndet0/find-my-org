@@ -140,6 +140,7 @@ OPSflow/
 ├── packages/
 │   ├── auth/
 │   ├── config/
+│   ├── crypto/
 │   ├── db/
 │   ├── types/
 │   └── ui/
@@ -320,6 +321,7 @@ Example API structure:
 ├── /projects        …/:id/members, …/:id/comments
 ├── /tasks           …/:id/comments
 ├── /comments        DELETE /:id only
+├── /dm              /key, /contacts, /conversations, …/:id/messages, …/:id/read
 ├── /notifications
 └── /activity
 
@@ -534,8 +536,11 @@ Dashboard     → read   (own scope)
 There is no `delete` permission and no reports or settings module: `write`
 covers the deletes that exist (§8.1), and everything row-level — an employee's
 scope, the last-admin rule, who may delete a comment (its author, or any
-admin or manager, `canDeleteComment` in `@opsflow/types/comment`) — is decided
-in the service layer, not by a permission string.
+admin or manager, `canDeleteComment` in `@opsflow/types/comment`), who may
+direct-message whom (`canDirectMessage` in `@opsflow/types/dm`: an
+administrator and an employee may not reach each other, so the only way to
+an administrator's inbox is through a manager) — is decided in the service
+layer, not by a permission string.
 
 Authorization should be enforced at the API level.
 
@@ -637,6 +642,9 @@ Task
 ActivityLog
 Notification
 Comment
+DmKey
+DmConversation
+DmMessage
 
 ```
 
@@ -658,7 +666,13 @@ Role
        │
        ├── Activity Logs
        │
-       └── Notifications
+       ├── Notifications
+       │
+       ├── DM Key (one)
+       │
+       └── DM Conversations (as either party)
+             │
+             └── DM Messages
 
 Department
  │
@@ -734,7 +748,7 @@ API
 
 ```
 
-The package is thirteen subpath exports, one per contract:
+The package is fourteen subpath exports, one per contract:
 
 ```text
 @opsflow/types/api            the response envelope, Paginated<T>
@@ -747,8 +761,17 @@ The package is thirteen subpath exports, one per contract:
 @opsflow/types/dashboard
 @opsflow/types/changes        changedFields() for PATCH bodies (§20)
 @opsflow/types/comment        COMMENT_BODY_MAX (5000), canDeleteComment()
+@opsflow/types/dm             the direct-message wire shapes, canDirectMessage(),
+                              mergeMessages()
 
 ```
+
+A second shared package sits beside it: `packages/crypto` (`@opsflow/crypto`)
+holds the end-to-end encryption behind direct messages — key generation,
+the password-wrapped backup, conversation keys and message sealing — and
+`@opsflow/crypto/identity` the device-side lifecycle around them, with the
+storage and the API calls injected. Both clients and the API tests run the
+same code; see §26.2.
 
 Each module carries the TypeScript shape, the status and transition tables
 where the entity has them (`PROJECT_TRANSITIONS`, `TASK_TRANSITIONS`), and
@@ -1276,10 +1299,13 @@ Added to project           to the new member
 Removed from project       to the removed member
 New comment                to the task's assignee and creator, or the
                            project's manager, with a 120-character preview
+New message                to the recipient of a direct message, once per
+                           run of unread messages; never the text, which
+                           the server cannot read
 
 ```
 
-Those seven are the whole list. Every one is raised by a direct action and
+Those eight are the whole list. Every one is raised by a direct action and
 never to the actor; there is no scheduler, so nothing is sent for an
 approaching deadline. Both clients show an unread count and offer
 mark-one and mark-all-read.
@@ -1327,6 +1353,111 @@ handled differently:
 `maxPages` was considered and rejected: it bounds how many pages are kept by
 dropping the oldest, so rows the reader had already scrolled past would vanish
 from the top of the list.
+
+## 26.2 Direct messages
+
+Direct messages are one-to-one and end-to-end encrypted. The API is a relay
+and a store — it decides who may talk to whom, keeps public keys, ciphertext
+and unread counts — and it never holds a key that opens a message. Nothing
+about a conversation reaches the activity log: there is no content to
+describe, and who talks to whom in private is not an organisational event.
+
+**Who may reach whom.** Everyone may message a manager and a manager may
+message everyone; an administrator and an employee may not reach each other
+in either direction. The rule is `canDirectMessage` in `@opsflow/types/dm`,
+applied by the service when a pair is formed and by both clients to filter
+the picker. There is no `dm:*` permission: the rule is about the pair, which
+is row-level.
+
+**The scheme** (`packages/crypto`, version 1):
+
+- Every person has one X25519 identity key pair, generated on their own
+  device the first time they sign in after the feature arrived. The public
+  half goes to the server (`PUT /api/dm/key`); the secret half never leaves
+  the device in the clear.
+- The secret key is *wrapped* for backup: scrypt (2^15, 8, 1) turns the
+  login password and a random salt into a key that seals the secret with
+  XChaCha20-Poly1305, with the user id as associated data. The server keeps
+  the sealed blob so a second device can unlock it with the password. It
+  holds only Better Auth's hash of that password for sign-in, so it cannot
+  unwrap the blob itself. The public key may not change once set — every
+  message ever sent to the person was sealed to it — so a `PUT` with a
+  different one is refused (`DM_KEY_EXISTS`). The first registration is a
+  plain insert, so two devices signing in at once cannot each register a
+  different key: the loser is refused and unwraps the winner's backup.
+  Replacing the wrapped half — what a password change does — needs the
+  account password in the request (`currentPassword`), verified against
+  Better Auth's hash and never stored: the backup is the one copy that lets
+  a new device in, and a stolen session cookie may not overwrite it with
+  something that will never open.
+- A conversation's key is HKDF-SHA256 over the X25519 shared secret of the
+  two identity keys, bound to both public keys, so both sides derive the
+  same key and nobody else can.
+- Each message is sealed with that key under a fresh 24-byte nonce, with the
+  conversation id and the sender id as associated data. The server can store
+  and forward a message; it cannot read it, alter it, replay it as the other
+  party, or move it into another thread.
+
+**On the clients.** The secret is kept per user id — `localStorage` on the
+web, SecureStore on the phone — and forgotten when the session ends, whether
+by sign-out or by a 401 surfacing from any request: the next person to sign
+in on the device must not find the previous one's key. Sign-in restores it
+from the backup, or generates it, with the password that is in hand at that
+moment; the work is not awaited, so sign-in is not slowed by the key
+derivation, and the result is written into the query cache the Messages page
+reads, so a page opened before the derivation finished picks the key up. A
+session that predates the feature, or a failed unlock, lands on the
+`MessagingGate`, which asks for the password and does the same thing. The
+password goes nowhere: it only unwraps the backup, or wraps a new key, on
+the device. Two unlocks for the same person at once share one run. A device
+that already holds a secret checks it against the backup when it unlocks —
+a key that lost a first-upload race, or a damaged entry, is replaced by the
+backup — and a secret the server has no backup of is backed up; offline, the
+local key is trusted.
+
+A password change re-wraps the backup under the new password in the same
+form submission. If that re-wrap fails after the password has changed, the
+device remembers it (a per-user mark beside the secret, kept across
+sign-out) and the Messages page asks for the current password and uploads a
+fresh seal of the key it holds; until then no other device can unlock, and
+the unlock form says which password to try. Hermes has no WebCrypto, so the
+mobile root layout installs `expo-crypto`'s `getRandomValues` on
+`globalThis.crypto`, which is where `@opsflow/crypto` draws its randomness;
+it also tells Query when the app leaves the foreground, so the polled
+queries pause as they do in a hidden browser tab.
+
+**Reading and writing.** A thread is paged newest first on the UUIDv7 id
+(`?before=`), not on an offset, because a thread being written to shifts
+under an offset page. The clients poll the newest page every four seconds
+while it is open, the conversation list every ten, and the open
+conversation's peer — status and key — every thirty; older pages are pulled
+in on demand and merged by id (`mergeMessages`). Every message is opened on
+the device and the result cached per conversation key and message id, since
+ciphertext never changes; the conversation key itself is cached per pair of
+identities, never per peer alone, so nothing derived for one person is
+handed to the next one to sign in. The role rule is checked when a pair is
+formed and again on every message sent, since a role can change under an
+open thread. Opening a thread clears the reader's unread counter, and once
+nothing is unread anywhere the `New message` notifications are marked read
+with it; sending increments the peer's counter and clears the sender's,
+inside one transaction, and raises one notification per run of unread
+messages rather than one per line. The composer hands its text to the send
+as it starts, so what is typed meanwhile is kept and a refused send puts
+the text back.
+
+**Limitations, on purpose for the first version.** One static key per
+conversation rather than a ratchet, so there is no forward secrecy. One key
+per person rather than per device, which is what makes the backup necessary
+and ties the backup to the login password: a person who forgets their
+password has no way back to their messages, and an administrator cannot
+help, which is the point. The peer's public key is taken from the server
+without a fingerprint to compare, so a compromised server could substitute
+one; and the associated data covers the thread and the sender, not a
+message counter, so the server could drop or re-insert a message within a
+thread unnoticed. No editing, no deletion, no attachments, no group
+threads, and polling rather than push. A person who has not signed in since
+the feature arrived has no key yet and cannot be written to until they do;
+the picker says so.
 
 ---
 
@@ -1469,24 +1600,35 @@ Code consistency
 
 ### Testing
 
-`bun test` in the four packages that have tests, one root `pnpm test`
+`bun test` in the five packages that have tests, one root `pnpm test`
 (Turborepo runs each package's `test` script), one assertion API across the
-repo. No second runner. 391 tests on 2026-09-23.
+repo. No second runner. 465 tests on 2026-09-23.
 
 ```text
-apps/api          37 — in-process against the seeded database (app.request()):
+apps/api          54 — in-process against the seeded database (app.request()):
                   api.test.ts for the session, origin and one decision per
                   role, rules.test.ts for the cross-record rules and the
-                  comment threads; fails early, with a fix, if a seeded
-                  account cannot sign in
-packages/types    228 — the permission matrix, both state machines, every
+                  comment threads, dm.test.ts for the messaging role rule,
+                  key registration (including two uploads at once and the
+                  password a re-wrap needs), one thread sealed and opened
+                  with the real @opsflow/crypto, and what an outsider gets;
+                  fails early, with a fix, if a seeded account cannot sign in
+packages/types    240 — the permission matrix, both state machines, every
                   list-query and form schema, changedFields, the comment
-                  schema and delete predicate — tables restated as literals
-apps/web          77 — the API client, the theme store, the current-user and
+                  schema and delete predicate, the messaging wire contract
+                  — tables restated as literals
+packages/crypto   35 — base64 both ways, keys, wrap/unwrap, wrong password,
+                  account binding, a swapped public key, replay and
+                  tampering; the identity lifecycle against an in-memory
+                  store, including the first-upload race, a local key that
+                  disagrees with the backup, and the re-wrap retry
+apps/web          87 — the API client, the theme store, the current-user and
                   nav-item helpers as units; the forms, the session guard and
                   login flow, the status dialog, the route feedback, the
                   search field and the comments card rendered with Testing
-                  Library on happy-dom (test/render.tsx, test/api-mock.ts)
+                  Library on happy-dom (test/render.tsx, test/api-mock.ts);
+                  the messaging key wiring and the caches around opening
+                  messages
 apps/mobile       49 — the paging helpers, the query-string builder, the
                   error shapes, the dev-server host swap, the date rules and
                   clearSession — every module that react-native never reaches
@@ -2084,6 +2226,10 @@ OPSflow/
 │   │
 │   ├── config/                  tsconfig.base / bun / react / expo
 │   │
+│   ├── crypto/
+│   │   ├── src/                 index.ts (the scheme), identity.ts (the key lifecycle), base64.ts
+│   │   └── test/
+│   │
 │   ├── db/
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma
@@ -2341,3 +2487,9 @@ than only the outcome.
 | Completed tasks and closed projects still accept comments | A thread is where the closing discussion happens; refusing it would push that conversation elsewhere |
 | Threads list oldest first and the web card asks for the maximum page | Appending keeps offset pages stable while people post; a pager appears only when a thread outgrows 100 |
 | Comment threads are web only for now, and not polled | The API is client-agnostic and the predicate is shared, so the mobile card is a follow-up; live updates are a Server-Sent Events step, not a polling interval |
+| Direct messages are end-to-end encrypted with per-person X25519 keys and a password-wrapped backup, in `packages/crypto` on the audited noble libraries | The server must not be able to read a private conversation, and a person must be able to read theirs from a second device. A key per device would need a fan-out per message; a key per person needs a backup, and the login password is the one secret already in hand at sign-in. The noble libraries run identically in the browser, under Bun and on Hermes, so one package serves both clients and the API tests. See §26.2 |
+| An administrator and an employee cannot direct-message each other; the rule is `canDirectMessage` in `@opsflow/types/dm`, with no permission string | The requirement was that nobody but a manager reaches an administrator. A conversation is two-way, so an administrator opening one to an employee would be the employee reaching the administrator; the rule is applied to the pair, which is row-level like every other rule of its kind |
+| `GET /api/dm/contacts` is authenticated but not gated by `users:read` | An employee has no directory, but has to find a colleague to write to. The endpoint answers only with the people the caller may message, and only their names, roles and public keys |
+| The thread is paged on the UUIDv7 id with `?before=`, not on an offset | A thread being written to shifts under an offset page; the id is time-ordered and stable. The rest of the API stays offset-paged, where the tables are administrative and show a total |
+| Unread counters are stored on the conversation row, one per party | The badge is then one aggregate over the caller's rows; computing it would compare a message time against a per-party read time, which Prisma cannot express without raw SQL |
+| Messages are not logged to the activity trail | There is no content the server could describe, and who talks to whom in private is not an organisational event. Only the `New message` notification is raised, and it names the sender and nothing else |

@@ -6,7 +6,7 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './api'
  * Restated rather than imported: `@opsflow/db` instantiates the Prisma
  * client on import and must never reach a client bundle.
  */
-export const NOTIFICATION_TYPES = ['task', 'project', 'user', 'system'] as const
+export const NOTIFICATION_TYPES = ['task', 'project', 'user', 'system', 'message'] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 

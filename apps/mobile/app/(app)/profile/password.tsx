@@ -11,6 +11,8 @@ import { Field } from '@/components/field'
 import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
+import { useCurrentUser } from '@/lib/current-user'
+import { markBackupStale, rewrapMessaging } from '@/lib/dm-identity'
 
 type FieldErrors = {
   currentPassword?: string[]
@@ -35,6 +37,7 @@ const INVALID_PASSWORD = 'INVALID_PASSWORD'
  */
 export default function ChangePasswordScreen() {
   const router = useRouter()
+  const user = useCurrentUser()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -61,6 +64,23 @@ export default function ChangePasswordScreen() {
 
         throw new Error(error.message ?? 'The password could not be changed')
       }
+
+      // The messaging key's backup is sealed under the password, so it is
+      // re-sealed under the new one; otherwise the next device could not
+      // unlock it. The password has already changed, so a failure here is
+      // not a refusal: this phone keeps its copy, the failure is remembered,
+      // and the Messages tab asks for the password to retry.
+      if (user) {
+        return rewrapMessaging(user.id, input.currentPassword, input.newPassword).then(
+          () => true,
+          async () => {
+            await markBackupStale(user.id).catch(() => undefined)
+            return false
+          },
+        )
+      }
+
+      return true
     },
     onSuccess: () => {
       // Nothing on the profile tab changes, so the screen says so itself
@@ -105,6 +125,12 @@ export default function ChangePasswordScreen() {
                     Use the new password next time you sign in. Any other device you were signed in
                     on has been signed out.
                   </Text>
+                  {change.data === false ? (
+                    <ErrorText>
+                      Your secure-messaging backup could not be updated. Open Messages on this phone
+                      to retry; until then, other devices cannot unlock your messages.
+                    </ErrorText>
+                  ) : null}
                 </View>
                 <Button title="Done" onPress={() => router.back()} />
               </>

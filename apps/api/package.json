@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@opsflow/config": "workspace:*",
+    "@opsflow/crypto": "workspace:*",
     "@types/bun": "latest",
     "typescript": "7.0.2"
   }

@@ -55,6 +55,7 @@ Enum notification_type {
   project
   user
   system
+  message
 }
 
 // ============================================================
@@ -419,6 +420,70 @@ Table comments {
 }
 
 // ============================================================
+// DIRECT MESSAGES
+//
+// End-to-end encrypted. The database holds public keys, password-wrapped
+// secret keys and ciphertext; the server never holds a key that opens a
+// message. The scheme is documented in packages/crypto.
+// ============================================================
+
+Table dm_keys {
+  user_id uuid [pk]
+
+  public_key bytea [not null]
+  wrapped_secret_key bytea [not null]
+  wrap_nonce bytea [not null]
+  kdf_salt bytea [not null]
+  kdf_params jsonb [not null]
+  version integer [not null, default: 1]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  Note: 'One X25519 identity per person. The secret half is sealed under the owner\'s password on their device; the public half may not change once set.'
+}
+
+Table dm_conversations {
+  id uuid [pk]
+
+  user_a_id uuid [not null]
+  user_b_id uuid [not null]
+  user_a_unread integer [not null, default: 0]
+  user_b_unread integer [not null, default: 0]
+  last_message_at timestamptz
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (user_a_id, user_b_id) [unique]
+    user_b_id
+    last_message_at
+  }
+
+  Note: 'One thread per pair, stored in id order (user_a_id < user_b_id, hand-written CHECK dm_conversations_ordered_pair_check). Unread counters are kept, not computed.'
+}
+
+Table dm_messages {
+  id uuid [pk]
+
+  conversation_id uuid [not null]
+  sender_id uuid [not null]
+  ciphertext bytea [not null]
+  nonce bytea [not null]
+  version integer [not null, default: 1]
+
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (conversation_id, id)
+    sender_id
+  }
+
+  Note: 'Ciphertext only. Ordered and paged on the UUIDv7 id; the conversation and sender are bound into every seal.'
+}
+
+// ============================================================
 // RELATIONSHIPS
 //
 // Delete behaviour is explicit on every relation and mirrors
@@ -460,6 +525,14 @@ Ref comment_project: comments.project_id > projects.id [delete: cascade]
 
 // A comment outlives the person who wrote it.
 Ref comment_author: comments.user_id > users.id [delete: set null]
+
+// A messaging key, a conversation and a message have no meaning without
+// the people involved.
+Ref dm_key_user: dm_keys.user_id - users.id [delete: cascade]
+Ref dm_conversation_user_a: dm_conversations.user_a_id > users.id [delete: cascade]
+Ref dm_conversation_user_b: dm_conversations.user_b_id > users.id [delete: cascade]
+Ref dm_message_conversation: dm_messages.conversation_id > dm_conversations.id [delete: cascade]
+Ref dm_message_sender: dm_messages.sender_id > users.id [delete: cascade]
 
 // ============================================================
 // SEED DATA

@@ -2,8 +2,8 @@
 
 Operations and project management platform — web + mobile.
 Manage people, departments, clients, projects and tasks from one place,
-with comment threads, activity logging, notifications and role-based
-dashboards.
+with comment threads, end-to-end encrypted direct messages, activity
+logging, notifications and role-based dashboards.
 
 See [`docs/product_architecture.md`](docs/product_architecture.md) for what
 it does, [`docs/technical_architecture.md`](docs/technical_architecture.md)
@@ -22,6 +22,7 @@ current, verified build status.
 | Web | React + Vite + TanStack Router/Query/Form + Tailwind + shadcn/ui |
 | Mobile | Expo + Expo Router + NativeWind |
 | Validation | Zod, shared between API and clients |
+| Messaging encryption | X25519 + XChaCha20-Poly1305 + scrypt via the noble libraries, in `packages/crypto` |
 | Tooling | Biome |
 
 ## Getting started
@@ -232,8 +233,10 @@ keystore, which installs but cannot update a release-signed install.
 apps/
   api/       Hono API (Bun)            — routes, services, validators; Dockerfile for Render
   web/       React + Vite SPA          — dashboard, projects, tasks, clients, team, departments,
-                                          activity, notifications, profile, comment threads
-  mobile/    Expo app                  — login, dashboard, tasks, projects, inbox, profile; managers
+                                          activity, notifications, profile, comment threads,
+                                          end-to-end encrypted direct messages
+  mobile/    Expo app                  — login, dashboard, tasks, projects, messages, inbox,
+                                          profile; managers
                                           and admins also manage tasks, projects, clients and
                                           departments, admins manage people, and everyone reads
                                           the activity trail
@@ -241,6 +244,7 @@ packages/
   config/    Shared TypeScript configs
   db/        Prisma schema, migrations, client, seed and bench scripts
   auth/      Better Auth configuration, user seed, bootstrap-admin script
+  crypto/    End-to-end encryption for direct messages: keys, backup wrapping, sealing
   types/     Shared types and Zod schemas
   ui/        Design tokens             — palette, status tones, generated Tailwind CSS
 docs/        Product, technical and database documentation; measured query plans under perf/

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   ListTodo,
   type LucideIcon,
+  MessageSquareLock,
   Users,
 } from 'lucide-react'
 
@@ -21,6 +22,7 @@ export type NavItem = {
     | '/clients'
     | '/activity'
     | '/notifications'
+    | '/messages'
   label: string
   icon: LucideIcon
   /** Omitted for destinations every signed-in user may reach. */
@@ -36,6 +38,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/departments', label: 'Departments', icon: Building2, permission: 'departments:read' },
   { to: '/activity', label: 'Activity', icon: Activity, permission: 'activity:read' },
   { to: '/notifications', label: 'Notifications', icon: Bell, permission: 'notifications:read' },
+  { to: '/messages', label: 'Messages', icon: MessageSquareLock },
 ]
 
 /**

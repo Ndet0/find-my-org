@@ -11,6 +11,7 @@ import { describeError } from '@/components/message'
 import { Screen } from '@/components/screen'
 import { authClient } from '@/lib/auth-client'
 import { currentUserQueryOptions, fetchCurrentUser } from '@/lib/current-user'
+import { identityQueryOptions, unlockMessaging } from '@/lib/dm-identity'
 import { clearSession } from '@/lib/session'
 
 type FieldErrors = { email?: string[]; password?: string[] }
@@ -48,9 +49,18 @@ export default function LoginScreen() {
     },
     // Writing the user into the cache is what flips the root guard. Anything
     // still cached belongs to whoever was signed in before, so it goes first.
-    onSuccess: (user) => {
+    onSuccess: (user, credentials) => {
       clearSession(queryClient)
       queryClient.setQueryData(currentUserQueryOptions.queryKey, user)
+      // The password is in hand exactly here, so this is where the messaging
+      // key is generated or restored from its backup. Not awaited: it costs
+      // a key derivation, and a failure only means the Messages tab asks
+      // for the password again. The result goes into the cache the tab
+      // reads, so a tab opened before the derivation finished picks the key
+      // up rather than asking for the password it already had.
+      void unlockMessaging(user.id, credentials.password)
+        .then((pair) => queryClient.setQueryData(identityQueryOptions(user.id).queryKey, pair))
+        .catch(() => undefined)
     },
   })
 

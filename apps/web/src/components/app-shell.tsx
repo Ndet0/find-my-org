@@ -8,6 +8,8 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
+import { dmUnreadCountQueryOptions } from '@/lib/dm'
+import { forgetMessagingSecrets } from '@/lib/dm-identity'
 import { unreadCountQueryOptions } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +24,7 @@ import { cn } from '@/lib/utils'
  */
 export function AppShell({ user, children }: { user: CurrentUser; children: ReactNode }) {
   const unread = useQuery(unreadCountQueryOptions())
+  const unreadMessages = useQuery(dmUnreadCountQueryOptions())
   const visibleItems = visibleNavItems(user.role.name)
 
   return (
@@ -46,7 +49,13 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
             <NavLink
               key={item.to}
               item={item}
-              badge={item.to === '/notifications' ? unread.data?.count : undefined}
+              badge={
+                item.to === '/notifications'
+                  ? unread.data?.count
+                  : item.to === '/messages'
+                    ? unreadMessages.data?.count
+                    : undefined
+              }
             />
           ))}
         </nav>
@@ -123,7 +132,9 @@ function SignOutButton({ className }: { className?: string }) {
   const signOut = useMutation({
     mutationFn: () => authClient.signOut(),
     onSuccess: async () => {
-      // Nothing cached under the old session may survive into the next one.
+      // Nothing cached under the old session may survive into the next one,
+      // and neither may the messaging secret this browser was holding.
+      forgetMessagingSecrets()
       queryClient.clear()
       await router.navigate({ to: '/login' })
     },

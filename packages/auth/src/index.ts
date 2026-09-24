@@ -4,6 +4,7 @@ import { prisma } from '@opsflow/db'
 import { PASSWORD_MIN_LENGTH } from '@opsflow/types/auth'
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
+import { verifyPassword as verifyPasswordHash } from 'better-auth/crypto'
 
 /**
  * Least-privileged role. `users.role_id` is NOT NULL, so every creation
@@ -213,3 +214,25 @@ export type Session = typeof auth.$Infer.Session
  * refusing the request; it is a fault, and is reported as one.
  */
 export { APIError }
+
+/**
+ * Whether `password` is the account password of `userId`, checked against
+ * the credential hash Better Auth keeps, with the same verifier sign-in
+ * uses. For an operation a session cookie alone should not authorise —
+ * replacing the messaging key backup — where the person is asked to prove
+ * they are still at the keyboard. An account with no credential (none
+ * exist today; every account is provisioned with a password) verifies
+ * nothing.
+ */
+export async function verifyPassword(userId: string, password: string): Promise<boolean> {
+  const account = await prisma.account.findFirst({
+    where: { userId, providerId: 'credential' },
+    select: { password: true },
+  })
+
+  if (!account?.password) {
+    return false
+  }
+
+  return verifyPasswordHash({ hash: account.password, password })
+}

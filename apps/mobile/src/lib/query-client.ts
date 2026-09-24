@@ -2,8 +2,21 @@ import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { ApiRequestError } from '@/lib/api'
 import { currentUserQueryOptions } from '@/lib/current-user'
 import { dashboardKeys } from '@/lib/dashboard'
+import { forgetMessagingSecret } from '@/lib/dm-identity'
 import { notificationKeys } from '@/lib/notifications'
 import { clearSession } from '@/lib/session'
+
+/**
+ * A session that ended underneath the app takes the messaging secret with
+ * it, as sign-out does: the next person to sign in on this phone must not
+ * find the previous person's key. The owner is read from the cache before
+ * it is cleared, since SecureStore cannot be enumerated.
+ */
+function endSession(): void {
+  const user = queryClient.getQueryData(currentUserQueryOptions.queryKey)
+  void forgetMessagingSecret(user?.id)
+  clearSession(queryClient)
+}
 
 export const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
@@ -28,16 +41,17 @@ export const queryClient: QueryClient = new QueryClient({
         error.status === 401 &&
         query.queryKey[0] !== currentUserQueryOptions.queryKey[0]
       ) {
-        clearSession(queryClient)
+        endSession()
         queryClient.setQueryData(currentUserQueryOptions.queryKey, null)
       }
     },
     // The profile resolving to `null` is the other way a session ends — a
     // 401 or 403 on `/api/me` itself, which `fetchCurrentUser` maps rather
-    // than throws — so the same clean-up applies.
+    // than throws — so the same clean-up applies. The cache still holds the
+    // previous answer at this point, which is where the owner's id comes from.
     onSuccess: (data, query) => {
       if (query.queryKey[0] === currentUserQueryOptions.queryKey[0] && data === null) {
-        clearSession(queryClient)
+        endSession()
       }
     },
   }),
