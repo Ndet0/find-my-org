@@ -2222,7 +2222,7 @@ OPSflow/
 │   │
 │   ├── auth/
 │   │   ├── src/
-│   │   └── scripts/             seed-users.ts, create-admin.ts
+│   │   └── scripts/             seed-users.ts, create-admin.ts, reset-password.ts
 │   │
 │   ├── config/                  tsconfig.base / bun / react / expo
 │   │

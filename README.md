@@ -90,6 +90,7 @@ header, so `sign-out` from the command line needs `-H 'Origin: $WEB_URL'`.
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:reset` | Drop, re-migrate and re-seed roles and departments only; run `pnpm db:seed` afterwards for the development accounts |
 | `pnpm bootstrap:admin` | Create the first administrator on a database that has none |
+| `pnpm reset:password` | Set a new password for a person who has forgotten theirs |
 | `pnpm db:bench` / `pnpm db:bench --clean` | Insert / remove a bench volume for measuring query plans |
 | `pnpm db:explain` | Run every list endpoint under `EXPLAIN ANALYZE` into `docs/perf/` |
 
@@ -111,8 +112,30 @@ ADMIN_PASSWORD="…" pnpm bootstrap:admin
 ```
 
 It does nothing once an administrator exists, so it is safe in a release
-command. Change the password from the profile screen after signing in — there
-is no password reset.
+command. Change the password from the profile screen after signing in.
+
+## A forgotten password
+
+There is no forgotten-password flow and no admin action for it; an operator
+sets a temporary password from a shell and hands it over out of band:
+
+```bash
+RESET_EMAIL="person@example.com" RESET_PASSWORD="…" pnpm reset:password
+```
+
+Against a container, as with `bootstrap:admin`:
+
+```bash
+docker compose -f docker-compose.prod.yml exec \
+  -e RESET_EMAIL="person@example.com" -e RESET_PASSWORD="…" \
+  api pnpm reset:password
+```
+
+It signs the person out everywhere and discards their messaging key backup,
+which was wrapped with the old password and can no longer be opened: a fresh
+key is registered at their next sign-in, and earlier direct messages with them
+become unreadable for both sides. They should change the temporary password
+from the profile screen once in.
 
 ## Deployment
 
