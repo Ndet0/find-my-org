@@ -41,6 +41,17 @@ pnpm db:seed                  # roles, departments + bootstrap users
 pnpm dev                      # start everything Turborepo knows about
 ```
 
+Linux also needs [Watchman](https://facebook.github.io/watchman/docs/install)
+on `PATH` and a higher inotify limit, so Metro can watch this repo. A stock
+limit makes `pnpm dev` exit with `ENOSPC` while scanning `node_modules`, and
+Turborepo then stops the API and the web app. Raise the limits for the current
+boot and persist them:
+
+```bash
+sudo sysctl -w fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=1024
+printf 'fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=1024\n' | sudo tee /etc/sysctl.d/99-inotify.conf
+```
+
 Verify the API:
 
 ```bash
