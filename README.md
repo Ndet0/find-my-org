@@ -151,9 +151,11 @@ from the profile screen once in.
 ## Deployment
 
 The API is a container ([`apps/api/Dockerfile`](apps/api/Dockerfile)), the web
-app is a static build, and [`render.yaml`](render.yaml) declares both. The
-managed PostgreSQL instance was created in the Render dashboard, not in the
-blueprint, and its URL is a dashboard value. See
+app is a static build, and [`render.yaml`](render.yaml) declares both.
+PostgreSQL is a free [Neon](https://neon.tech) project, outside the blueprint,
+and its URL is a dashboard value: the API role's pooled URL as `DATABASE_URL`.
+(It was a free Render instance until that expired and was deleted in October
+2026.) See
 [`docs/technical_architecture.md`](docs/technical_architecture.md) §36 for the
 decisions behind it.
 
@@ -216,8 +218,8 @@ serving the built SPA from the Hono app so there is only one service.
 
 The services are on Render's free tier: the API spins down after 15 idle
 minutes and the first request afterwards waits for the cold start. There is no
-pre-deploy command on free, so run `migrate deploy` against the External
-Database URL before deploying a commit that adds a migration (see "The first
+pre-deploy command on free, so run `migrate deploy` against the Neon owner's
+direct (non-`-pooler`) URL before deploying a commit that adds a migration (see "The first
 administrator" above for the seed steps).
 
 ## Mobile app

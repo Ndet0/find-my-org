@@ -1731,7 +1731,7 @@ The variables the system actually reads:
 | `SEED_USER_PASSWORD` | Seeds, tests | Password of the development accounts; also read by the API tests and `db:explain` |
 | `PRISMA_LOG_QUERIES` | Prisma       | Echo every query, for reading plans locally (§21.2) |
 | `BENCH_SCALE`        | `db:bench`   | Multiplier for the bench volume |
-| `MIGRATE_DATABASE_URL` | Release step | The schema owner's connection string; only for the pre-deploy migration, and currently not set (§36) |
+| `MIGRATE_DATABASE_URL` | Release step | The schema owner's direct (non-pooler) Neon URL; only for the pre-deploy migration, and currently not set (§36) |
 
 
 `WEB_URL` has no default. It is both the CORS allow-list and Better Auth's
@@ -1938,10 +1938,9 @@ in Phase 18 (sprint §24), and what each one constrains:
 ### One origin, and how Render provides it
 
 The web app and the API are two Render services — a static site and a Docker
-web service — declared in [`render.yaml`](../render.yaml), with managed
-Postgres alongside, created in the dashboard rather than the blueprint (a
-Blueprint that names an existing instance tries to create a second one). The
-session cookie is `SameSite=Lax` (§33),
+web service — declared in [`render.yaml`](../render.yaml). PostgreSQL is a
+free Neon project outside the blueprint (see Database below for why it left
+Render). The session cookie is `SameSite=Lax` (§33),
 which only works if the browser sees the two as one site.
 
 Render's own subdomains do not satisfy that on their own. `onrender.com` is on
@@ -2022,9 +2021,15 @@ connects as a role with DML only — `SELECT`, `INSERT`, `UPDATE`, `DELETE` on
 the application schema and no DDL. The local compose database is a single
 owner account, which is fine for development and is not the production shape.
 
-In the blueprint that split is two variables. Render only exposes the owner's
-connection string, so it would arrive as `MIGRATE_DATABASE_URL` and the API's
-own `DATABASE_URL` is entered by hand after the DML-only role is created.
+In the blueprint that split is two variables, both entered by hand:
+`MIGRATE_DATABASE_URL` is the Neon owner's connection string and the API's
+own `DATABASE_URL` is the DML-only role's, created after the owner has run
+the migrations. Neon gives each role two hosts. The API uses the pooled one
+(`-pooler` in the hostname, PgBouncer in transaction mode), which keeps a
+free instance's connection limit out of reach. Migrations use the direct
+one, because `migrate deploy` takes a session-level advisory lock that a
+transaction-mode pooler does not hold. Both need `?sslmode=require`; Neon's
+certificates are publicly trusted, so node-postgres needs no extra CA.
 Because `prisma.config.ts` reads `DATABASE_URL`, the pre-deploy command
 passes the owner's URL under that name for the length of the migration and
 nowhere else:
@@ -2038,16 +2043,28 @@ services are free, so the command is commented out in the blueprint — and
 `MIGRATE_DATABASE_URL` with it, because an owner credential sitting in the
 running container's environment with nothing to use it is what the split
 exists to prevent. The same `migrate deploy` is run from a local shell
-against the database's External URL before any deploy that carries a
+against the owner's direct Neon URL before any deploy that carries a
 migration; the seed and `bootstrap:admin` were run the same way. The order is
 the operator's to keep: nothing stops a deploy from starting against a schema
 its migration has not reached yet. The comments migration of 2026-09-22 is
 the first to need this step since the site went live.
 
-Backups are the managed provider's scheduled snapshots; the only application
-requirement is that a restore be tried once, because an untested backup is a
-hypothesis. The free database instance also expires after 30 days
-(2026-10-14) unless upgraded.
+Backups are Neon's point-in-time restore, whose window on the free plan is
+short; the only application requirement is that a restore be tried once,
+because an untested backup is a hypothesis.
+
+The database was a free Render instance until November 2026. Free Render
+Postgres expires 30 days after creation (2026-10-14 here) and is deleted
+after a further 14-day grace period, with no backup on the free plan. Nothing
+in the running service announced either date. The first sign was a deploy on
+2026-11-08 that timed out because every `/api/health` probe answered 503
+within a few milliseconds ("Can't reach database server": the host was gone,
+which is why the two-second budget never came into play). Neon was chosen
+over another 30-day Render instance because its free projects do not expire;
+idle compute scales to zero and resumes on the next connection, usually well
+inside the health check's two seconds. Moving meant rebuilding the schema,
+the seed and the first administrator from scratch (below); the earlier data
+was not recoverable.
 
 ### First administrator
 
@@ -2342,7 +2359,7 @@ would have meant a second server for no capability OPSflow needs.
 | Formatting/Linting | Biome                 |
 | Testing            | bun test; happy-dom + Testing Library on the web |
 | CI                 | GitHub Actions        |
-| Deployment         | Docker image and static site on Render; Android APK built locally |
+| Deployment         | Docker image and static site on Render, PostgreSQL on Neon; Android APK built locally |
 | Type System        | TypeScript            |
 | Billing            | Polar (post-MVP)      |
 | API Clients        | Web + Mobile          |

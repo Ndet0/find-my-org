@@ -1,5 +1,6 @@
-# OPSflow on Render: the API as a Docker service, the web app as a static
-# site, and managed PostgreSQL. See docs/technical_architecture.md §36.
+# OPSflow on Render: the API as a Docker service and the web app as a static
+# site. PostgreSQL is on Neon, outside this blueprint. See
+# docs/technical_architecture.md §36.
 #
 # THE TWO SERVICES MUST LOOK LIKE ONE ORIGIN TO THE BROWSER. `onrender.com` is
 # on the Public Suffix List, so two `*.onrender.com` hosts are cross-site to
@@ -24,10 +25,10 @@
 # That is the whole trick: the browser only ever talks to one origin.
 #
 # The `sync: false` values are entered in the dashboard on first sync.
-# `opsflow-db` is not listed here: it was created in the dashboard first, and
-# a Blueprint that names it tries to create a second instance and fails with
-# "name already in use". DATABASE_URL stays a dashboard value (the Internal
-# URL of that instance).
+# The database is not a Render service. The free Render instance this used to
+# point at (`opsflow-db`) expired on 2026-10-14 and was deleted at the end of
+# its grace period, taking the data with it; Neon's free tier does not expire.
+# DATABASE_URL is a dashboard value: the API role's *pooled* Neon URL.
 
 services:
   - type: web
@@ -47,8 +48,8 @@ services:
     # role that can change the schema.
     #
     # Commented out because a pre-deploy command requires a paid compute plan.
-    # On free, run the same command once from a local shell against the
-    # database's external URL; README and §36 carry the procedure.
+    # On free, run the same command once from a local shell against the Neon
+    # owner's direct (non-pooler) URL; README and §36 carry the procedure.
     #
     # preDeployCommand: DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @opsflow/db migrate:deploy
     envVars:
@@ -61,8 +62,8 @@ services:
       - key: BETTER_AUTH_SECRET
         generateValue: true
       # The API's own role: DML on the application schema, no DDL. Created by
-      # hand as the owner (docs/technical_architecture.md §36), because Render
-      # only exposes the owner's connection string.
+      # hand as the owner (docs/technical_architecture.md §36). Neon's pooled
+      # URL (`-pooler` in the host) with `?sslmode=require`.
       - key: DATABASE_URL
         sync: false
       # The owner's connection string, for the pre-deploy migration. Commented
@@ -71,10 +72,11 @@ services:
       # which is the opposite of what the two-role split is for. Restore both
       # together if this service moves to a paid plan.
       #
+      # It is the Neon owner's direct (non-pooler) URL: migrations take
+      # advisory locks, which a transaction-mode pooler does not hold.
+      #
       # - key: MIGRATE_DATABASE_URL
-      #   fromDatabase:
-      #     name: opsflow-db
-      #     property: connectionString
+      #   sync: false
       # The origin the browser is on — the static site's URL under option 2
       # (https://opsflow-web-18mx.onrender.com), or https://app.<domain> under
       # option 1. It is the CORS allow-list and Better Auth's trusted origin,
