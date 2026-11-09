@@ -4,6 +4,7 @@ import { TASK_STATUSES, type TaskListFilters, type TaskStatus } from '@opsflow/t
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { z } from 'zod'
+import { AvatarChip } from '@/components/avatar-chip'
 import { ListPending } from '@/components/route-feedback'
 import { SearchField } from '@/components/search-field'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
@@ -107,10 +108,10 @@ function TasksPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
+          <h1 className="text-[15px] font-medium tracking-tight">Tasks</h1>
           <p className="text-sm text-muted-foreground">
             {`${tasks.data.total} ${tasks.data.total === 1 ? 'task' : 'tasks'}`}
           </p>
@@ -197,7 +198,7 @@ function TasksPage() {
         <RefreshFailed error={tasks.error} onRetry={() => void tasks.refetch()} />
       ) : null}
 
-      <div className="rounded-lg border bg-background">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -250,7 +251,9 @@ function TasksPage() {
                     {task.project.name}
                   </Link>
                 </TableCell>
-                <TableCell>{task.assignee?.name ?? '—'}</TableCell>
+                <TableCell>
+                  {task.assignee?.name ? <AvatarChip name={task.assignee.name} /> : '—'}
+                </TableCell>
                 <TableCell>
                   <StatusBadge status={task.status} />
                 </TableCell>
@@ -264,9 +267,9 @@ function TasksPage() {
                   <TableCell>
                     <Button
                       asChild
-                      variant="link"
+                      variant="ghost"
                       size="sm"
-                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                      className="row-actions h-7 px-2 text-muted-foreground"
                     >
                       <Link to="/tasks/$taskId/edit" params={{ taskId: task.id }}>
                         Edit

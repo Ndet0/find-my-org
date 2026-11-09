@@ -9,6 +9,7 @@ import {
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { z } from 'zod'
+import { AvatarChip } from '@/components/avatar-chip'
 import { ProgressBar } from '@/components/progress-bar'
 import { ListPending } from '@/components/route-feedback'
 import { SearchField } from '@/components/search-field'
@@ -110,10 +111,10 @@ function ProjectsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <h1 className="text-[15px] font-medium tracking-tight">Projects</h1>
           <p className="text-sm text-muted-foreground">
             {`${projects.data.total} ${projects.data.total === 1 ? 'project' : 'projects'}`}
           </p>
@@ -189,7 +190,7 @@ function ProjectsPage() {
         <RefreshFailed error={projects.error} onRetry={() => void projects.refetch()} />
       ) : null}
 
-      <div className="rounded-lg border bg-background">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -237,7 +238,9 @@ function ProjectsPage() {
                   </div>
                 </TableCell>
                 <TableCell>{project.client?.name ?? '—'}</TableCell>
-                <TableCell>{project.manager?.name ?? '—'}</TableCell>
+                <TableCell>
+                  {project.manager?.name ? <AvatarChip name={project.manager.name} /> : '—'}
+                </TableCell>
                 <TableCell>
                   <StatusBadge status={project.status} />
                 </TableCell>
@@ -252,9 +255,9 @@ function ProjectsPage() {
                   <TableCell>
                     <Button
                       asChild
-                      variant="link"
+                      variant="ghost"
                       size="sm"
-                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                      className="row-actions h-7 px-2 text-muted-foreground"
                     >
                       <Link to="/projects/$projectId/edit" params={{ projectId: project.id }}>
                         Edit

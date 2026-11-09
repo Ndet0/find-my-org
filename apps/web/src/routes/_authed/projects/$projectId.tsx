@@ -5,18 +5,20 @@ import {
   type PriorityLevel,
   type ProjectStatus,
 } from '@opsflow/types/project'
-import type { TaskStatus } from '@opsflow/types/task'
+import type { TaskListItem, TaskStatus } from '@opsflow/types/task'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { AvatarChip } from '@/components/avatar-chip'
 import { CommentsCard } from '@/components/comments-card'
+import { DetailLayout, Properties, Property } from '@/components/detail-layout'
 import { ProgressBar } from '@/components/progress-bar'
 import { ProjectStatusDialog } from '@/components/project-status-dialog'
 import { DetailPending } from '@/components/route-feedback'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -62,34 +64,47 @@ function ProjectDetailPage() {
   const [nextStatus, setNextStatus] = useState<ProjectStatus | null>(null)
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <Link to="/projects" className="w-fit text-sm text-muted-foreground hover:text-foreground">
-        Back to projects
-      </Link>
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">{project.name}</CardTitle>
-            <CardDescription>{project.client?.name ?? 'No client assigned'}</CardDescription>
-          </div>
-          {canWrite ? (
-            <Button asChild variant="outline" size="sm">
-              <Link to="/projects/$projectId/edit" params={{ projectId }}>
-                Edit
-              </Link>
-            </Button>
-          ) : null}
-        </CardHeader>
+    <DetailLayout
+      main={
+        <>
+          <header className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-[20px] font-medium tracking-tight">{project.name}</h1>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                {project.client?.name ?? 'No client assigned'}
+              </p>
+            </div>
+            {canWrite ? (
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/projects/$projectId/edit" params={{ projectId }}>
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+          </header>
 
-        <CardContent>
-          <dl className="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">
-            <dt className="text-muted-foreground">Status</dt>
-            <dd>
+          <section className="flex flex-col gap-2">
+            <h2 className="text-[13px] font-medium">Description</h2>
+            <p className="whitespace-pre-wrap text-[13px] text-muted-foreground">
+              {project.description ?? 'None'}
+            </p>
+          </section>
+
+          <TasksCard projectId={project.id} canWrite={canWriteTasks} />
+
+          <CommentsCard
+            target={{ kind: 'project', id: project.id }}
+            actor={{ id: actor.id, role: actor.role.name }}
+          />
+        </>
+      }
+      side={
+        <>
+          <Properties>
+            <Property label="Status">
               <StatusBadge status={project.status} />
-            </dd>
-
-            <dt className="text-muted-foreground">Priority</dt>
-            <dd>
+            </Property>
+            <Property label="Priority">
               {canWrite ? (
                 <PriorityControl
                   projectId={project.id}
@@ -99,77 +114,63 @@ function ProjectDetailPage() {
               ) : (
                 <PriorityBadge priority={project.priority} />
               )}
-            </dd>
+            </Property>
+            <Property label="Lead">
+              {project.manager?.name ? <AvatarChip name={project.manager.name} /> : 'Unassigned'}
+            </Property>
+            <Property label="Start">{project.startDate ?? 'Not set'}</Property>
+            <Property label="Deadline">{project.deadline ?? 'Not set'}</Property>
+            <Property label="Tasks">{project.taskCount}</Property>
+          </Properties>
 
-            <dt className="text-muted-foreground">Progress</dt>
-            <dd>
+          <section className="rounded-lg border px-3 py-2.5">
+            <h2 className="text-[12px] font-medium text-muted-foreground">Progress</h2>
+            <div className="mt-2">
               <ProgressBar value={project.progress} />
-            </dd>
+            </div>
+          </section>
 
-            <dt className="text-muted-foreground">Manager</dt>
-            <dd>{project.manager?.name ?? 'Unassigned'}</dd>
+          {canWrite ? (
+            <div className="flex flex-col gap-1">
+              {nextProjectStatuses(project.status).length ? (
+                nextProjectStatuses(project.status).map((status) => (
+                  <Button
+                    key={status}
+                    variant={
+                      status === 'cancelled' || status === 'delayed' ? 'destructive' : 'ghost'
+                    }
+                    size="sm"
+                    className="justify-start capitalize"
+                    onClick={() => setNextStatus(status)}
+                  >
+                    {status.replaceAll('_', ' ')}
+                  </Button>
+                ))
+              ) : (
+                <p className="text-[13px] text-muted-foreground">
+                  A cancelled project cannot be reopened. Its team and history stay in place.
+                </p>
+              )}
+            </div>
+          ) : null}
 
-            <dt className="text-muted-foreground">Start date</dt>
-            <dd>{project.startDate ?? 'Not set'}</dd>
+          <MembersCard
+            projectId={project.id}
+            canWrite={canWrite}
+            memberIds={project.members.map((member) => member.user.id)}
+            members={project.members}
+          />
 
-            <dt className="text-muted-foreground">Deadline</dt>
-            <dd>{project.deadline ?? 'Not set'}</dd>
-
-            <dt className="text-muted-foreground">Tasks</dt>
-            <dd>{project.taskCount}</dd>
-
-            <dt className="text-muted-foreground">Description</dt>
-            <dd className="whitespace-pre-wrap">{project.description ?? 'None'}</dd>
-          </dl>
-        </CardContent>
-      </Card>
-
-      {canWrite ? (
-        <div className="flex flex-wrap gap-2">
-          {nextProjectStatuses(project.status).length ? (
-            nextProjectStatuses(project.status).map((status) => (
-              <Button
-                key={status}
-                variant={status === 'cancelled' || status === 'delayed' ? 'destructive' : 'outline'}
-                size="sm"
-                className="capitalize"
-                onClick={() => setNextStatus(status)}
-              >
-                {status.replaceAll('_', ' ')}
-              </Button>
-            ))
-          ) : (
-            // `cancelled` is the one terminal status. Say so, rather than
-            // leaving the row where the controls were silently empty.
-            <p className="text-muted-foreground text-sm">
-              A cancelled project cannot be reopened. Its team and history stay in place.
-            </p>
-          )}
-        </div>
-      ) : null}
-
-      <MembersCard
-        projectId={project.id}
-        canWrite={canWrite}
-        memberIds={project.members.map((member) => member.user.id)}
-        members={project.members}
-      />
-
-      <TasksCard projectId={project.id} canWrite={canWriteTasks} />
-
-      <CommentsCard
-        target={{ kind: 'project', id: project.id }}
-        actor={{ id: actor.id, role: actor.role.name }}
-      />
-
-      <ProjectStatusDialog
-        projectId={project.id}
-        name={project.name}
-        currentStatus={project.status}
-        nextStatus={nextStatus}
-        onClose={() => setNextStatus(null)}
-      />
-    </div>
+          <ProjectStatusDialog
+            projectId={project.id}
+            name={project.name}
+            currentStatus={project.status}
+            nextStatus={nextStatus}
+            onClose={() => setNextStatus(null)}
+          />
+        </>
+      }
+    />
   )
 }
 
@@ -220,71 +221,95 @@ function PriorityControl({
 function TasksCard({ projectId, canWrite }: { projectId: string; canWrite: boolean }) {
   const tasks = useQuery(tasksQueryOptions({ projectId, pageSize: 100 }))
 
+  const grouped = new Map<TaskStatus, TaskListItem[]>()
+  for (const task of tasks.data?.items ?? []) {
+    const list = grouped.get(task.status) ?? []
+    list.push(task)
+    grouped.set(task.status, list)
+  }
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div>
-          <CardTitle className="text-lg">Tasks</CardTitle>
-          <CardDescription>
-            {tasks.data
-              ? `${tasks.data.total} ${tasks.data.total === 1 ? 'task' : 'tasks'}`
-              : 'Work on this project'}
-          </CardDescription>
-        </div>
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-medium">
+          Tasks
+          {tasks.data ? (
+            <span className="ml-2 font-normal text-muted-foreground">{tasks.data.total}</span>
+          ) : null}
+        </h2>
         {canWrite ? (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="ghost" size="sm">
             <Link to="/tasks/new" search={{ projectId }}>
               Add task
             </Link>
           </Button>
         ) : null}
-      </CardHeader>
-      <CardContent>
-        {tasks.isPending ? (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3" />
-          </div>
-        ) : null}
+      </div>
 
-        {tasks.isError ? (
-          <p className="text-sm text-destructive">
-            {tasks.error instanceof ApiRequestError
-              ? tasks.error.message
-              : 'Tasks could not be loaded.'}
-          </p>
-        ) : null}
+      {tasks.isPending ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-2/3" />
+        </div>
+      ) : null}
 
-        {tasks.data?.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tasks on this project yet.</p>
-        ) : null}
+      {tasks.isError ? (
+        <p className="text-[13px] text-destructive">
+          {tasks.error instanceof ApiRequestError
+            ? tasks.error.message
+            : 'Tasks could not be loaded.'}
+        </p>
+      ) : null}
 
-        {tasks.data && tasks.data.items.length > 0 ? (
-          <ul className="flex flex-col gap-3">
-            {tasks.data.items.map((task) => (
-              <li key={task.id} className="flex items-start justify-between gap-3 text-sm">
-                <div className="min-w-0">
-                  <Link
-                    to="/tasks/$taskId"
-                    params={{ taskId: task.id }}
-                    className="font-medium hover:underline"
-                  >
-                    {task.title}
-                  </Link>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <StatusBadge status={task.status} />
-                    <span className="text-muted-foreground">
-                      {task.assignee?.name ?? 'Unassigned'}
-                    </span>
-                    <ProjectTaskDue value={task.dueDate} status={task.status} />
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </CardContent>
-    </Card>
+      {tasks.data?.items.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">No tasks on this project yet.</p>
+      ) : null}
+
+      {[...grouped.entries()].map(([status, items]) => (
+        <TaskGroup key={status} status={status} items={items} />
+      ))}
+    </section>
+  )
+}
+
+function TaskGroup({ status, items }: { status: TaskStatus; items: TaskListItem[] }) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-[12px] text-muted-foreground transition-colors duration-150 hover:bg-accent"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        <ChevronDown
+          className={`size-3.5 transition-transform duration-150 ${open ? '' : '-rotate-90'}`}
+        />
+        <StatusBadge status={status} />
+        <span>{items.length}</span>
+      </button>
+      {open ? (
+        <ul className="flex flex-col">
+          {items.map((task) => (
+            <li key={task.id}>
+              <Link
+                to="/tasks/$taskId"
+                params={{ taskId: task.id }}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150 hover:bg-accent"
+              >
+                <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {task.assignee ? <AvatarChip name={task.assignee.name} /> : 'Unassigned'}
+                </span>
+                <ProjectTaskDue value={task.dueDate} status={task.status} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 
@@ -347,16 +372,13 @@ function MembersCard({
   })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Team</CardTitle>
-        <CardDescription>
-          {members.length === 0
-            ? 'No one has been assigned yet.'
-            : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <section className="flex flex-col gap-2">
+      <h2 className="px-1.5 text-[12px] font-medium text-muted-foreground">
+        {members.length === 0
+          ? 'No one has been assigned yet.'
+          : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}
+      </h2>
+      <div className="flex flex-col gap-2">
         {members.length > 0 ? (
           <ul className="flex flex-col gap-2">
             {members.map((member) => (
@@ -403,7 +425,7 @@ function MembersCard({
             </Button>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

@@ -1,3 +1,4 @@
+import { Inbox } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { describe } from '@/components/route-feedback'
 import { Button } from '@/components/ui/button'
@@ -8,8 +9,11 @@ import { ApiRequestError } from '@/lib/api'
 export function MessageRow({ children, colSpan }: { children: ReactNode; colSpan: number }) {
   return (
     <TableRow>
-      <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
-        {children}
+      <TableCell colSpan={colSpan} className="py-10 text-center text-[13px] text-muted-foreground">
+        <span className="inline-flex items-center justify-center gap-2">
+          <Inbox className="size-4 shrink-0" aria-hidden />
+          <span>{children}</span>
+        </span>
       </TableCell>
     </TableRow>
   )

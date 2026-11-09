@@ -8,6 +8,7 @@ import type { RoleName } from '@opsflow/types/permissions'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { AvatarChip } from '@/components/avatar-chip'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +20,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -81,16 +81,16 @@ export function CommentsCard({ target, actor }: { target: CommentTarget; actor: 
   })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Comments</CardTitle>
-        <CardDescription>
+    <section className="flex flex-col gap-3">
+      <header>
+        <h2 className="text-[13px] font-medium">Activity</h2>
+        <p className="text-[12px] text-muted-foreground">
           {comments.data
             ? `${total} ${total === 1 ? 'comment' : 'comments'}`
             : `Discussion on this ${target.kind}`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+        </p>
+      </header>
+      <div className="flex flex-col gap-3">
         {comments.isPending ? (
           <div className="flex flex-col gap-2">
             <Skeleton className="h-4 w-full" />
@@ -113,11 +113,14 @@ export function CommentsCard({ target, actor }: { target: CommentTarget; actor: 
         {comments.data && comments.data.items.length > 0 ? (
           <ul className="flex flex-col gap-3">
             {comments.data.items.map((comment) => (
-              <li key={comment.id} className="flex flex-col gap-1 text-sm">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="min-w-0 truncate">
-                    <span className="font-medium">{comment.author?.name ?? 'Former user'}</span>
-                    <time dateTime={comment.createdAt} className="ml-2 text-muted-foreground">
+              <li key={comment.id} className="flex flex-col gap-1 text-[13px]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="flex min-w-0 items-center gap-2 truncate">
+                    <AvatarChip name={comment.author?.name ?? 'Former user'} />
+                    <time
+                      dateTime={comment.createdAt}
+                      className="text-[12px] text-muted-foreground"
+                    >
                       {new Date(comment.createdAt).toLocaleString()}
                     </time>
                   </p>
@@ -188,7 +191,7 @@ export function CommentsCard({ target, actor }: { target: CommentTarget; actor: 
             {post.isPending ? 'Posting…' : 'Post'}
           </Button>
         </form>
-      </CardContent>
+      </div>
 
       <AlertDialog
         open={pendingDelete !== null}
@@ -214,6 +217,6 @@ export function CommentsCard({ target, actor }: { target: CommentTarget; actor: 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </section>
   )
 }

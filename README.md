@@ -41,6 +41,17 @@ pnpm db:seed                  # roles, departments + bootstrap users
 pnpm dev                      # start everything Turborepo knows about
 ```
 
+Linux also needs [Watchman](https://facebook.github.io/watchman/docs/install)
+on `PATH` and a higher inotify limit, so Metro can watch this repo. A stock
+limit makes `pnpm dev` exit with `ENOSPC` while scanning `node_modules`, and
+Turborepo then stops the API and the web app. Raise the limits for the current
+boot and persist them:
+
+```bash
+sudo sysctl -w fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=1024
+printf 'fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=1024\n' | sudo tee /etc/sysctl.d/99-inotify.conf
+```
+
 Verify the API:
 
 ```bash
@@ -140,9 +151,11 @@ from the profile screen once in.
 ## Deployment
 
 The API is a container ([`apps/api/Dockerfile`](apps/api/Dockerfile)), the web
-app is a static build, and [`render.yaml`](render.yaml) declares both. The
-managed PostgreSQL instance was created in the Render dashboard, not in the
-blueprint, and its URL is a dashboard value. See
+app is a static build, and [`render.yaml`](render.yaml) declares both.
+PostgreSQL is a free [Neon](https://neon.tech) project, outside the blueprint,
+and its URL is a dashboard value: the API role's pooled URL as `DATABASE_URL`.
+(It was a free Render instance until that expired and was deleted in October
+2026.) See
 [`docs/technical_architecture.md`](docs/technical_architecture.md) §36 for the
 decisions behind it.
 
@@ -205,8 +218,8 @@ serving the built SPA from the Hono app so there is only one service.
 
 The services are on Render's free tier: the API spins down after 15 idle
 minutes and the first request afterwards waits for the cold start. There is no
-pre-deploy command on free, so run `migrate deploy` against the External
-Database URL before deploying a commit that adds a migration (see "The first
+pre-deploy command on free, so run `migrate deploy` against the Neon owner's
+direct (non-`-pooler`) URL before deploying a commit that adds a migration (see "The first
 administrator" above for the seed steps).
 
 ## Mobile app

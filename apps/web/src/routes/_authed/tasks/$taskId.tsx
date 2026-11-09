@@ -5,7 +5,9 @@ import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-q
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { AvatarChip } from '@/components/avatar-chip'
 import { CommentsCard } from '@/components/comments-card'
+import { DetailLayout, Properties, Property } from '@/components/detail-layout'
 import { DetailPending } from '@/components/route-feedback'
 import { PriorityBadge, StatusBadge } from '@/components/status-badge'
 import { TaskStatusDialog } from '@/components/task-status-dialog'
@@ -20,7 +22,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -48,108 +49,110 @@ function TaskDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <Link to="/tasks" className="w-fit text-sm text-muted-foreground hover:text-foreground">
-        Back to tasks
-      </Link>
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">{task.title}</CardTitle>
-            <CardDescription>
+    <DetailLayout
+      main={
+        <>
+          <header>
+            <h1 className="text-[20px] font-medium tracking-tight">{task.title}</h1>
+            <p className="mt-1 text-[13px] text-muted-foreground">
               <Link
                 to="/projects/$projectId"
                 params={{ projectId: task.project.id }}
-                className="hover:underline"
+                className="hover:text-foreground"
               >
                 {task.project.name}
               </Link>
-            </CardDescription>
-          </div>
-          {canWrite ? (
-            <Button asChild variant="outline" size="sm">
-              <Link to="/tasks/$taskId/edit" params={{ taskId }}>
-                Edit
-              </Link>
-            </Button>
-          ) : null}
-        </CardHeader>
+            </p>
+          </header>
 
-        <CardContent>
-          <dl className="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">
-            <dt className="text-muted-foreground">Status</dt>
-            <dd>
+          <section className="flex flex-col gap-2">
+            <h2 className="text-[13px] font-medium">Description</h2>
+            <p className="whitespace-pre-wrap text-[13px] text-muted-foreground">
+              {task.description ?? 'None'}
+            </p>
+          </section>
+
+          <CommentsCard
+            target={{ kind: 'task', id: task.id }}
+            actor={{ id: actor.id, role: actor.role.name }}
+          />
+        </>
+      }
+      side={
+        <>
+          <Properties>
+            <Property label="Status">
               <StatusBadge status={task.status} />
-            </dd>
-
-            <dt className="text-muted-foreground">Priority</dt>
-            <dd>
+            </Property>
+            <Property label="Priority">
               {canWrite ? (
                 <PriorityControl taskId={task.id} title={task.title} priority={task.priority} />
               ) : (
                 <PriorityBadge priority={task.priority} />
               )}
-            </dd>
-
-            <dt className="text-muted-foreground">Assignee</dt>
-            <dd>{task.assignee?.name ?? 'Unassigned'}</dd>
-
-            <dt className="text-muted-foreground">Due date</dt>
-            <dd>
+            </Property>
+            <Property label="Assignee">
+              {task.assignee?.name ? <AvatarChip name={task.assignee.name} /> : 'Unassigned'}
+            </Property>
+            <Property label="Due">
               <DueDate value={task.dueDate} status={task.status} />
-            </dd>
+            </Property>
+            <Property label="Created by">
+              {task.creator?.name ? <AvatarChip name={task.creator.name} /> : 'Unknown'}
+            </Property>
+            <Property label="Completed">
+              {task.completedAt ? task.completedAt.slice(0, 10) : '—'}
+            </Property>
+          </Properties>
 
-            <dt className="text-muted-foreground">Created by</dt>
-            <dd>{task.creator?.name ?? 'Unknown'}</dd>
+          <div className="flex flex-col gap-1">
+            {canWrite ? (
+              <Button asChild variant="ghost" size="sm" className="justify-start">
+                <Link to="/tasks/$taskId/edit" params={{ taskId }}>
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+            {nextTaskStatuses(task.status).map((status) => (
+              <Button
+                key={status}
+                variant={status === 'blocked' ? 'destructive' : 'ghost'}
+                size="sm"
+                className="justify-start capitalize"
+                onClick={() => setNextStatus(status)}
+              >
+                {status.replaceAll('_', ' ')}
+              </Button>
+            ))}
+            {canWrite ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="justify-start"
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete
+              </Button>
+            ) : null}
+          </div>
 
-            <dt className="text-muted-foreground">Completed</dt>
-            <dd>{task.completedAt ? task.completedAt.slice(0, 10) : '—'}</dd>
+          <TaskStatusDialog
+            taskId={task.id}
+            title={task.title}
+            currentStatus={task.status}
+            nextStatus={nextStatus}
+            onClose={() => setNextStatus(null)}
+          />
 
-            <dt className="text-muted-foreground">Description</dt>
-            <dd className="whitespace-pre-wrap">{task.description ?? 'None'}</dd>
-          </dl>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-2">
-        {nextTaskStatuses(task.status).map((status) => (
-          <Button
-            key={status}
-            variant={status === 'blocked' ? 'destructive' : 'outline'}
-            size="sm"
-            className="capitalize"
-            onClick={() => setNextStatus(status)}
-          >
-            {status.replaceAll('_', ' ')}
-          </Button>
-        ))}
-        {canWrite ? (
-          <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
-            Delete
-          </Button>
-        ) : null}
-      </div>
-
-      <CommentsCard
-        target={{ kind: 'task', id: task.id }}
-        actor={{ id: actor.id, role: actor.role.name }}
-      />
-
-      <TaskStatusDialog
-        taskId={task.id}
-        title={task.title}
-        currentStatus={task.status}
-        nextStatus={nextStatus}
-        onClose={() => setNextStatus(null)}
-      />
-
-      <DeleteTaskDialog
-        taskId={task.id}
-        title={task.title}
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-      />
-    </div>
+          <DeleteTaskDialog
+            taskId={task.id}
+            title={task.title}
+            open={confirmDelete}
+            onClose={() => setConfirmDelete(false)}
+          />
+        </>
+      }
+    />
   )
 }
 

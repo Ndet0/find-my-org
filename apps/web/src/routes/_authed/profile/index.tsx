@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { AvatarChip } from '@/components/avatar-chip'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { currentUserQueryOptions } from '@/lib/current-user'
 
 /**
@@ -18,51 +18,52 @@ function ProfilePage() {
   const { data: user } = useSuspenseQuery(currentUserQueryOptions)
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">{user.name}</CardTitle>
-            <CardDescription>{user.email}</CardDescription>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/profile/edit">Edit</Link>
-          </Button>
-        </CardHeader>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+      <header className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-[15px] font-medium">Profile</h1>
+          <p className="text-[13px] text-muted-foreground">{user.email}</p>
+        </div>
+        <AvatarChip name={user.name} />
+      </header>
 
-        <CardContent>
-          <dl className="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">
-            <dt className="text-muted-foreground">Role</dt>
-            <dd className="capitalize">{user.role.name}</dd>
+      <section className="divide-y rounded-lg border">
+        <SettingRow label="Name" value={user.name} />
+        <SettingRow label="Role" value={user.role.name} capitalize />
+        <SettingRow label="Department" value={user.department?.name ?? 'Unassigned'} />
+        <SettingRow label="Position" value={user.position ?? 'Unassigned'} />
+        <SettingRow label="Phone" value={user.phone ?? 'Not provided'} />
+        <SettingRow label="Joined" value={user.joinedAt ?? 'Unknown'} />
+      </section>
 
-            <dt className="text-muted-foreground">Department</dt>
-            <dd>{user.department?.name ?? 'Unassigned'}</dd>
+      <div className="flex gap-2">
+        <Button asChild size="sm">
+          <Link to="/profile/edit">Edit profile</Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/profile/password">Change password</Link>
+        </Button>
+      </div>
+      <p className="text-[12px] text-muted-foreground">
+        Changing your password signs you out everywhere else, but not on this device.
+      </p>
+    </div>
+  )
+}
 
-            <dt className="text-muted-foreground">Position</dt>
-            <dd>{user.position ?? 'Unassigned'}</dd>
-
-            <dt className="text-muted-foreground">Phone</dt>
-            <dd>{user.phone ?? 'Not provided'}</dd>
-
-            <dt className="text-muted-foreground">Joined</dt>
-            <dd>{user.joinedAt ?? 'Unknown'}</dd>
-          </dl>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">Password</CardTitle>
-            <CardDescription>
-              Changing it signs you out everywhere else, but not on this device.
-            </CardDescription>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/profile/password">Change</Link>
-          </Button>
-        </CardHeader>
-      </Card>
+function SettingRow({
+  label,
+  value,
+  capitalize,
+}: {
+  label: string
+  value: string
+  capitalize?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-3 py-2.5 text-[13px]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={capitalize ? 'capitalize' : undefined}>{value}</span>
     </div>
   )
 }

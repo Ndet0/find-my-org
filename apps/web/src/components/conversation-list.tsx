@@ -2,9 +2,9 @@ import type { DmConversationItem } from '@opsflow/types/dm'
 import type { CurrentUser } from '@opsflow/types/user'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
+import { Inbox, Plus } from 'lucide-react'
+import { AvatarChip } from '@/components/avatar-chip'
 import { useIdentity } from '@/components/messaging-gate'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ApiRequestError } from '@/lib/api'
@@ -25,10 +25,10 @@ export function ConversationList({
   const conversations = useQuery(conversationsQueryOptions())
 
   return (
-    <nav aria-label="Conversations" className="flex flex-col rounded-lg border bg-background">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-        <span className="text-sm font-medium">Conversations</span>
-        <Button size="sm" variant="outline" onClick={onCompose}>
+    <nav aria-label="Conversations" className="flex min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+        <span className="text-[13px] font-medium">Inbox</span>
+        <Button size="sm" variant="ghost" onClick={onCompose}>
           <Plus className="size-4" aria-hidden />
           New
         </Button>
@@ -50,13 +50,17 @@ export function ConversationList({
       ) : null}
 
       {conversations.data?.length === 0 ? (
-        <p className="p-3 text-sm text-muted-foreground">
-          No conversations yet. Start one with New.
-        </p>
+        <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+          <Inbox className="size-5 text-muted-foreground" aria-hidden />
+          <p className="text-[13px] text-muted-foreground">No conversations yet.</p>
+          <Button size="sm" variant="ghost" onClick={onCompose}>
+            New message
+          </Button>
+        </div>
       ) : null}
 
       {conversations.data && conversations.data.length > 0 ? (
-        <ul className="flex flex-col divide-y">
+        <ul className="flex flex-col">
           {conversations.data.map((conversation) => (
             <li key={conversation.id}>
               <ConversationRow conversation={conversation} user={user} />
@@ -83,29 +87,32 @@ function ConversationRow({
     <Link
       to="/messages/$conversationId"
       params={{ conversationId: conversation.id }}
-      className={cn(
-        'flex flex-col gap-0.5 px-3 py-2 text-sm transition-colors hover:bg-accent',
-        conversation.unread > 0 && 'bg-muted/40',
-      )}
+      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150 hover:bg-accent"
       activeProps={{ className: 'bg-accent' }}
     >
-      <span className="flex items-center justify-between gap-2">
-        <span className={cn('truncate', conversation.unread > 0 ? 'font-semibold' : 'font-medium')}>
-          {peer.name}
+      {conversation.unread > 0 ? (
+        <span className="size-1.5 shrink-0 rounded-full bg-primary" title="Unread" />
+      ) : (
+        <span className="size-1.5 shrink-0" aria-hidden />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <AvatarChip
+            name={peer.name}
+            className={cn(
+              conversation.unread > 0 ? 'font-medium text-foreground' : 'text-foreground',
+            )}
+          />
+          {lastMessage ? (
+            <time
+              dateTime={lastMessage.createdAt}
+              className="shrink-0 text-[12px] text-muted-foreground"
+            >
+              {formatWhen(lastMessage.createdAt)}
+            </time>
+          ) : null}
         </span>
-        {conversation.unread > 0 ? (
-          <Badge variant="default" className="h-5 min-w-5 px-1">
-            {conversation.unread > 99 ? '99+' : conversation.unread}
-          </Badge>
-        ) : null}
-      </span>
-      <span className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-        <span className="truncate">{preview}</span>
-        {lastMessage ? (
-          <time dateTime={lastMessage.createdAt} className="shrink-0">
-            {formatWhen(lastMessage.createdAt)}
-          </time>
-        ) : null}
+        <span className="block truncate pl-6 text-[12px] text-muted-foreground">{preview}</span>
       </span>
     </Link>
   )

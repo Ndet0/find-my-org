@@ -16,6 +16,7 @@ export function Toaster(props: ToasterProps) {
   return (
     <Sonner
       theme={resolved}
+      position="bottom-right"
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
