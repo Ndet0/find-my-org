@@ -3,6 +3,7 @@ import { USER_STATUSES, type UserListFilters, type UserStatus } from '@opsflow/t
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { z } from 'zod'
+import { AvatarChip } from '@/components/avatar-chip'
 import { ListPending } from '@/components/route-feedback'
 import { SearchField } from '@/components/search-field'
 import { StatusBadge } from '@/components/status-badge'
@@ -82,10 +83,10 @@ function UsersPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
+          <h1 className="text-[15px] font-medium tracking-tight">Team</h1>
           <p className="text-sm text-muted-foreground">
             {`${users.data.total} ${users.data.total === 1 ? 'person' : 'people'}`}
           </p>
@@ -135,7 +136,7 @@ function UsersPage() {
         <RefreshFailed error={users.error} onRetry={() => void users.refetch()} />
       ) : null}
 
-      <div className="rounded-lg border bg-background">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -163,11 +164,11 @@ function UsersPage() {
                   <Link
                     to="/users/$userId"
                     params={{ userId: user.id }}
-                    className="font-medium hover:underline"
+                    className="font-medium hover:text-foreground"
                   >
-                    {user.name}
+                    <AvatarChip name={user.name} />
                   </Link>
-                  <div className="text-xs text-muted-foreground">{user.email}</div>
+                  <div className="pl-6 text-[12px] text-muted-foreground">{user.email}</div>
                 </TableCell>
                 <TableCell className="capitalize">{user.role.name}</TableCell>
                 <TableCell>{user.department?.name ?? '—'}</TableCell>
@@ -179,9 +180,9 @@ function UsersPage() {
                   <TableCell>
                     <Button
                       asChild
-                      variant="link"
+                      variant="ghost"
                       size="sm"
-                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                      className="row-actions h-7 px-2 text-muted-foreground"
                     >
                       <Link to="/users/$userId/edit" params={{ userId: user.id }}>
                         Edit

@@ -76,10 +76,10 @@ function ClientsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
+          <h1 className="text-[15px] font-medium tracking-tight">Clients</h1>
           <p className="text-sm text-muted-foreground">
             {`${clients.data.total} ${clients.data.total === 1 ? 'client' : 'clients'}`}
           </p>
@@ -113,7 +113,7 @@ function ClientsPage() {
         <RefreshFailed error={clients.error} onRetry={() => void clients.refetch()} />
       ) : null}
 
-      <div className="rounded-lg border bg-background">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -159,9 +159,9 @@ function ClientsPage() {
                   <TableCell>
                     <Button
                       asChild
-                      variant="link"
+                      variant="ghost"
                       size="sm"
-                      className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                      className="row-actions h-7 px-2 text-muted-foreground"
                     >
                       <Link to="/clients/$clientId/edit" params={{ clientId: client.id }}>
                         Edit

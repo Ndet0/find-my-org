@@ -67,10 +67,10 @@ function DepartmentsPage() {
   const [deleting, setDeleting] = useState<DepartmentListItem | null>(null)
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Departments</h1>
+          <h1 className="text-[15px] font-medium tracking-tight">Departments</h1>
           <p className="text-sm text-muted-foreground">
             {`${departments.data.length} ${departments.data.length === 1 ? 'department' : 'departments'}`}
           </p>
@@ -82,7 +82,7 @@ function DepartmentsPage() {
         <RefreshFailed error={departments.error} onRetry={() => void departments.refetch()} />
       ) : null}
 
-      <div className="rounded-lg border bg-background">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -120,17 +120,17 @@ function DepartmentsPage() {
                   <TableCell>
                     <div className="flex gap-3">
                       <Button
-                        variant="link"
+                        variant="ghost"
                         size="sm"
-                        className="h-auto p-0 text-muted-foreground hover:text-foreground"
+                        className="row-actions h-7 px-2 text-muted-foreground"
                         onClick={() => setEditing(department)}
                       >
                         Edit
                       </Button>
                       <Button
-                        variant="link"
+                        variant="ghost"
                         size="sm"
-                        className="h-auto p-0 text-destructive"
+                        className="row-actions h-7 px-2 text-destructive"
                         onClick={() => setDeleting(department)}
                       >
                         Delete

@@ -56,11 +56,11 @@ function HomePage() {
   const role = user.role.name
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {user.name}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-[15px] font-medium tracking-tight">Welcome back, {user.name}</h1>
+          <p className="text-[13px] text-muted-foreground">
             {role === 'admin'
               ? 'Organization overview'
               : role === 'manager'
@@ -331,7 +331,7 @@ function KpiCard({ label, value, sub, link }: KpiProps) {
           {value === undefined ? (
             <Skeleton className="h-8 w-12" />
           ) : (
-            <div className="text-2xl font-semibold tabular-nums">{value}</div>
+            <div className="text-lg font-medium tabular-nums">{value}</div>
           )}
           {sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
         </CardContent>

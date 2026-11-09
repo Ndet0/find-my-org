@@ -133,7 +133,7 @@ function Thread({ conversationId }: { conversationId: string }) {
   return (
     <section
       aria-label={`Conversation with ${peer.name}`}
-      className="flex h-[70vh] min-h-96 flex-col rounded-lg border bg-background"
+      className="flex h-full min-h-96 flex-col border-l"
     >
       <header className="flex items-center gap-3 border-b px-4 py-3">
         <Link to="/messages" className="text-sm text-muted-foreground md:hidden">

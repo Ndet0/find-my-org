@@ -3,10 +3,11 @@ import { USER_STATUSES, type UserStatus } from '@opsflow/types/user'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
+import { AvatarChip } from '@/components/avatar-chip'
+import { DetailLayout, Properties, Property } from '@/components/detail-layout'
 import { DetailPending } from '@/components/route-feedback'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserStatusDialog } from '@/components/user-status-dialog'
 import { userQueryOptions } from '@/lib/users'
 
@@ -30,77 +31,66 @@ function UserDetailPage() {
   const [nextStatus, setNextStatus] = useState<UserStatus | null>(null)
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      <Link to="/users" className="w-fit text-sm text-muted-foreground hover:text-foreground">
-        Back to team
-      </Link>
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
+    <DetailLayout
+      main={
+        <header className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-xl">{user.name}</CardTitle>
-            <CardDescription>{user.email}</CardDescription>
+            <h1 className="text-[20px] font-medium tracking-tight">
+              <AvatarChip name={user.name} className="text-[20px]" />
+            </h1>
+            <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p>
           </div>
           {canWrite ? (
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="ghost" size="sm">
               <Link to="/users/$userId/edit" params={{ userId }}>
                 Edit
               </Link>
             </Button>
           ) : null}
-        </CardHeader>
-
-        <CardContent>
-          <dl className="grid grid-cols-[8rem_1fr] gap-y-3 text-sm">
-            <dt className="text-muted-foreground">Status</dt>
-            <dd>
+        </header>
+      }
+      side={
+        <>
+          <Properties>
+            <Property label="Status">
               <StatusBadge status={user.status} />
-            </dd>
-
-            <dt className="text-muted-foreground">Role</dt>
-            <dd className="capitalize">{user.role.name}</dd>
-
-            <dt className="text-muted-foreground">Department</dt>
-            <dd>{user.department?.name ?? 'Unassigned'}</dd>
-
-            <dt className="text-muted-foreground">Position</dt>
-            <dd>{user.position ?? 'Unassigned'}</dd>
-
-            <dt className="text-muted-foreground">Phone</dt>
-            <dd>{user.phone ?? 'Not provided'}</dd>
-
-            <dt className="text-muted-foreground">Joined</dt>
-            <dd>{user.joinedAt ?? 'Unknown'}</dd>
-          </dl>
-        </CardContent>
-      </Card>
-
-      {canWrite && user.id !== actor.id ? (
-        <div className="flex flex-wrap gap-2">
-          {USER_STATUSES.filter((status) => status !== user.status).map((status) => (
-            <Button
-              key={status}
-              variant={status === 'active' ? 'outline' : 'destructive'}
-              size="sm"
-              className="capitalize"
-              onClick={() => setNextStatus(status)}
-            >
-              {status === 'active'
-                ? 'Reactivate'
-                : status === 'inactive'
-                  ? 'Deactivate'
-                  : 'Suspend'}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-
-      <UserStatusDialog
-        userId={user.id}
-        name={user.name}
-        currentStatus={user.status}
-        nextStatus={nextStatus}
-        onClose={() => setNextStatus(null)}
-      />
-    </div>
+            </Property>
+            <Property label="Role">
+              <span className="capitalize">{user.role.name}</span>
+            </Property>
+            <Property label="Department">{user.department?.name ?? 'Unassigned'}</Property>
+            <Property label="Position">{user.position ?? 'Unassigned'}</Property>
+            <Property label="Phone">{user.phone ?? 'Not provided'}</Property>
+            <Property label="Joined">{user.joinedAt ?? 'Unknown'}</Property>
+          </Properties>
+          {canWrite && user.id !== actor.id ? (
+            <div className="flex flex-col gap-1">
+              {USER_STATUSES.filter((status) => status !== user.status).map((status) => (
+                <Button
+                  key={status}
+                  variant={status === 'active' ? 'ghost' : 'destructive'}
+                  size="sm"
+                  className="justify-start capitalize"
+                  onClick={() => setNextStatus(status)}
+                >
+                  {status === 'active'
+                    ? 'Reactivate'
+                    : status === 'inactive'
+                      ? 'Deactivate'
+                      : 'Suspend'}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <UserStatusDialog
+            userId={user.id}
+            name={user.name}
+            currentStatus={user.status}
+            nextStatus={nextStatus}
+            onClose={() => setNextStatus(null)}
+          />
+        </>
+      }
+    />
   )
 }

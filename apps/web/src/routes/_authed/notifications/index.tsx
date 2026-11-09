@@ -91,10 +91,10 @@ function NotificationsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
+          <h1 className="text-[15px] font-medium tracking-tight">Notifications</h1>
           <p className="text-sm text-muted-foreground">
             {`${notifications.data.total} ${notifications.data.total === 1 ? 'notification' : 'notifications'}`}
           </p>
@@ -124,7 +124,7 @@ function NotificationsPage() {
         <RefreshFailed error={notifications.error} onRetry={() => void notifications.refetch()} />
       ) : null}
 
-      <div className="rounded-lg border bg-background">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -147,9 +147,18 @@ function NotificationsPage() {
             ) : null}
 
             {notifications.data.items.map((item) => (
-              <TableRow key={item.id} className={item.isRead ? undefined : 'bg-muted/40'}>
+              <TableRow key={item.id}>
                 <TableCell>
-                  <p className={item.isRead ? 'font-medium' : 'font-semibold'}>{item.title}</p>
+                  <p className="flex items-center gap-2">
+                    {item.isRead ? (
+                      <span className="size-1.5 shrink-0" aria-hidden />
+                    ) : (
+                      <span className="size-1.5 shrink-0 rounded-full bg-primary" title="Unread" />
+                    )}
+                    <span className={item.isRead ? 'font-medium' : 'font-medium text-foreground'}>
+                      {item.title}
+                    </span>
+                  </p>
                   <p className="text-sm text-muted-foreground">{item.message}</p>
                 </TableCell>
                 <TableCell>
@@ -165,8 +174,9 @@ function NotificationsPage() {
                     <span className="text-sm text-muted-foreground">Read</span>
                   ) : (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
+                      className="row-actions"
                       onClick={() => markOne.mutate(item.id)}
                       disabled={markOne.isPending}
                     >
